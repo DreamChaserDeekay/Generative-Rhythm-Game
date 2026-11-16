@@ -26,6 +26,8 @@ import numpy as np
 from PIL import Image, ImageDraw
 from scipy import ndimage
 
+from flipbook_light import measure
+
 ROOT = Path(__file__).resolve().parents[2]
 SRC = ROOT / "assets-src" / "styles"
 MEDIA = ROOT / "client" / "public" / "media"
@@ -240,8 +242,9 @@ HIT_SPAN = HIT_ROOM / HIT_SIZE
 
 
 def hit_entry(file: str, kind: str) -> dict:
-    """A hit flipbook's manifest entry: `kind` "burst" (once, fast) or "hold" (a loop)."""
-    return {
+    """A hit flipbook's manifest entry: `kind` "burst" (once, fast) or "hold" (a loop). Its sheet is written already:
+    a burst's entry says where the hit starts, measured from it (flipbook_light.py)."""
+    entry = {
         "file": file,
         "bundle": "effects",
         "size": [HIT_CELL * 4, HIT_CELL * 4],
@@ -249,6 +252,7 @@ def hit_entry(file: str, kind: str) -> dict:
         "anchorY": 0.5,
         "span": round(HIT_SPAN, 4),
     }
+    return measure(entry, Image.open(MEDIA / file)) if kind == "burst" else entry
 
 
 def light_cells() -> dict[str, np.ndarray]:

@@ -13,11 +13,13 @@
         "rows": 4,
         "frames": 9,
         "fps": 28.1,
-        "loop": false
+        "loop": false,
+        "peak": 3
       },
       "anchorY": 0.5,
       "span": 0.94,
-      "plain": true
+      "plain": true,
+      "tone": "#7bf1ff"
     },
     "aqua/hitHold": {
       "file": "fx/aqua_hold.webp",
@@ -58,11 +60,13 @@
         "rows": 4,
         "frames": 10,
         "fps": 31.2,
-        "loop": false
+        "loop": false,
+        "peak": 2
       },
       "anchorY": 0.5,
       "span": 0.83,
-      "plain": true
+      "plain": true,
+      "tone": "#fff3be"
     },
     "astral/hitHold": {
       "file": "fx/astral_hold.webp",
@@ -103,7 +107,8 @@
         "rows": 4,
         "frames": 9,
         "fps": 28.1,
-        "loop": false
+        "loop": false,
+        "peak": 1
       },
       "anchorY": 0.5,
       "span": 0.81
@@ -138,7 +143,8 @@
         "rows": 4,
         "frames": 16,
         "fps": 60,
-        "loop": false
+        "loop": false,
+        "peak": 2
       },
       "anchorY": 0.5,
       "span": 1.375
@@ -172,11 +178,13 @@
         "rows": 4,
         "frames": 9,
         "fps": 28.1,
-        "loop": false
+        "loop": false,
+        "peak": 3
       },
       "anchorY": 0.5,
       "span": 0.93,
-      "plain": true
+      "plain": true,
+      "tone": "#ffa980"
     },
     "claude/hitHold": {
       "file": "fx/claude_hold.webp",
@@ -217,7 +225,8 @@
         "rows": 4,
         "frames": 16,
         "fps": 60,
-        "loop": false
+        "loop": false,
+        "peak": 2
       },
       "anchorY": 0.5,
       "span": 1.375
@@ -275,7 +284,8 @@
         "rows": 4,
         "frames": 16,
         "fps": 60,
-        "loop": false
+        "loop": false,
+        "peak": 1
       },
       "anchorY": 0.5,
       "span": 1.375
@@ -341,11 +351,13 @@
         "rows": 4,
         "frames": 11,
         "fps": 34.4,
-        "loop": false
+        "loop": false,
+        "peak": 3
       },
       "anchorY": 0.5,
       "span": 0.75,
-      "plain": true
+      "plain": true,
+      "tone": "#ff97a0"
     },
     "fire/hitHold": {
       "file": "fx/fire_hold.webp",
@@ -386,7 +398,8 @@
         "rows": 4,
         "frames": 16,
         "fps": 60,
-        "loop": false
+        "loop": false,
+        "peak": 1
       },
       "anchorY": 0.5,
       "span": 1.375
@@ -420,7 +433,8 @@
         "rows": 4,
         "frames": 16,
         "fps": 60,
-        "loop": false
+        "loop": false,
+        "peak": 2
       },
       "anchorY": 0.5,
       "span": 1.375
@@ -454,11 +468,13 @@
         "rows": 4,
         "frames": 10,
         "fps": 31.2,
-        "loop": false
+        "loop": false,
+        "peak": 2
       },
       "anchorY": 0.5,
       "span": 0.84,
-      "plain": true
+      "plain": true,
+      "tone": "#b88eff"
     },
     "gemini/hitHold": {
       "file": "fx/gemini_hold.webp",
@@ -499,11 +515,13 @@
         "rows": 4,
         "frames": 11,
         "fps": 34.4,
-        "loop": false
+        "loop": false,
+        "peak": 4
       },
       "anchorY": 0.5,
       "span": 0.75,
-      "plain": true
+      "plain": true,
+      "tone": "#53ffd9"
     },
     "gpt/hitHold": {
       "file": "fx/gpt_hold.webp",
@@ -544,7 +562,8 @@
         "rows": 4,
         "frames": 16,
         "fps": 60,
-        "loop": false
+        "loop": false,
+        "peak": 6
       },
       "anchorY": 0.5,
       "span": 1.375
@@ -578,11 +597,13 @@
         "rows": 4,
         "frames": 11,
         "fps": 34.4,
-        "loop": false
+        "loop": false,
+        "peak": 2
       },
       "anchorY": 0.5,
       "span": 0.85,
-      "plain": true
+      "plain": true,
+      "tone": "#fefffd"
     },
     "grok/hitHold": {
       "file": "fx/grok_hold.webp",
@@ -623,7 +644,8 @@
         "rows": 4,
         "frames": 16,
         "fps": 60,
-        "loop": false
+        "loop": false,
+        "peak": 2
       },
       "anchorY": 0.5,
       "span": 1.375
@@ -681,7 +703,8 @@
         "rows": 4,
         "frames": 16,
         "fps": 60,
-        "loop": false
+        "loop": false,
+        "peak": 6
       },
       "anchorY": 0.5,
       "span": 1.375
@@ -739,11 +762,13 @@
         "rows": 4,
         "frames": 10,
         "fps": 31.2,
-        "loop": false
+        "loop": false,
+        "peak": 3
       },
       "anchorY": 0.5,
       "span": 1.2,
-      "plain": true
+      "plain": true,
+      "tone": "#ff4c52"
     },
     "noir/hitHold": {
       "file": "fx/noir_hold.webp",
@@ -792,7 +817,8 @@
         "rows": 4,
         "frames": 16,
         "fps": 60,
-        "loop": false
+        "loop": false,
+        "peak": 3
       },
       "anchorY": 0.5,
       "span": 1.375
@@ -834,11 +860,13 @@
         "rows": 4,
         "frames": 11,
         "fps": 34.4,
-        "loop": false
+        "loop": false,
+        "peak": 1
       },
       "anchorY": 0.5,
       "span": 0.8,
-      "plain": true
+      "plain": true,
+      "tone": "#cdedff"
     },
     "prism/hitHold": {
       "file": "fx/prism_hold.webp",
@@ -887,11 +915,13 @@
         "rows": 4,
         "frames": 12,
         "fps": 37.5,
-        "loop": false
+        "loop": false,
+        "peak": 3
       },
       "anchorY": 0.5,
       "span": 0.75,
-      "plain": true
+      "plain": true,
+      "tone": "#c7f4ff"
     },
     "sky/hitHold": {
       "file": "fx/sky_hold.webp",
@@ -980,11 +1010,13 @@
         "rows": 4,
         "frames": 9,
         "fps": 28.1,
-        "loop": false
+        "loop": false,
+        "peak": 2
       },
       "anchorY": 0.5,
       "span": 0.77,
-      "plain": true
+      "plain": true,
+      "tone": "#bce2ff"
     },
     "steel/hitHold": {
       "file": "fx/steel_hold.webp",
@@ -1025,11 +1057,13 @@
         "rows": 4,
         "frames": 11,
         "fps": 34.4,
-        "loop": false
+        "loop": false,
+        "peak": 3
       },
       "anchorY": 0.5,
       "span": 0.79,
-      "plain": true
+      "plain": true,
+      "tone": "#fefffb"
     },
     "wire/hitHold": {
       "file": "fx/wire_hold.webp",

@@ -14,8 +14,9 @@ game colours with the lane's colour.
 What is done to a sheet: its black is made black (the model's is not quite, and JPEG adds noise), every frame fades out
 toward the edges of its cell (a ray that reaches the edge would end in a straight line), the frames after the effect
 has gone are dropped, and so is a first frame that is next to nothing (the flash is there the moment the key goes
-down). A hit lasts BURST_SECONDS whatever its number of frames. The layouts written here are read by
-client/src/render/skinArt.ts and styleArt.ts: change them together.
+down). A hit lasts BURST_SECONDS whatever its number of frames, and starts at the first frame about as bright as its
+brightest ("peak" in the manifest, and "tone", the colour of its light there: flipbook_light.py). The layouts written
+here are read by client/src/render/skinArt.ts and styleArt.ts: change them together.
 Needs Pillow and numpy.
 """
 
@@ -27,6 +28,8 @@ from pathlib import Path
 
 import numpy as np
 from PIL import Image
+
+from flipbook_light import measure
 
 ROOT = Path(__file__).resolve().parents[2]
 SRC = ROOT / "assets-src" / "styles" / "skinfx"
@@ -202,6 +205,10 @@ def main() -> None:
             path = out / entry["file"]
             path.parent.mkdir(parents=True, exist_ok=True)
             image.save(path, "WEBP", quality=90, method=6)
+            if kind == "burst":
+                # where the hit starts (the sheet as the game gets it): flipbook_light.py
+                measure(entry, Image.open(path))
+                info["peak"] = entry["flipbook"]["peak"]
             textures[f"{name}/hit{'Burst' if kind == 'burst' else 'Hold'}"] = entry
             print(f"{name} {kind}: {path.stat().st_size // 1024} KB", info)
     if opts.out:

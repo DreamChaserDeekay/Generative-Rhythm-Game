@@ -64,14 +64,23 @@ export function tintMaterial(params: THREE.MeshBasicMaterialParameters, { base =
   return material;
 }
 
+/** Two frames of a flipbook mixed in one quad (lightMaterial): the UV step from the frame shown to the next, and how much of the next shows. */
+export interface FrameBlend {
+  step: THREE.Vector2;
+  mix: { value: number };
+}
+
 /**
  * A flipbook of light on black, in the material's colour, as the sheets drew the crystal set's
  * flipbooks: the light takes the colour and its brightest core (from `core` up) stays white.
  * The light is added to what is behind it, and the canvas is made only as opaque as the light is
  * bright: its black (the whole picture is opaque) would otherwise hide a background video or the
  * visualizer behind the see-through canvas around the gear.
+ * With `blend` the frame the texture shows is mixed with the one `blend.step` from it, `blend.mix` of
+ * the way (as the sheets' frames are drawn: in sRGB), so a sheet of fewer frames a second than the
+ * screen shows moves on every one of them.
  */
-export function lightMaterial(params: THREE.MeshBasicMaterialParameters, core: number): THREE.MeshBasicMaterial {
+export function lightMaterial(params: THREE.MeshBasicMaterialParameters, core: number, blend?: FrameBlend): THREE.MeshBasicMaterial {
   const material = new THREE.MeshBasicMaterial({
     ...params,
     blending: THREE.CustomBlending,
@@ -82,11 +91,23 @@ export function lightMaterial(params: THREE.MeshBasicMaterialParameters, core: n
     blendDstAlpha: THREE.OneMinusSrcAlphaFactor,
   });
   material.onBeforeCompile = (shader) => {
+    if (blend) {
+      shader.uniforms.frameStep = { value: blend.step };
+      shader.uniforms.frameMix = blend.mix;
+      shader.fragmentShader = `uniform vec2 frameStep;\nuniform float frameMix;\n${shader.fragmentShader}`;
+    }
     shader.fragmentShader = shader.fragmentShader.replace(
       '#include <map_fragment>',
       `#ifdef USE_MAP
         vec4 lightTexel = texture2D( map, vMapUv );
         vec3 light = sRGBTransferOETF( lightTexel ).rgb;
+        ${
+          blend
+            ? `vec4 lightNext = texture2D( map, vMapUv + frameStep );
+        light = mix( light, sRGBTransferOETF( lightNext ).rgb, frameMix );
+        lightTexel.a = mix( lightTexel.a, lightNext.a, frameMix );`
+            : ''
+        }
         float lightCore = smoothstep( ${core.toFixed(3)}, 1.0, max( light.r, max( light.g, light.b ) ) );
         vec3 lit = mix( sRGBTransferOETF( vec4( diffuseColor.rgb, 1.0 ) ).rgb, vec3( 1.0 ), lightCore ) * light;
         // premultiplied: the colour as much as it shows, the alpha as bright as the light
@@ -96,7 +117,7 @@ export function lightMaterial(params: THREE.MeshBasicMaterialParameters, core: n
       #endif`,
     );
   };
-  material.customProgramCacheKey = () => `light${core}`;
+  material.customProgramCacheKey = () => `light${core}${blend ? 'blend' : ''}`;
   return material;
 }
 
