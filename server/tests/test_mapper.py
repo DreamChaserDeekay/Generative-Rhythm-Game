@@ -388,3 +388,102 @@ def test_with_no_idle_time_the_worker_keeps_the_model_and_the_config_lets_go_aft
         assert svc.loaded() and svc._idle_timer is None
     finally:
         svc.close()
+
+
+def _eighths(start_ms: float, end_ms: float, bpm: float) -> list[dict]:
+    """Onsets on every eighth of a tempo, as the analysis gives them."""
+    step = 30000.0 / bpm
+    return [{"t": start_ms + i * step} for i in range(int((end_ms - start_ms) / step))]
+
+
+def test_a_tempo_the_song_does_not_follow_is_taken_out_and_the_one_before_runs_on() -> None:
+    from rhythm_server.formats.osu import timing_from_reds
+
+    beat = 60000.0 / 180
+    onsets = _eighths(100.0, 300_000.0, 180.0)
+    # the timing pass lost the beat from 160 s: 67 BPM (the song's eighths are not on it), then 2.9 and 29.5
+    lost = timing_from_reds([(100.0, beat, 4), (160_000.0, 60000.0 / 67, 4), (200_000.0, 60000.0 / 2.9, 4), (250_000.0, 60000.0 / 29.5, 4)])
+    fixed, dropped = charts.checked_timing(lost, onsets, 300_000.0)
+    assert [(d["why"], round(d["bpm"], 1)) for d in dropped] == [("onsets", 67.0), ("bounds", 2.9), ("bounds", 29.5)]
+    assert [p["bpm"] for p in fixed["tempoMap"]] == [180.0] and fixed["offsetMs"] == 100.0
+
+
+def test_a_real_tempo_change_a_meter_change_and_a_tempo_with_few_onsets_stay() -> None:
+    from rhythm_server.formats.osu import timing_from_reds
+
+    # 176 -> 185 BPM at 103.6 s: the song's onsets follow the new tempo, not the old one run on
+    onsets = _eighths(0.0, 103_600.0, 176.0) + _eighths(103_600.0, 200_000.0, 185.0)
+    real = timing_from_reds([(0.0, 60000.0 / 176, 4), (103_600.0, 60000.0 / 185, 4)])
+    assert charts.checked_timing(real, onsets, 200_000.0) == (real, [])
+    # 4/4 then 3/4 at the same tempo
+    meter = timing_from_reds([(0.0, 500.0, 4), (64_000.0, 500.0, 3)])
+    assert charts.checked_timing(meter, _eighths(0.0, 128_000.0, 120.0), 128_000.0) == (meter, [])
+    # an outro of five onsets at another tempo: nothing to judge it by
+    outro = timing_from_reds([(0.0, 500.0, 4), (280_000.0, 60000.0 / 90, 4)])
+    onsets = _eighths(0.0, 280_000.0, 120.0) + [{"t": 281_000.0 + 1000.0 * i} for i in range(5)]
+    assert charts.checked_timing(outro, onsets, 300_000.0) == (outro, [])
+    # a single tempo is never taken out
+    one = timing_from_reds([(0.0, 500.0, 4)])
+    assert charts.checked_timing(one, [], 10_000.0) == (one, [])
+
+
+def test_v32s_last_column_goes_on_the_7k1s_scratch_and_v32_minis_first() -> None:
+    cfg = dict(mapper_config())
+    assert cfg["scratchColumn"]["v32"] == "last" and cfg["scratchColumn"]["v32-mini"] == "first"
+    v32, mini = {**cfg, "model": "v32"}, {**cfg, "model": "v32-mini"}
+    assert charts.column_lanes("7K+1S", v32) == [1, 2, 3, 4, 5, 6, 7, 0]
+    assert charts.column_lanes("7K+1S", mini) == list(range(8))
+    assert charts.column_lanes("8K", v32) == list(range(8)) and charts.column_lanes("6K+FX", v32) == charts.columns("6K+FX")
+    # a note in the model's last column is on the scratch, one in its first on the first key
+    text = osu(8, [f"{x_of(7, 8)},192,1000,1,0,0:0:0:0:", f"{x_of(0, 8)},192,1500,1,0,0:0:0:0:"])
+    assert [(n["t"], n["lane"]) for n in charts.notes_from_osu(text, charts.column_lanes("7K+1S", v32))] == [(1000.0, 0), (1500.0, 1)]
+    # v32's 7K+1S charts are new ones (made again when asked for); the others keep their ids
+    a, first = _analysis(), {**v32, "scratchColumn": {"v32": "first"}}
+    assert charts.chart_id(a, "7K+1S", "HARD", 8, 1, v32) != charts.chart_id(a, "7K+1S", "HARD", 8, 1, first)
+    assert charts.chart_id(a, "8K", "HARD", 8, 1, v32) == charts.chart_id(a, "8K", "HARD", 8, 1, first)
+
+
+LOST_BEAT_WORKER = textwrap.dedent('''
+    import json, sys
+    from pathlib import Path
+    for line in sys.stdin:
+        req = json.loads(line)
+        # its own timing loses the beat at 20 s (3 BPM); given a timing, it keeps it
+        reds = ["100,468.75,4,1,0,60,1,0", "20000,20000,4,1,0,60,1,0"]
+        if req.get("beatmap"):
+            text = Path(req["beatmap"]).read_text(encoding="utf-8")
+            reds = [l for l in text.split("[TimingPoints]")[1].splitlines() if l.strip() and not l.startswith("[")]
+        t0, beat = float(reds[0].split(",")[0]), float(reds[0].split(",")[1])
+        keys = int(req["keycount"])
+        objs = [f"{int((i % keys + 0.5) * 512 / keys)},192,{int(round(t0 + i * beat))},1,0,0:0:0:0:" for i in range(48)]
+        out = Path(req["out"]) / "beatmap.osu"
+        head = "osu file format v14\\n[General]\\nMode: 3\\n[Difficulty]\\nCircleSize:%d\\n[TimingPoints]\\n%s\\n[HitObjects]\\n" % (keys, "\\n".join(reds))
+        out.write_text(head + "\\n".join(objs) + "\\n", encoding="utf-8")
+        print(json.dumps({"id": req["id"], "ok": True, "osu": str(out), "seconds": 0.1, "device": "cuda", "precision": "fp32"}), flush=True)
+''')
+
+
+def test_a_first_chart_whose_timing_lost_the_beat_is_made_again_without_it(tmp_path, fake_mapper_runtime) -> None:
+    import soundfile as sf
+
+    from rhythm_server.formats.osu import timing_from_reds
+
+    (fake_mapper_runtime / "fake_worker.py").write_text(LOST_BEAT_WORKER, encoding="utf-8")
+    s = make_structured_song(bpm=128.0, seed=2)
+    wav = tmp_path / "song.wav"
+    sf.write(wav, s.pcm, s.sample_rate)
+    meta = {"songId": None, "title": "T", "artist": "A"}
+    mapper = Mapper()
+    try:
+        chart = mapper.generate(_analysis(), "4K", "HARD", None, 1, meta, wav)
+        gen = chart["meta"]["generator"]
+        assert gen["timing"] == "model" and [(d["why"], d["ms"]) for d in gen["timingFixed"]] == [("bounds", 20000.0)]
+        assert [p["bpm"] for p in chart["timing"]["tempoMap"]] == [128.0]
+        assert gen["seconds"] == pytest.approx(0.2)  # made twice: again on the timing without the lost beat
+        # a song's timing kept from before this check, with the lost beat, is checked as its next chart is made
+        lost = timing_from_reds([(100.0, 468.75, 4), (20000.0, 20000.0, 4)])
+        again = mapper.generate(_analysis(), "4K", "NORMAL", None, 1, meta, wav, lambda: lost)
+        assert again["meta"]["generator"]["timing"] == "song" and again["meta"]["generator"]["timingFixed"]
+        assert [p["bpm"] for p in again["timing"]["tempoMap"]] == [128.0] and again["meta"]["generator"]["seconds"] == pytest.approx(0.1)
+    finally:
+        mapper.close()
