@@ -4,7 +4,7 @@ import type { ScrollModel } from '../engine/scroll';
 import type { SessionNote } from '../engine/session';
 import type { CameraPoseFx } from './cameraFx';
 import type { StageFrame } from './stageFx';
-import { readNotePicture, readStandees, STAGES, standeeBoxes, standeeCanvas, stickerCanvas, stickerShape, type StageView, type StickerShape } from './standees';
+import { footDrop, readNotePicture, readStandees, STAGES, standeeBoxes, standeeCanvas, stickerCanvas, stickerShape, type StageView, type StickerShape } from './standees';
 import { DECK_GAP, DECK_PICTURE_STRETCH, deckFromPicture, deckKeys, deckReadouts, GEAR_FLOORS, GEAR_JUDGE, judgeOf, paintLitKey, type DeckReadouts, type DeckMark, type FloorView, paintBorder, paintFace, type DeckSpec, type KeyKind, paintPressedKey, type DeckKey, type SideLook } from './deckArt';
 import {
   cameraPose,
@@ -923,7 +923,8 @@ export class TrackRenderer {
   private readonly stageScene = new THREE.Scene();
   private readonly stageCamera = new THREE.OrthographicCamera(0, 1, 1, 0, -1, 1);
   private readonly stageGroup = new THREE.Group();
-  private standees: { mesh: THREE.Mesh; aspect: number; shape?: StickerShape }[] = [];
+  /** `rest`: where each stands while the view is at rest (its middle, its lower corners across and its lower edge; stage px, y up). */
+  private standees: { mesh: THREE.Mesh; aspect: number; shape?: StickerShape; rest?: { x: number; y: number; left: number; right: number; bottom: number } }[] = [];
   private stageLoads = 0;
   /** As stageLoads, for the notes' mark (loadNoteMark). */
   private markLoads = 0;
@@ -1695,7 +1696,8 @@ export class TrackRenderer {
   /**
    * Places the figures: where they stand while the view is at rest (standeeBoxes, from the gear's outer
    * edges as the unzoomed, unrolled view shows them), then moved as the chart's zoom and roll move the
-   * gear on the screen (the judge line's two ends tell how: a turn, a size and a shift).
+   * gear on the screen (the judge line's two ends tell how: a turn, a size and a shift), each brought
+   * back down onto the screen's bottom where that lifts it (footDrop).
    */
   private placeStandees(): void {
     this.stagePlaced = this.planeVersion;
@@ -1718,12 +1720,15 @@ export class TrackRenderer {
       });
       const view: StageView = { width: W, height: H, lineY: edges[0].y, line: [edges[0].line, edges[1].line], bottom: [edges[0].bottom, edges[1].bottom] };
       const boxes = standeeBoxes(this.standees.map((f) => f.aspect), view, STAGES[this.style.deck]?.kind, this.standees.map((f) => f.shape));
-      this.standees.forEach(({ mesh }, i) => {
+      this.standees.forEach((standee, i) => {
+        const { mesh } = standee;
         const box = boxes[i];
         mesh.visible = box !== null;
+        standee.rest = undefined;
         if (!box) return;
         // the stage's plane is the screen's, its y up
-        mesh.position.set(box.x + box.w / 2, H - (box.y + box.h / 2), 0);
+        standee.rest = { x: box.x + box.w / 2, y: H - (box.y + box.h / 2), left: box.x, right: box.x + box.w, bottom: H - (box.y + box.h) };
+        mesh.position.set(standee.rest.x, standee.rest.y, 0);
         mesh.scale.set(box.w, box.h, 1);
         mesh.renderOrder = box.front ? 2 : 1;
       });
@@ -1743,8 +1748,15 @@ export class TrackRenderer {
     const turn = Math.atan2(to.y, to.x) - Math.atan2(from.y, from.x);
     const [cos, sin] = [Math.cos(turn) * size, Math.sin(turn) * size];
     // x' = q0 + R S (x - p0)
-    this.stageGroup.matrix.set(cos, -sin, 0, q0.x - (cos * p0.x - sin * p0.y), sin, cos, 0, q0.y - (sin * p0.x + cos * p0.y), 0, 0, 1, 0, 0, 0, 0, 1);
+    const ty = q0.y - (sin * p0.x + cos * p0.y);
+    this.stageGroup.matrix.set(cos, -sin, 0, q0.x - (cos * p0.x - sin * p0.y), sin, cos, 0, ty, 0, 0, 1, 0, 0, 0, 0, 1);
     this.stageGroup.matrixWorldNeedsUpdate = true;
+    // ... but each keeps standing on the screen's bottom, so the screen under it never shows empty (footDrop)
+    for (const { mesh, rest } of this.standees) {
+      if (!mesh.visible || !rest) continue;
+      const [dx, dy] = footDrop(rest.left, rest.right, rest.bottom, cos, sin, ty);
+      mesh.position.set(rest.x + dx, rest.y + dy, 0);
+    }
   }
 
   dispose(): void {
