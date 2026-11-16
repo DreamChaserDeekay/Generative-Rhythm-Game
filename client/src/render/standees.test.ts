@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { GEAR_STYLES } from './deckArt';
-import { isNotePicture, keptFor, readNotePicture, readStandees, shippedNames, STAGE_SLOTS, STAGES, standeeBoxes, standeeOrder, type StageView } from './standees';
+import { footDrop, isNotePicture, keptFor, readNotePicture, readStandees, shippedNames, STAGE_SLOTS, STAGES, standeeBoxes, standeeOrder, type StageView } from './standees';
 
 // the default camera on a 1280 × 720 screen: the gear's outer edges at the judge line and at the screen's bottom
 const VIEW: StageView = { width: 1280, height: 720, lineY: 553.75, line: [330, 950], bottom: [255, 1025] };
@@ -128,5 +128,49 @@ describe('the figures at a gear’s two sides', () => {
     // a gear that fills the screen (a wide gear on a narrow window, a preview): nobody stands
     expect(standeeBoxes([0.42, 0.42, 0.42, 0.42], { ...VIEW, line: [70, 1210], bottom: [40, 1240] })).toEqual([null, null, null, null]);
     expect(standeeBoxes([], VIEW)).toEqual([]);
+  });
+});
+
+describe('what stands by the gear stays on the screen’s bottom as the view moves it', () => {
+  // the stage's move (TrackRenderer.placeStandees): x' = c x - s y + tx, y' = s x + c y + ty, a turn and a size in c and s
+  const stage = (turnDeg: number, size: number, tx: number, ty: number) => {
+    const [c, s] = [Math.cos((turnDeg * Math.PI) / 180) * size, Math.sin((turnDeg * Math.PI) / 180) * size];
+    return { c, s, ty, at: (x: number, y: number) => [c * x - s * y + tx, s * x + c * y + ty] as const };
+  };
+  // a sticker at the left, its feet on the bottom (stage px, y up): x 140 … 410, 0 … 190
+  const [left, right, bottom, middle] = [140, 410, 0, 95];
+  const feet = (v: ReturnType<typeof stage>) => {
+    const [dx, dy] = footDrop(left, right, bottom, v.c, v.s, v.ty);
+    return { dx, dy, corners: [v.at(left + dx, bottom + dy), v.at(right + dx, bottom + dy)], middle: v.at((left + right) / 2 + dx, middle + dy), before: v.at((left + right) / 2, middle) };
+  };
+
+  it('at rest, and zoomed in (its feet under the bottom as they were), it does not move', () => {
+    expect(feet(stage(0, 1, 0, 0))).toMatchObject({ dx: 0, dy: 0 });
+    // zoomed in about the judge line (553.75 px up from the bottom on a 720 px screen at rest: 166.25)
+    const wide = stage(0, 1.15, 0, 166.25 - 1.15 * 166.25);
+    expect(feet(wide)).toMatchObject({ dx: 0, dy: 0 });
+  });
+
+  it('zoomed out (the end backs the camera away) it goes down onto the bottom, straight down, as big as the stage makes it', () => {
+    const away = stage(0, 0.85, 50, 166.25 - 0.85 * 166.25);
+    const { corners, middle, before } = feet(away);
+    for (const [, y] of corners) expect(y).toBeCloseTo(0, 6);
+    // straight down on the screen: across, where the stage put it
+    expect(middle[0]).toBeCloseTo(before[0], 6);
+    expect(middle[1]).toBeLessThan(before[1]);
+  });
+
+  it('rolled, the higher of its lower corners is on the bottom and the other under it: nothing under it shows', () => {
+    for (const turn of [-6, 6]) {
+      const { corners, middle, before } = feet(stage(turn, 0.95, 30, 20));
+      const ys = corners.map(([, y]) => y);
+      expect(Math.max(...ys)).toBeCloseTo(0, 6);
+      expect(Math.min(...ys)).toBeLessThan(-1);
+      expect(middle[0]).toBeCloseTo(before[0], 6);
+    }
+  });
+
+  it('a picture standing higher than the bottom is left where the stage puts it', () => {
+    expect(footDrop(left, right, 40, 0.9, 0, 30)).toEqual([0, 0]);
   });
 });

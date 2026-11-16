@@ -137,6 +137,28 @@ export interface StandeeBox {
   front: boolean;
 }
 
+/** A picture's lower edge this close to the screen's bottom (px) stands on it. */
+const ON_BOTTOM_PX = 0.5;
+
+/**
+ * How far a picture standing on the screen's bottom is moved on the stage (its own px, y up) so that it
+ * still stands there when the view moves the stage with the gear: x' = c x - s y + tx, y' = s x + c y + ty
+ * (a turn and a size in c and s, see TrackRenderer.placeStandees). Zoomed out or rolled, the stage lifts
+ * what stands on it, and the screen under a picture showed empty (the user: the stickers are to cover the
+ * screen's bottom all the while): the picture goes down, straight down on the screen, until the higher of
+ * its two lower corners is on the bottom again (the other one goes under it). Never up: zoomed in, its
+ * feet go under the bottom as they did. `left`, `right`: its lower corners across, at `bottom` (0: on the
+ * screen's bottom; one standing higher is left where the stage puts it).
+ */
+export function footDrop(left: number, right: number, bottom: number, c: number, s: number, ty: number): [number, number] {
+  const k = c * c + s * s;
+  if (bottom > ON_BOTTOM_PX || !(k > 0)) return [0, 0];
+  const rise = Math.max(s * left, s * right) + c * bottom + ty;
+  if (!(rise > 0)) return [0, 0];
+  // the stage's own move that the turn and the size make `rise` straight down on the screen
+  return [(-s * rise) / k, (-c * rise) / k];
+}
+
 /**
  * How the pictures stand. Their feet are at the screen's bottom.
  * - Two on a side are figures: the one by the gear leans on it (at `HIP` of its height its inner side
