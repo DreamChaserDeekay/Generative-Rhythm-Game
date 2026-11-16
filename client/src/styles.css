@@ -1583,23 +1583,6 @@ p.hint {
   display: none;
 }
 
-.hud-judge-pop.pop {
-  animation: judge-pop 0.18s ease-out;
-}
-
-@keyframes judge-pop {
-  from {
-    transform: scale(1.1);
-  }
-  to {
-    transform: scale(1);
-  }
-}
-
-.reduced-flash .hud-judge-pop.pop {
-  animation: none;
-}
-
 /* the type's colour for the best judgement (the gear's, or the track's own) */
 .hud-plane .g-max {
   color: var(--judge-max);

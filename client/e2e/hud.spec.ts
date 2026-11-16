@@ -321,6 +321,49 @@ test('the timing error bar: on from 판정·싱크, under the judgement, as wide
   expect(errors).toEqual([]);
 });
 
+test('the judgement shows whole in the frame of its hit, stays through a run, and fades out only as it goes', async ({ page }) => {
+  const errors = trackErrors(page);
+  await page.addInitScript(() => {
+    if (!localStorage.getItem('grg.settings.v1')) localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '4K', hiSpeed: 4 }));
+  });
+  // four notes a beat apart (0.42 s) from beat 8: each is judged before the words of the one before have gone (0.6 s)
+  await serveChart(page, 8, 12);
+  await pickDemoSong(page);
+  await expect(page.getByTestId('chart-level')).toBeVisible({ timeout: 30_000 });
+  await autoplay(page);
+  await expect(page.getByTestId('play-screen')).toBeVisible();
+  await expect(page.getByTestId('play-loading')).toHaveCount(0, { timeout: 60_000 });
+  // how much of the judgement shows and what its opacity changes with, at every frame of the screen
+  await page.evaluate(() => {
+    const el = document.querySelector('.hud-judge') as HTMLElement;
+    const seen: [number, string][] = [];
+    (window as unknown as { __judge: [number, string][] }).__judge = seen;
+    const frame = () => {
+      const style = getComputedStyle(el);
+      seen.push([Number(style.opacity), style.transitionDuration]);
+      requestAnimationFrame(frame);
+    };
+    requestAnimationFrame(frame);
+  });
+  const seen = () => page.evaluate(() => (window as unknown as { __judge: [number, string][] }).__judge.slice());
+  // nothing shows before the first note; all four are hit; then the words go
+  expect((await seen()).every(([shown]) => shown === 0)).toBe(true);
+  await expect.poll(async () => Number((await page.locator('.hud-combo-num').textContent()) || 0), { timeout: 30_000 }).toBe(4);
+  await expect.poll(async () => (await seen()).at(-1)?.[0], { timeout: 10_000 }).toBe(0);
+  const log = await seen();
+  const first = log.findIndex(([shown]) => shown > 0);
+  const last = log.map(([shown]) => shown).lastIndexOf(1);
+  expect(first).toBeGreaterThan(0);
+  // the first frame that shows any of it shows all of it (it came in over 0.15 s: nothing in the frame of the hit)
+  expect(log[first]).toEqual([1, '0s']);
+  // whole from the first note to the last, with no dip between two judgements
+  expect(log.slice(first, last + 1).every(([shown]) => shown === 1)).toBe(true);
+  // and it goes with the box's own fade
+  expect(log.length).toBeGreaterThan(last + 1);
+  expect(log.slice(last + 1).every(([, fade]) => fade === '0.15s')).toBe(true);
+  expect(errors).toEqual([]);
+});
+
 test('a long intro on a chart the test serves: the start shows, Enter skips to the notes with nothing of it shown again, and a retry shows it again', async ({ page }) => {
   const errors = trackErrors(page);
   await page.addInitScript(() => {

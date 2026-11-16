@@ -220,7 +220,7 @@ describe('the hits drawn from art', () => {
       const [burst, hold] = [manifest.textures[hitBurst!], manifest.textures[hitHold!]];
       expect([burst.file, hold.file], hit).toEqual([`fx/${name}_burst.webp`, `fx/${name}_hold.webp`]);
       expect([burst.plain === true, hold.plain === true], hit).toEqual(hit === 'flash' ? [false, false] : [true, true]);
-      // a hit is over in a third of a second (the user's rule: under 0.4 s), its frames the animation's own
+      // a hit is over in 0.27 s (the user's rule: under 0.4 s), its frames the animation's own
       const book = burst.flipbook!;
       expect([book.cols, book.rows, book.loop], hit).toEqual([4, 4, false]);
       expect(book.frames, hit).toBeGreaterThanOrEqual(8);

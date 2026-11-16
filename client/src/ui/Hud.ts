@@ -121,6 +121,9 @@ export function lampSpark(i: number, count = LAMP_SPARKS): { dx: number; dy: num
 /** Every combo step punches the number: it starts larger and a little lower, then settles back. */
 const COMBO_BUMP: Keyframe[] = [{ transform: 'translateY(8%) scale(1.25)' }, { transform: 'none' }];
 const COMBO_BUMP_MS = 150;
+/** Every judgement pops: its words start a little larger and settle back. */
+const JUDGE_POP: Keyframe[] = [{ transform: 'scale(1.1)' }, { transform: 'scale(1)' }];
+const JUDGE_POP_MS = 180;
 /**
  * Text lying on the track is drawn longer along it (like a road marking) until it looks at least
  * this tall for its width, so it still reads where the camera flattens the track; at most 2.6 times.
@@ -422,10 +425,16 @@ export class Hud {
   private readonly survival: boolean;
   private readonly counter: boolean;
   private readonly judgeOpacity: string;
-  /** Off with the reduced-flash setting, like the judgement pop. */
+  /** Off with the reduced-flash setting, as the judgement's pop is. */
   private readonly bumpCombo: boolean;
   private readonly feverManualKey: string | null;
   private comboBump: Animation | null = null;
+  private judgeBump: Animation | null = null;
+  /** The judgement's words as last written (showJudge writes them only when they change). */
+  private lastJudge = '';
+  private lastJudgeSub = '';
+  /** Whether the judgement shows (see showJudge: it comes at once and goes slowly). */
+  private judgeShown = false;
   private judgeAt = -Infinity;
   private toastAt = -Infinity;
   private hudScale = 1;
@@ -1091,20 +1100,50 @@ export class Hud {
 
   showJudge(e: JudgeEvent, perfNow: number): void {
     this.judgeAt = perfNow;
-    this.judgeLabel.innerHTML = judgementHtml(e.label, Boolean(this.type.split), Boolean(this.type.fill));
-    this.judgeLabel.className = `hud-judge-label ${e.cls}`;
     // FAST / SLOW off the best judgement, the error in whole ms (exact ones in a neutral colour)
     const error = e.isBreak ? null : e.errorMs;
-    this.judgeFastSlow.textContent = error !== null && e.percent < 100 ? (error < 0 ? 'FAST' : 'SLOW') : '';
-    this.judgeMs.textContent = error !== null && this.showErrorMs ? errorText(error) : '';
-    this.judgeSub.className = `hud-judge-sub ${error !== null ? errorKind(error) : ''}`;
+    const fastSlow = error !== null && e.percent < 100 ? (error < 0 ? 'FAST' : 'SLOW') : '';
+    const ms = error !== null && this.showErrorMs ? errorText(error) : '';
+    const kind = error !== null ? errorKind(error) : '';
+    // only what changed is written: the same judgement over and over (a run of the best) touches no words,
+    // so nothing is laid out for it
+    const words = `${e.label}|${e.cls}`;
+    if (words !== this.lastJudge) {
+      this.lastJudge = words;
+      this.judgeLabel.innerHTML = judgementHtml(e.label, Boolean(this.type.split), Boolean(this.type.fill));
+      this.judgeLabel.className = `hud-judge-label ${e.cls}`;
+    }
+    const sub = `${fastSlow}|${ms}|${kind}`;
+    if (sub !== this.lastJudgeSub) {
+      this.lastJudgeSub = sub;
+      this.judgeFastSlow.textContent = fastSlow;
+      this.judgeMs.textContent = ms;
+      this.judgeSub.className = `hud-judge-sub ${kind}`;
+    }
     if (error !== null && this.errorBar) markError(this.errorBar, error);
-    // restart the pop animation
-    this.judgePop.classList.remove('pop');
-    void this.judgePop.offsetWidth;
-    this.judgePop.classList.add('pop');
-    this.judgeBox.style.opacity = this.judgeOpacity;
+    if (this.bumpCombo) {
+      // the pop starts over, as a transform animation: nothing is laid out for it (taking a class off, reading
+      // a width and putting the class back had the whole HUD laid out at every judgement, in the middle of a frame)
+      this.judgeBump?.cancel();
+      this.judgeBump = this.judgePop.animate(JUDGE_POP, { duration: JUDGE_POP_MS, easing: 'ease-out' });
+    }
+    if (!this.judgeShown) {
+      // there at once, whole: the box's transition (0.15 s) is for its going. Coming in with it, the judgement of
+      // the first note after a rest showed nothing of itself in the frame of the hit, half 50 ms later and all of it
+      // only after 0.15 s
+      this.judgeShown = true;
+      this.judgeBox.style.transition = 'none';
+      this.judgeBox.style.opacity = this.judgeOpacity;
+    }
     this.setCombo(e.combo);
+  }
+
+  /** The judgement goes, fading out (the box's own transition again). */
+  private hideJudge(): void {
+    if (!this.judgeShown) return;
+    this.judgeShown = false;
+    this.judgeBox.style.transition = '';
+    this.judgeBox.style.opacity = '0';
   }
 
   setCombo(combo: number): void {
@@ -1136,9 +1175,11 @@ export class Hud {
   reset(): void {
     this.comboBump?.cancel();
     this.comboBump = null;
+    this.judgeBump?.cancel();
+    this.judgeBump = null;
     this.setCombo(0);
     this.judgeAt = -Infinity;
-    this.judgeBox.style.opacity = '0';
+    this.hideJudge();
     this.toastAt = -Infinity;
     this.toast.style.opacity = '0';
     const eb = this.errorBar;
@@ -1164,7 +1205,7 @@ export class Hud {
   }
 
   update(perfNow: number, stats: HudStats): void {
-    if (perfNow - this.judgeAt > JUDGE_VISIBLE_MS) this.judgeBox.style.opacity = '0';
+    if (perfNow - this.judgeAt > JUDGE_VISIBLE_MS) this.hideJudge();
     if (perfNow - this.toastAt > TOAST_MS) this.toast.style.opacity = '0';
     if (stats.score !== this.lastScore) {
       const text = stats.score.toLocaleString('en-US');

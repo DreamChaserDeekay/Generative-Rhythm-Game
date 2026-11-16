@@ -14,8 +14,10 @@ game colours with the lane's colour.
 What is done to a sheet: its black is made black (the model's is not quite, and JPEG adds noise), every frame fades out
 toward the edges of its cell (a ray that reaches the edge would end in a straight line), the frames after the effect
 has gone are dropped, and so is a first frame that is next to nothing (the flash is there the moment the key goes
-down). A hit lasts BURST_SECONDS whatever its number of frames. The layouts written here are read by
-client/src/render/skinArt.ts and styleArt.ts: change them together.
+down). A hit lasts BURST_SECONDS whatever its number of frames, and starts at the first frame about as bright as its
+brightest ("peak" in the manifest, and "tone", the colour of its light there: flipbook_light.py); the sheets are drawn
+at their brightest in their first frame (make_skin_fx.py), so that is where they start. The layouts written here are
+read by client/src/render/skinArt.ts and styleArt.ts: change them together.
 Needs Pillow and numpy.
 """
 
@@ -28,6 +30,8 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
+from flipbook_light import measure
+
 ROOT = Path(__file__).resolve().parents[2]
 SRC = ROOT / "assets-src" / "styles" / "skinfx"
 MEDIA = ROOT / "client" / "public" / "media"
@@ -37,8 +41,12 @@ GRID = 4
 #: px of one frame in the game's sheets
 BURST_CELL = 384
 HOLD_CELL = 256
-#: how long a hit plays (the user's rule: under 0.4 s)
-BURST_SECONDS = 0.32
+#: how long a hit plays, whatever its number of frames: as long as sixteen frames at 60 a second, as the older hits'
+#: sheets (build_styles.py) do (the user's rule: under 0.4 s). The model draws a hit's fade in 8 to 12 frames of the
+#: 16 it is asked for, so a sheet holds 30 to 45 frames a second; the game mixes each frame with the next, so it
+#: moves on every frame of the screen all the same. (The first sheets, which opened over three or four frames,
+#: played in 0.32 s.)
+BURST_SECONDS = 16 / 60
 HOLD_FPS = 24
 #: a hit's frames end where its light falls under this share of its brightest frame's
 GONE = 0.03
@@ -202,6 +210,10 @@ def main() -> None:
             path = out / entry["file"]
             path.parent.mkdir(parents=True, exist_ok=True)
             image.save(path, "WEBP", quality=90, method=6)
+            if kind == "burst":
+                # where the hit starts (the sheet as the game gets it): flipbook_light.py
+                measure(entry, Image.open(path))
+                info["peak"] = entry["flipbook"]["peak"]
             textures[f"{name}/hit{'Burst' if kind == 'burst' else 'Hold'}"] = entry
             print(f"{name} {kind}: {path.stat().st_size // 1024} KB", info)
     if opts.out:

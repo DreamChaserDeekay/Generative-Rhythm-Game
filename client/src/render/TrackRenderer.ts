@@ -19,7 +19,7 @@ import {
   type TrackGeometry,
 } from './layout';
 import { FEVER_COLORS } from './palette';
-import { disposeSkinArt, flipbookOffset, type MediaEffects, type SkinArt } from './skinArt';
+import { disposeSkinArt, flipbookBlend, flipbookOffset, hitFrame, type Flipbook, type MediaEffects, type SkinArt } from './skinArt';
 import { hex, laneColorsFor, type Skin, type SkinStyle } from './skins';
 import { beatClock, DECK_PICTURE_PX, GEAR_LIGHTS, GearLightLayer, type BeatClock } from './gearLights';
 import { artPartsOf, borderLookOf, gearArtOf, HIT_SLOTS, isArtHit, longPaintOf, notePaintOf, noteShapeOf, noteWidthOf, platePaintOf, sideTapPaintOf, type StyleImages } from './styleArt';
@@ -46,6 +46,7 @@ import {
   sideDotsTap,
   tintMaterial,
   type EffectSheet,
+  type FrameBlend,
   type HitStyle,
   type LongPaint,
   type NoteMark,
@@ -195,6 +196,23 @@ const TICK_FADE_MS = 90;
 const TICK_GAP_MS = 180;
 const TICK_SIZE = 0.72;
 const TICK_GAIN = 0.55;
+/**
+ * What tells the player a note was hit is what the first frame on the screen shows: a hit's flipbook
+ * starts at its brightest (Flipbook.peak), is drawn PUNCH larger at once, back to its size over
+ * PUNCH_MS, and a flash lights the lane's judge line (lineFlash): brightest in its first frame, gone
+ * after FLASH_MS, as wide as the lane and FLASH_DEPTH lanes deep (the line FLASH_LINE of the way
+ * down it: its light rises up the lane), as bright as FLASH_GAIN at most. None of the two under
+ * 번쩍임 줄이기, nor on a long note's ticks (its glow kicks at each: TICK_KICK).
+ */
+const PUNCH = 0.2;
+const PUNCH_MS = 100;
+const FLASH_MS = 100;
+const FLASH_DEPTH = 2.4;
+const FLASH_LINE = 0.78;
+const FLASH_GAIN = 0.9;
+/** The flash's picture at its brightest (of 1), and the light from which its material would draw it white: over that. */
+const FLASH_PEAK = 0.8;
+const FLASH_CORE = 0.9;
 /**
  * The light flowing down a held long note into the judge line (drawFlows), from the note's far end
  * (or the track's, where the note reaches past it): how fast it runs (track units a second), how long
@@ -401,6 +419,10 @@ interface EffectQuad {
   /** A burst's size and brightness, shares of a hit's (a held note's tick plays a smaller, fainter one). */
   size: number;
   gain: number;
+  /** A burst that starts larger (a hit's: PUNCH), not a tick's. */
+  punch: boolean;
+  /** A flipbook's quad: its frame is mixed with the next (lightMaterial). */
+  blend: FrameBlend | null;
 }
 
 const barNear = new THREE.Vector3();
@@ -807,6 +829,8 @@ export class TrackRenderer {
   private readonly beamLevels: number[] = [];
   /** Hit effects lying on the track, reused once they finish. */
   private readonly hits: EffectQuad[] = [];
+  /** Per lane, the flash on its judge line at a hit (lineFlash): none under 번쩍임 줄이기, nor on a side lane laid over the keys (sideFlash is its). */
+  private readonly lineFlashes: (EffectQuad | null)[] = [];
   /** Per lane, what shows while a long note is held there (with sparks, a late frame of the burst under them). */
   private readonly holds: EffectQuad[] = [];
   private readonly holdCores: EffectQuad[] = [];
@@ -1069,6 +1093,9 @@ export class TrackRenderer {
       h.mesh.visible = false;
       this.hits.push(h);
     }
+    if (this.reducedFlash) return;
+    const flash = this.own(lineFlashTexture());
+    for (const lane of this.geometry.lanes) this.lineFlashes.push(lane.over ? null : this.lineFlashQuad(flash));
   }
 
   /**
@@ -1301,6 +1328,7 @@ export class TrackRenderer {
     this.beamLevels.fill(0);
     for (const h of this.hits) h.mesh.visible = false;
     for (const f of this.flashes) f.mesh.visible = false;
+    for (const f of this.lineFlashes) if (f) f.mesh.visible = false;
   }
 
   /** A hit on the judge line of a lane, in `color`. */
@@ -1308,7 +1336,8 @@ export class TrackRenderer {
     if (this.hit === 'none') return;
     // a side lane laid over the keys: the band of light across its half, and a burst as wide as the half in the middle of it
     if (this.geometry.lanes[lane].over) this.sideFlash(lane, color, perfNow);
-    this.burst(lane, color, perfNow);
+    else this.lineFlash(lane, color, perfNow);
+    this.burst(lane, color, perfNow, 1, 1, true);
   }
 
   /**
@@ -1336,7 +1365,7 @@ export class TrackRenderer {
   }
 
   /** A burst on the judge line of a lane, `size` and `gain` shares of a hit's (in the middle of a side lane's half). */
-  private burst(lane: number, color: number, perfNow: number, size = 1, gain = 1): void {
+  private burst(lane: number, color: number, perfNow: number, size = 1, gain = 1, punch = false): void {
     // one of the quads made with the renderer (primeHits): a free one, else the one that began first.
     // None is made here: a quad's copy of the sheet marks the sheet changed, and the whole of it
     // (1536 px a side) went to the graphics card again for every quad a denser passage called for
@@ -1348,6 +1377,7 @@ export class TrackRenderer {
     h.lane = lane;
     h.size = size;
     h.gain = gain;
+    h.punch = punch && !this.reducedFlash;
     h.mesh.visible = true;
     this.drawHit(h, perfNow);
   }
@@ -2058,9 +2088,8 @@ export class TrackRenderer {
       if (sparks?.spec.flipbook) {
         const book = sparks.spec.flipbook;
         // each lane starts at another frame, so neighbouring sparks do not move in step
-        const n = Math.floor((frame.timeMs / 1000) * book.fps) + lane * 5;
-        const [u, v] = flipbookOffset(book, ((n % book.frames) + book.frames) % book.frames);
-        h.texture.offset.set(u, v);
+        const n = (frame.timeMs / 1000) * book.fps + lane * 5;
+        this.showFrame(h, book, ((n % book.frames) + book.frames) % book.frames);
         // the sparks play about the judge line (where the sheet says it crosses them)
         const size = w * SPARKS_SIZE * FX_SCALE * flash * this.fxFit.sparks * (sparks.spec.span ?? 1) * (1 + 0.5 * TICK_KICK * kick);
         const depth = size * this.stretch;
@@ -2139,6 +2168,60 @@ export class TrackRenderer {
   private drawHits(perfNow: number): void {
     for (const h of this.hits) if (h.mesh.visible) this.drawHit(h, perfNow);
     for (const f of this.flashes) if (f.mesh.visible) this.drawSideFlash(f, perfNow);
+    for (const f of this.lineFlashes) if (f?.mesh.visible) this.drawLineFlash(f, perfNow);
+  }
+
+  /**
+   * The flash on a lane's judge line at a hit: there in the frame the hit is drawn in, at its brightest,
+   * and gone FLASH_MS later (see PUNCH). In the colour the hit's effect is drawn in: `color`, or the colour
+   * of its sheet's own light (MediaTexture.tone).
+   */
+  private lineFlash(lane: number, color: number, perfNow: number): void {
+    const f = this.lineFlashes[lane];
+    if (!f) return;
+    const burst = this.flipbook ? this.art.hitBurst : undefined;
+    if (burst?.spec.plain) f.material.color.setHex(burst.spec.tone ?? 0xffffff);
+    else {
+      f.material.color.setHex(color);
+      if (this.hitSheet?.plain) f.material.color.lerp(WHITE, PLAIN_WHITE);
+    }
+    f.start = perfNow;
+    f.mesh.visible = true;
+    this.drawLineFlash(f, perfNow);
+  }
+
+  private drawLineFlash(f: EffectQuad, perfNow: number): void {
+    const p = Math.max(0, perfNow - f.start) / FLASH_MS;
+    if (p >= 1) {
+      f.mesh.visible = false;
+      return;
+    }
+    const g = this.geometry.lanes[f.lane];
+    // as deep as the hits' size has it (작게 shallower, 크게 deeper, as a side lane's flash)
+    const depth = Math.min(g.width, 1.6) * FLASH_DEPTH * (this.flashDepth / SIDE_FLASH) * this.stretch;
+    f.mesh.scale.set(g.width, 1, depth);
+    f.mesh.position.set(g.x, 0.03, this.judgeZ + depth * (0.5 - FLASH_LINE));
+    // (the light is added in linear light: a third of it still looks more than half as bright, so it falls fast)
+    f.material.opacity = FLASH_GAIN * (1 - p) ** 3;
+  }
+
+  /** A lane's flash on the judge line (lineFlash): one picture for all, no frames. */
+  private lineFlashQuad(texture: THREE.Texture): EffectQuad {
+    const material = lightMaterial({ map: texture, transparent: true, depthWrite: false, depthTest: false, fog: false }, FLASH_CORE);
+    const mesh = new THREE.Mesh(this.flatGeometry, material);
+    mesh.renderOrder = 9.95;
+    mesh.visible = false;
+    this.scene.add(mesh);
+    return { mesh, texture, material, start: 0, lane: this.lineFlashes.length, size: 1, gain: 1, punch: false, blend: null };
+  }
+
+  /** Shows a flipbook's quad at `frame` (a frame and a share of the way to the next: the two are mixed). */
+  private showFrame(h: EffectQuad, book: Flipbook, frame: number): void {
+    const at = flipbookBlend(book, frame);
+    h.texture.offset.set(at.offset[0], at.offset[1]);
+    if (!h.blend) return;
+    h.blend.step.set(at.step[0], at.step[1]);
+    h.blend.mix.value = at.mix;
   }
 
   /**
@@ -2189,16 +2272,19 @@ export class TrackRenderer {
     mesh.renderOrder = 9.9;
     mesh.visible = false;
     this.scene.add(mesh);
-    return { mesh, texture, material, start: 0, lane: 0, size: 1, gain: 1 };
+    return { mesh, texture, material, start: 0, lane: 0, size: 1, gain: 1, punch: false, blend: null };
   }
 
-  /** A hit plays its frames once, lying on the track at the judge line; then its quad is free again. */
+  /**
+   * A hit plays its frames once, from its brightest (Flipbook.peak), lying on the track at the judge line;
+   * then its quad is free again. It starts PUNCH larger and is back to its size PUNCH_MS later.
+   */
   private drawHit(h: EffectQuad, perfNow: number): void {
     const burst = this.flipbook ? this.art.hitBurst : undefined;
     const book = burst?.spec.flipbook;
     const frames = book?.frames ?? this.hitSheet?.frames ?? 16;
-    const elapsed = perfNow - h.start;
-    const frame = book ? (elapsed / 1000) * book.fps : (elapsed / EFFECT_MS) * frames;
+    const elapsed = Math.max(0, perfNow - h.start);
+    const frame = book ? hitFrame(book, elapsed) : (elapsed / EFFECT_MS) * frames;
     if (frame >= frames) {
       h.mesh.visible = false;
       return;
@@ -2207,11 +2293,11 @@ export class TrackRenderer {
     const w = Math.min(g.width, 1.6);
     const p = frame / frames;
     const dim = this.reducedFlash ? this.artEffects.reducedFlashOpacity : 1;
+    const punch = h.punch ? 1 + PUNCH * (1 - Math.min(1, elapsed / PUNCH_MS)) ** 2 : 1;
     if (book) {
-      const [u, v] = flipbookOffset(book, frame);
-      h.texture.offset.set(u, v);
+      this.showFrame(h, book, frame);
       // a frame has room round the effect (its span): the effect itself is BURST_SIZE lanes
-      const size = w * BURST_SIZE * FX_SCALE * (this.reducedFlash ? this.artEffects.reducedFlashScale : 1) * this.fxFit.burst * (burst?.spec.span ?? 1) * h.size;
+      const size = w * BURST_SIZE * FX_SCALE * (this.reducedFlash ? this.artEffects.reducedFlashScale : 1) * this.fxFit.burst * (burst?.spec.span ?? 1) * h.size * punch;
       const depth = size * this.stretch;
       h.mesh.scale.set(size, 1, depth);
       // the judge line crosses the sheet at its anchor (the middle unless it says)
@@ -2223,7 +2309,7 @@ export class TrackRenderer {
     const sheet = this.hitSheet as EffectSheet;
     const [u, v] = sheetOffset(sheet, frame);
     h.texture.offset.set(u, v);
-    const scale = (this.reducedFlash ? 0.8 : 1) * this.fxFit.hit * h.size;
+    const scale = (this.reducedFlash ? 0.8 : 1) * this.fxFit.hit * h.size * punch;
     const across = sheet.size[0] * w * HIT_SIZE * scale;
     const depth = sheet.size[1] * w * HIT_SIZE * scale * this.stretch;
     h.mesh.scale.set(across, 1, depth);
@@ -2248,12 +2334,13 @@ export class TrackRenderer {
       blending: THREE.AdditiveBlending,
       fog: false,
     };
-    const material = source !== this.hitSheet?.texture ? lightMaterial(params, core) : this.hitSheet.plain ? new THREE.MeshBasicMaterial(params) : tintMaterial(params);
+    const blend = source !== this.hitSheet?.texture ? { step: new THREE.Vector2(), mix: { value: 0 } } : null;
+    const material = blend ? lightMaterial(params, core, blend) : this.hitSheet?.plain ? new THREE.MeshBasicMaterial(params) : tintMaterial(params);
     const mesh = new THREE.Mesh(this.flatGeometry, material);
     mesh.renderOrder = 10;
     mesh.visible = false;
     this.scene.add(mesh);
-    return { mesh, texture, material, start: 0, lane: 0, size: 1, gain: 1 };
+    return { mesh, texture, material, start: 0, lane: 0, size: 1, gain: 1, punch: false, blend };
   }
 
   private drawFever(frame: TrackFrame): void {
@@ -2995,6 +3082,48 @@ function flowTexture(): THREE.Texture {
   const texture = new THREE.CanvasTexture(canvas);
   texture.wrapT = THREE.RepeatWrapping;
   texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+/**
+ * The flash on a lane's judge line at a hit (lineFlash): a bar of light across the lane on the line, white-hot
+ * along its middle, in a glow, with light rising from it a short way up the lane and a little falling under
+ * it; it fades out toward the lane's sides, so neighbouring lanes' flashes meet without a seam (light on black,
+ * white: the material colours it). Canvas top is the far edge; the line lies FLASH_LINE of the way down.
+ */
+function lineFlashTexture(): THREE.Texture {
+  const [w, h] = [128, 256];
+  const canvas = paintCanvas();
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = context2d(canvas);
+  const image = ctx.createImageData(w, h);
+  for (let y = 0; y < h; y++) {
+    // from the line, in shares of the depth (up the lane is negative)
+    const d = (y + 0.5) / h - FLASH_LINE;
+    const core = Math.exp(-((d / 0.03) ** 2));
+    const glow = 0.55 * Math.exp(-((d / 0.085) ** 2));
+    const rise = d < 0 ? 0.5 * Math.exp(d / 0.24) : 0.3 * Math.exp(-d / 0.06);
+    // nothing at the far edge nor at the near one: the quad ends in no line
+    const ends = Math.min(1, (y + 0.5) / (h * 0.14), (h - y - 0.5) / (h * 0.08));
+    for (let x = 0; x < w; x++) {
+      const u = Math.abs((x + 0.5) / w - 0.5) * 2;
+      // the bar reaches the lane's sides; the light rising from it is a little brighter up the lane's middle
+      const bar = 1 - Math.max(0, (u - 0.88) / 0.12) ** 2;
+      const mid = 0.8 + 0.2 * Math.exp(-((u / 0.6) ** 2));
+      // (never as bright as the light that stays white in lightMaterial: the flash keeps its colour, and the
+      // hit's own white core over it does not grow into a white bar as wide as the lane)
+      const level = Math.round(255 * Math.min(FLASH_PEAK, (core + glow + rise * mid) * bar) * ends);
+      const i = (y * w + x) * 4;
+      image.data[i] = image.data[i + 1] = image.data[i + 2] = level;
+      image.data[i + 3] = 255;
+    }
+  }
+  ctx.putImageData(image, 0, 0);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  // seen from low over the track: its thin bar would blur away without
+  texture.anisotropy = 8;
   return texture;
 }
 
