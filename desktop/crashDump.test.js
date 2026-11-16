@@ -83,7 +83,7 @@ test('where a process crashed: the module and the offset of the instruction, and
     thread: 77,
     at: 'Generative Rhythm.exe+0x3a4f21c',
     ip: undefined,
-    // (the same place twice running is told once; the place of the crash itself is not told again)
+    // (a place found again is told once; the place of the crash itself is not told again)
     frames: ['Generative Rhythm.exe+0x3a4f000', 'nvwgf2umx.dll+0x1a2b3c', 'd3d11.dll+0x1234', 'Generative Rhythm.exe+0x10'],
     modules: [
       // the identifier a module's symbols are published under: its GUID as Windows writes one, then its age
@@ -92,6 +92,18 @@ test('where a process crashed: the module and the offset of the instruction, and
       { name: 'd3d11.dll', version: undefined, id: undefined, pdb: undefined },
     ],
   });
+});
+
+test('a long stack: each place once, the first 64 of them', () => {
+  // what a logging call leaves on the stack: the same addresses of the module's data between its return addresses
+  const data = APP.base + 0x0b75_5a70n;
+  const stack = [];
+  for (let i = 0; i < 80; i++) stack.push(APP.base + BigInt(0x1000 + i * 0x10), data, APP.base + BigInt(0x1000 + i * 0x10));
+  const s = dumpSummary(minidump({ address: APP.base + 0x30n, modules: [APP], stack }));
+  assert.equal(s.frames.length, 64);
+  assert.deepEqual(s.frames.slice(0, 4), ['Generative Rhythm.exe+0x1000', 'Generative Rhythm.exe+0xb755a70', 'Generative Rhythm.exe+0x1010', 'Generative Rhythm.exe+0x1020']);
+  assert.equal(new Set(s.frames).size, 64);
+  assert.equal(s.frames[63], 'Generative Rhythm.exe+0x13e0');
 });
 
 test('a crash at no instruction of a module, and the instruction the thread was at', () => {

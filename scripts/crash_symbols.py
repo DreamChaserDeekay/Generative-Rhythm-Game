@@ -10,7 +10,9 @@ renamed) the names are in the symbol file Electron publishes for that very build
     https://symbols.electronjs.org/<pdb>/<id>/<pdb without .pdb>.sym
 (a Breakpad symbol file, a few hundred MB: read here as it comes, never kept whole). Each offset is answered with
 the function it lies in, how far into it, and the source file and line. Offsets may be given bare or as they stand
-in the log ("module+0x..", comma-separated: the module's name is dropped, so give one module's at a time).
+in the log ("module+0x..", comma-separated). A stack names several modules (the app's, d3d11.dll, a driver's) and a
+symbol file is one module's: only the places of the module named first are looked up, the others are printed as
+they stand.
 """
 
 from __future__ import annotations
@@ -19,15 +21,24 @@ import bisect
 import sys
 
 
-def offsets_of(args: list[str]) -> list[int]:
-    found = []
+def places_of(args: list[str]) -> list[tuple[str | None, int]]:
+    """Every place given, in order: (the module it names or None for a bare offset, the offset)."""
+    found: list[tuple[str | None, int]] = []
     for arg in args:
         for part in arg.split(","):
             part = part.strip()
             if not part:
                 continue
-            found.append(int(part.rsplit("+", 1)[-1], 16))
+            module, plus, offset = part.rpartition("+")
+            found.append((module.strip() or None if plus else None, int(offset, 16)))
     return found
+
+
+def offsets_of(args: list[str]) -> list[int]:
+    """The offsets to look up: the bare ones, and those of the module named first (a symbol file is one module's)."""
+    places = places_of(args)
+    first = next((module for module, _ in places if module), None)
+    return [offset for module, offset in places if module is None or module == first]
 
 
 def symbolize(lines, offsets: list[int]) -> dict[int, dict]:
@@ -93,10 +104,16 @@ def symbolize(lines, offsets: list[int]) -> dict[int, dict]:
 def main() -> None:
     if len(sys.argv) < 3:
         sys.exit(__doc__)
+    places = places_of(sys.argv[2:])
     offsets = offsets_of(sys.argv[2:])
+    first = next((module for module, _ in places if module), None)
     source = sys.stdin.buffer if sys.argv[1] == "-" else open(sys.argv[1], "rb")
     answers = symbolize(source, offsets)
-    for o in offsets:
+    for module, o in places:
+        if module is not None and module != first:
+            # another module's place: its names are in that module's own symbols
+            print(f"{module}+{o:#x}  (another module)")
+            continue
         a = answers.get(o)
         if not a:
             print(f"+{o:#x}  ?")

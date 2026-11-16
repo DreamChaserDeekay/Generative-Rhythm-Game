@@ -9,7 +9,7 @@ import { settingsTab } from './songSelect';
 async function asDesktop(page: Page, start: { mode: string; running: string; reverted?: { from: string; why: string } | null }, withModes = true) {
   await page.addInitScript(
     ([first, modes]) => {
-      const kept = { ...(first as { mode: string; running: string; reverted?: unknown }), modes: ['default', 'no-dcomp', 'gl', 'd3d11on12'] };
+      const kept = { ...(first as { mode: string; running: string; reverted?: unknown }), modes: ['default', 'no-dcomp', 'gl', 'd3d11on12', 'gpu-raster'] };
       const calls: string[] = [];
       const shell: Record<string, unknown> = {
         setFullScreen: (on: boolean) => Promise.resolve(on),
@@ -73,11 +73,17 @@ test('그래픽 호환 모드: the desktop app keeps the mode picked, and a rest
   await expect(help).toContainText("'OpenGL' 모드로 다시 엽니다");
   await page.keyboard.press('Enter');
   expect(await calls(page)).toEqual(['set no-dcomp', 'set gl', 'restart']);
-  // back on the mode that is running: no restart owed
+  // the last of the choices is the old way of drawing (the page's text on the graphics card), said as such
   await row.focus();
-  await page.keyboard.press('ArrowLeft');
-  await page.keyboard.press('ArrowLeft');
+  await page.keyboard.press('ArrowRight');
+  await page.keyboard.press('ArrowRight');
+  await expect(row).toHaveAttribute('data-value', 'gpu-raster');
+  await expect(row).toContainText('GPU 래스터');
+  await expect(help).toContainText('2026-11-16까지의 기본');
+  // back on the mode that is running: no restart owed
+  for (let i = 0; i < 4; i++) await page.keyboard.press('ArrowLeft');
   await expect(row).toHaveAttribute('data-value', 'default');
+  await expect(help).toContainText('글자와 버튼 같은 나머지 화면은 CPU로 그립니다');
   await expect(restart).toHaveCount(0);
   // none of it is the game's own setting
   expect(await page.evaluate(() => localStorage.getItem('grg.settings.v1') ?? '')).not.toContain('graphics');

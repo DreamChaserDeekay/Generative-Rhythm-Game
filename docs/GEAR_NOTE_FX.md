@@ -563,10 +563,13 @@ Chromium이 화면을 그리는 방식을 바꿔 드라이버가 걸리는 경�
 
 | 모드 | 스위치 | 무엇이 달라지나 |
 | --- | --- | --- |
-| 기본 | (없음) | ANGLE이 Direct3D 11로 그리고 DirectComposition으로 화면에 올림 |
-| DirectComposition 끄기 | `--disable-direct-composition` | Direct3D 11로 그리되 화면에 올릴 때 DirectComposition과 앱의 오버레이를 쓰지 않음 |
-| OpenGL | `--use-angle=gl` | 그래픽 카드의 OpenGL 드라이버로 그림 |
-| Direct3D 11on12 | `--use-angle=d3d11on12` | Direct3D 12 드라이버 위에서 그림 |
+| 기본 | `--disable-gpu-rasterization` | ANGLE이 Direct3D 11로 그리고 DirectComposition으로 화면에 올림. 페이지의 글자 · 버튼 같은 2D 화면은 CPU로 래스터 |
+| DirectComposition 끄기 | 위 + `--disable-direct-composition` | 기본처럼 그리되 화면에 올릴 때 DirectComposition과 앱의 오버레이를 쓰지 않음 |
+| OpenGL | 위 + `--use-angle=gl` | 그래픽 카드의 OpenGL 드라이버로 그림 |
+| Direct3D 11on12 | 위 + `--use-angle=d3d11on12` | Direct3D 12 드라이버 위에서 그림 |
+| GPU 래스터 | (없음) | 2026-11-16까지의 기본: 페이지의 2D 화면까지 그래픽 카드(Skia)로 래스터. 사용자 PC에서 끊긴 방식 |
+
+(스위치와 "GPU 래스터" 모드는 아래 "기본 모드의 끊김"에서 바뀐 것입니다. 처음에는 기본에 스위치가 없었습니다.)
 
 - 설정에서 고르면 "다시 시작해서 적용" 줄이 나타나고, 누르면 앱이 닫혔다가 그 모드로 열립니다. 지금 실행 중인 모드와 다시 시작하면 될 모드를 도움말이 말합니다.
 - **되돌리기**: 모드로 연 앱이 끝까지 뜨지 못한 채 두 번 이어서 끝나면 세 번째에는 기본으로 엽니다. 뜬 뒤 6초에 게임이 WebGL을 받지 못했거나, 20초에 소프트웨어로 그려지고 있거나, 그 전에 GPU 프로세스가 두 번 끊기면 기본으로 되돌리고 알림 창으로 다시 시작을 권합니다. 20초를 넘기면 그 모드는 "떴다"고 보고 더 세지 않습니다. 되돌린 사실과 이유는 `graphics.log`의 `graphics-mode` 줄과 설정의 도움말에 남습니다.
@@ -596,6 +599,64 @@ Chromium이 화면을 그리는 방식을 바꿔 드라이버가 걸리는 경�
 
 `desktop/graphicsMode.js`(모드와 되돌리기), `desktop/crashDump.js`(덤프 요약), `desktop/graphicsLog.js`(줄을 만드는 함수와 끊김을 따라가는 `graphicsWatch`), `desktop/main.js`(스위치 · Chromium 로그 · Crashpad · 레지스트리와 이벤트 로그 읽기 · 설정용 IPC), `desktop/preload.js`, `desktop/windowState.js`(모드를 함께 기억), `client/src/ui/graphicsMode.ts`와 `SettingsScreen.tsx`의 `GraphicsModeRows`, `client/src/render/trail.ts`와 `TrackRenderer.ts`의 `trace` · `onContextLost`, `client/src/ui/Hud.ts`의 `noteTrail`, `packaging/smoke_desktop.cjs`(모드마다 한 번 띄우고 한 번은 GPU 프로세스를 크래시), `scripts/crash_symbols.py`.
 
+## 기본 모드의 끊김: 페이지의 글자를 CPU로 래스터 (2026-11-16)
+
+위의 기록이 들어간 빌드(#417)로 사용자가 모드를 바꿔 가며 쳐 본 결과, **기본과 DirectComposition 끄기에서는 다시 끊겼고 OpenGL과 Direct3D 11on12에서는 끊기지 않았습니다.** 끊긴 두 번의 `graphics.log`가 원인의 자리를 말해 줍니다.
+
+### 로그가 말한 것
+
+| 줄 | 내용 | 뜻 |
+| --- | --- | --- |
+| `chromium … level=FATAL src=AtlasTextOp.cpp:570` | `assertf(strideCheck == vertexStride): stride mismatch` | GPU 프로세스는 드라이버가 아니라 **Chromium(Skia)이 스스로 멈춘 것**: 글리프 정점의 크기 두 가지가 어긋나면 멈추는 검사 |
+| `crash-dump … at="Generative Rhythm.exe+0x72d4cb9"` | 두 번 모두 같은 주소 | 심볼로 풀면 `logging::LogMessage::HandleFatal`(멈추는 자리 자체) |
+| `crash-stack` | 두 번 모두 같은 줄기 | `SkAbort_FileLine` ← `skgpu::ganesh::AtlasTextOp::onPrepareDraws`(AtlasTextOp.cpp:570) ← `GrOp::prepare` ← `OpsTask::onPrepare` ← `GrRenderTask::prepare` ← `GrDrawingManager::executeRenderTasks` |
+| `driver-events found=none` · `crash-events found=none` | | 드라이버 초기화(TDR)도 Windows 오류 보고도 없음 |
+| `gpu-status … rasterization:enabled` (기본 · DirectComposition 끄기 · 11on12) / `unavailable_off` (OpenGL) | | 끊긴 두 모드는 페이지를 그래픽 카드로 래스터하고 있었고, 8분쯤 켜 둔 동안 끊기지 않은 OpenGL 모드는 CPU로 래스터하고 있었음(11on12는 GPU 래스터인 채 7분 동안 끊기지 않음) |
+
+- 그 검사는 Skia가 2026년 6월에 넣은 것입니다(버그 520113415의 수정 `a145861`에 이은 `9d94f46` "Use an assert release on stride length"). 손상된 글자 데이터(원근이 든 생성 행렬)가 메모리를 넘쳐 쓰던 것을 막으면서, 같은 어긋남이 다시 보이면 조용히 넘기지 않고 **GPU 프로세스를 멈추게** 했습니다. Electron 44.5.1(Chromium 152)의 Skia가 이 코드입니다(줄 번호 570까지 같음).
+- `AtlasTextOp`는 **글자를 그래픽 카드로 그리는** Skia의 연산입니다. 게임에서 글자는 WebGL(트랙 · 노트)이 아니라 페이지(HUD의 판정 · 콤보 · 점수, 화면의 글자)에 있고, Chromium이 페이지를 그래픽 카드로 래스터할 때만 이 연산을 씁니다.
+- 끊긴 순간의 3초 기록(`page-events`)에는 HUD의 드문 일(FEVER · 알림 · 램프)이 없고, 카메라 값이 0 근처에서 부호를 바꿔 가며 잦아드는 줄만 있습니다. 한 번은 줌이 끝난 지 1초 뒤, 한 번은 카메라가 쉬는 중이었습니다.
+
+### 정확히 무엇이 그 검사에 걸리는지는 찾지 못했습니다
+
+- m152의 Skia 소스(`AtlasTextOp.cpp` · `SubRunContainer.cpp` · `VertexFiller.cpp` · `GlyphData.cpp`)를 읽었습니다. 두 크기는 "그리는 행렬에 원근이 있는가"와 "글리프가 컬러인가"로 정해지는데, 정상 데이터에서는 연산을 만들 때와 정점을 채울 때 같은 답이 나오게 짜여 있습니다. 거리장 글자만 둘을 서로 다른 행렬(그리는 행렬 / 그리는 행렬 × 생성 행렬의 역)로 정하는데(2026년 6월 초의 변경), 이것도 정상 행렬에서는 같은 답입니다.
+- 원근 변환은 게임에서 HUD 평면(`.hud-plane`의 `matrix3d`) 하나뿐이고, 카메라가 움직이는 동안과 스프링이 잦아드는 100초쯤 동안 매 프레임 다시 쓰입니다. 흔치 않은 페이지 구성이라 이것이 방아쇠일 가능성이 높다고 보지만, **확인하지 못했습니다.**
+- 이 환경(리눅스, Electron 44.5.1, 소프트웨어 GL에 GPU 래스터를 강제)에서 재현을 시도했습니다: 카메라 큐가 촘촘한 채보 114초, 큐를 앞에만 두고 스프링이 잦아들게 둔 채보 153초, HUD 평면을 흉내 낸 페이지에서 행렬의 원근 · 기울임 값을 1에서 1e-60까지 훑기 두 번. **네 번 모두 끊기지 않았습니다.** Windows의 글꼴 처리(DirectWrite · LCD 글자)나 실제 키 입력 같은, 여기서 만들 수 없는 조건이 끼어 있을 수 있습니다.
+
+### 바꾼 것
+
+- **GPU 래스터를 남긴 한 모드를 뺀 모든 모드가 페이지를 CPU로 래스터합니다**(`--disable-gpu-rasterization`). 글자는 CPU에서 그려진 타일로 올라가므로 `AtlasTextOp`가 페이지 글자에 쓰이지 않습니다. 트랙과 노트(WebGL), 화면 합성은 그대로 그래픽 카드가 합니다. 사용자 PC에서 끊기지 않은 OpenGL 모드가 바로 이 상태(CPU 래스터)였습니다.
+- 예전 동작은 **"GPU 래스터" 모드**로 남겼습니다(목록의 마지막, 스위치 없음).
+- `start` 줄의 `switches=`에 그 스위치가, `rasterization=`에 상태가 남습니다: CPU 래스터면 `disabled_software`(그래픽 카드가 있어도 이렇게 적힘. `gpu_compositing=enabled` · `webgl=enabled`는 그대로), GPU 래스터면 `enabled`. 이 환경에서 앱의 기본 모드가 `gpu_compositing=enabled rasterization=disabled_software`로, GPU 래스터 모드가 `rasterization=enabled`로 뜨는 것을 확인했습니다.
+- 2D 캔버스 가속(`2d_canvas`)은 그대로 두었습니다. 플레이 중에는 캔버스에 글자를 그리지 않습니다(에디터 · 미니맵 · 분석 화면만 그림).
+- `crash-stack`을 24곳에서 **64곳**으로 늘리고 같은 주소는 한 번만 적습니다. 사용자의 두 덤프는 `executeRenderTasks`에서 끊겨, 그 그리기를 누가 시켰는지(타일 래스터인지 다른 것인지)까지 닿지 못했습니다. `scripts/crash_symbols.py`는 스택에 섞인 다른 모듈(d3d11.dll 등)의 주소를 앱의 심볼로 잘못 풀지 않고 그대로 적습니다.
+
+### 비용 (이 환경에서 잰 것)
+
+Chromium의 추적(`contentTracing`)으로 래스터 작업 시간을, 페이지의 `requestAnimationFrame` 간격으로 프레임을 쟀습니다. 1920×1080, 데스크톱 앱, 6K 자동 플레이 30초와 선곡 화면 10초(방향키로 난이도 · 곡을 계속 바꿈).
+
+| | CPU 래스터 (새 기본) | GPU 래스터 (예전 기본) |
+| --- | --- | --- |
+| 선곡: 프레임 간격 | 중앙 16.7ms, p95 16.8, 최대 33.3 (597프레임 중 긴 것 2) | 중앙 16.7ms, p95 16.8, 최대 66.6 (긴 것 4) |
+| 선곡: 래스터 작업 | 프레임당 0.28ms (751개, 중앙 0.18ms, p95 0.43, 최대 3.8) | 프레임당 0.31ms (렌더러 0.06 + GPU 프로세스 0.25, 최대 7.6) |
+| 플레이: 프레임 간격 | 중앙 66.6ms, p95 83.4, p99 116.6 | 중앙 66.7ms, p95 100, p99 116.7 |
+| 플레이: 래스터 작업 | 프레임당 1.13ms (1184개, 중앙 0.18ms, p95 1.39, 최대 9.6) | 프레임당 0.82ms (렌더러 0.18 + GPU 프로세스 0.65) |
+
+- **이 환경에는 그래픽 카드가 없어** WebGL도 CPU가 그립니다. 플레이의 프레임 간격 66ms는 그 탓이고(두 쪽 모두 같음), 래스터 작업도 그 CPU를 나눠 쓰며 잰 값입니다. 여기서 읽을 수 있는 것은 "HUD를 CPU로 래스터하는 일이 프레임당 1ms 안팎이고, GPU 경로의 일(0.8ms)과 같은 크기"라는 것까지입니다. 래스터는 메인 스레드가 아니라 래스터 스레드에서 돕니다.
+- 실제 PC에서의 단서는 사용자의 OpenGL 모드 플레이 하나입니다: 그 모드는 CPU 래스터였고(`rasterization=unavailable_off`), 144Hz 모니터에서 8분쯤 켜 두고 친 뒤 "해결된 것 같다"고 했습니다. 프레임 수치는 없습니다(프레임 기록은 끊길 때만 남음). **실제 그래픽 카드에서의 프레임 시간은 여기서 잴 수 없었습니다.**
+- 선곡 화면은 곡이 하나뿐인 보관함으로 쟀습니다. 곡이 많은 목록을 빠르게 넘길 때는 사용자 PC에서 봐야 합니다. 느려지면 "GPU 래스터" 모드가 예전 그대로입니다.
+
+### 사용자가 정하지 않아 채워 넣은 것
+
+- **기본 모드가 그리는 방식을 바꾼 것 자체**(조정 세션이 전한 제안을 따름). 좁은 원인을 찾지 못해, 로그가 뒷받침하는 넓은 쪽을 골랐습니다.
+- 기본뿐 아니라 **DirectComposition 끄기 · OpenGL · Direct3D 11on12도 CPU 래스터로** 바꾼 것. 멈춘 자리가 화면에 올리는 길이 아니라 글자 래스터라서, GPU 래스터를 남기면 그 모드들도 같은 자리에서 멈출 수 있습니다(DirectComposition 끄기는 실제로 멈췄음). Direct3D 11on12가 7분 동안 멈추지 않은 것은 GPU 래스터인 채였으므로 우연일 수 있습니다.
+- 모드 이름 "GPU 래스터"와 도움말 문구, 목록의 마지막 자리.
+- 2D 캔버스 가속을 끄지 않은 것.
+
+### 코드
+
+`desktop/graphicsMode.js`(`CPU_RASTER`와 모드 표), `desktop/main.js`(`MODE_LABELS`), `desktop/crashDump.js`(`FRAMES` 64, 한 번씩만), `desktop/graphicsLog.js`(`STACK_VALUE`), `client/src/ui/graphicsMode.ts`(모드 이름과 도움말), `packaging/smoke_desktop.cjs`(모드마다 스위치를 확인, 기본과 GPU 래스터 실행 추가), `scripts/crash_symbols.py`.
+
 ## 검사
 
 - `npx tsc --noEmit -p .` 통과, `npx vitest run` 498개 통과(GPT·Gemini·Grok·Claude 스킨까지).
@@ -614,6 +675,7 @@ Chromium이 화면을 그리는 방식을 바꿔 드라이버가 걸리는 경�
 - 2026-11-16(기어 사라짐 재발: 기록 · 그래픽 호환 모드 · 직전 3초): `node --test`(`desktop/`) 37개 통과(새 테스트: 모드와 되돌리기, 덤프 요약(직접 만든 덤프와 잘린 · 깨진 덤프), 구성 · 레지스트리 · 이벤트 로그 · Chromium 로그 줄, 끊김 한 번에 남는 줄들), `npx tsc --noEmit -p .` 통과, `npx vitest run` 62개 파일 559개 통과(새 테스트: `trail`, `graphicsMode`). e2e `graphicsMode` 3개 통과(설정 항목: 가짜 데스크톱 창으로), `graphicsLost` 4개 통과(끊긴 캔버스에 직전 3초가 남는지 포함). 이 환경에서 앱(Electron 44)을 띄워: 모드 넷을 각각 실행해 `start` · `gpu-config` 줄 확인, 기억된 모드가 20초 뒤 확정되거나(여기서는 소프트웨어라) 되돌려지는 것, 두 번 실패한 모드가 세 번째에 기본으로 열리는 것, GPU 프로세스를 크래시시켜 `chromium` · `crash-dump` · `crash-stack` 줄이 남는 것을 확인. Windows 빌드 #409(https://github.com/DreamChaserDeekay/Generative-Rhythm-Game/actions/runs/43854303944) 성공, 그 러너(Microsoft Basic Render Driver, 소프트웨어로 그림)의 스모크에서: 기본 · DirectComposition 끄기 · OpenGL은 모두 앱이 뜨고 WebGL이 SwiftShader로 됨(러너에 쓸 수 있는 카드와 OpenGL 드라이버가 없어 Chromium이 소프트웨어로 떨어짐: OpenGL 스위치가 실제 카드에서 OpenGL로 가는지는 러너로는 확인 불가), Direct3D 11on12는 `gl="ANGLE (Microsoft, Microsoft Basic Render Driver … Direct3D11on12 …)" display=ANGLE_D3D11on12 dcomp=yes`로 **스위치가 적용됨**(다만 러너의 소프트웨어 어댑터에서는 WebGL을 주지 않아 `webgl=none`: 앱이라면 6초 뒤 기본으로 되돌리는 경우). 일부러 낸 GPU 크래시에서 `crash-dump file=Crashpad/reports/….dmp code=0xC0000005 at="Generative Rhythm.exe+0x81ff4c0"`과 `crash-module … id=205ABBCBDFD937F14C4C44205044422E1 pdb=electron.exe.pdb`가 남았고, 그 오프셋이 Electron의 공개 심볼로 `gl::Crash()`로 풀림. 그 빌드에서 `crash-stack`이 비어 나온 것(Windows 덤프는 레지스터 뒤에 확장 영역이 붙어 크기가 다름)은 고쳐 다음 빌드에 들어감.
 - 2026-11-16(Windows 빌드 #410, https://github.com/DreamChaserDeekay/Generative-Rhythm-Game/actions/runs/43856627110, 성공): 러너의 스모크에서 **세 스위치가 Chromium 152에서 모두 먹는 것**을 확인. OpenGL 모드는 GPU 프로세스가 ANGLE의 OpenGL 백엔드를 시도한 줄이 `chromium.log`에 남음(`OpenGL 3.2 or higher is needed by the GL backend`: 러너에는 OpenGL 드라이버가 없어 실패하고 SwiftShader로 떨어짐. 실제 카드에서는 OpenGL로 감). Direct3D 11on12는 `display=ANGLE_D3D11on12 dcomp=yes`. 여기에 `--disable-direct-composition`을 더한 실행은 `dcomp=no`(그 스위치가 DirectComposition을 끄는 것). **GPU 프로세스 자신의 줄이 Windows에서도 `chromium.log`에 들어옴**(위의 줄들, `WebGL2 blocklisted` 등). 러너가 남긴 덤프를 받아 앱의 읽기 코드로 다시 읽으니 스택 24개가 나오고, 공개 심볼로 `gl::Crash()` ← `viz::mojom::GpuServiceStubDispatch::Accept` ← `mojo::InterfaceEndpointClient::HandleIncomingMessage` ← `mojo::internal::MultiplexRouter::Accept`로 읽힘(스택을 훑은 것이라 사이에 예전 호출의 흔적도 섞임).
 - 2026-11-16(끊긴 뒤 빨리 돌아오기): `npx tsc --noEmit -p .` 통과, `npx vitest run` 62개 파일 559개 통과, `node --test` 37개 통과. e2e `graphicsLost` 4개 통과(끊긴 뒤 트랙이 새 캔버스 `canvas.track-canvas`에 그려지고 원래 캔버스와 같은 자리인지, 새 컨텍스트를 브라우저의 1초 대기 전에 받는지, 두 번째 끊김에서도 새 캔버스가 하나인지). 데스크톱 앱에서 플레이 중 GPU 프로세스를 크래시시켜 `webglcontextrestored canvas=track-canvas afterMs=754 recoveredMs=234 recovered="context=90 warm=72" how=canvas`와 `picture … webgl=back` 줄 확인. 올린 뒤의 e2e(`settings` · `settingsLatest` · `hud` · `graphicsLost` · `graphicsMode` · `transitions` · `phase3` · `input`): 58개 중 50개 통과, 실패 8개는 앞의 실행들과 같은 테스트(`hud.spec.ts:152`, `input.spec.ts:81 · 157 · 246 · 302 · 579`, `phase3.spec.ts:79 · 170`: 이 환경에 NVIDIA GPU가 없어 채보를 만들지 못하는 것들). Windows 빌드 #411(https://github.com/DreamChaserDeekay/Generative-Rhythm-Game/actions/runs/43859311057) 성공: 러너에 설치된 앱이 일부러 낸 GPU 크래시에서 `crash-dump … at="Generative Rhythm.exe+0x81ff4c0"`, `crash-stack frames=…`(24개, `KERNELBASE.dll` 포함), `crash-module` 두 줄을 남김. 모드별 실행 결과는 #410과 같음.
+- 2026-11-16(기본 모드의 끊김: CPU 래스터): `node --test`(`desktop/`) 38개 통과(새 테스트: GPU 래스터 모드만 빼고 모든 모드에 `disable-gpu-rasterization`, 긴 스택이 64곳까지 한 번씩 적히는지), `npx tsc --noEmit -p .` 통과, `npx vitest run` 62개 파일 575개 통과, e2e `graphicsMode` 3개 · `graphicsLost` 4개 통과. `packaging/smoke_desktop.cjs`의 모드 실행 여섯(기본 · DirectComposition 끄기(크래시 포함) · OpenGL · 11on12 · GPU 래스터 · 11on12+dcomp 끔)을 이 환경에서 돌려 모드마다 스위치가 맞는지 확인. 데스크톱 앱(소프트웨어 GL로 GPU 합성을 켬)에서: 기본 모드가 `gpu_compositing=enabled webgl=enabled rasterization=disabled_software`, GPU 래스터 모드가 `rasterization=enabled`로 뜸. 기본 모드에서 플레이 중 GPU 프로세스를 크래시시키면 트랙이 0.4초에 새 캔버스로 돌아옴(`recoveredMs=401 how=canvas`). 두 방식의 플레이 화면을 나란히 놓고 콤보 · 판정 · RATE 글자가 같게 그려지는지 확인.
 - 화면 확인: 7K+1S · 6K+FX(반쪽 덮기) · 4K(FEVER), 카메라 SDVX · FLAT · LOW · PLANE, 설정의 기어 미리보기. LOW 카메라처럼 받침이 화면에 조금만 보이면 수치판을 그리지 않고 수치는 예전처럼 기어 왼쪽에 나옵니다.
 - 60fps: 이 환경은 소프트웨어 렌더러(SwiftShader)라 실제 PC의 프레임은 재지 못했습니다. 추가한 것은 프레임마다 그리는 양을 늘리지 않습니다(받침·키캡·효과 그림은 시작할 때 한 번 그리고, 글자의 겹은 글자가 바뀔 때만 다시 그립니다).
 - 2026-11-16(노트 스킨: 입체 롱노트, 모양 노트의 롱노트 끝, 막대 단노트 구별): `npx tsc --noEmit -p .` 통과, `npx vitest run` 60개 파일 556개 통과(새 테스트: 몸통 판의 옆면이 양쪽 가장자리 띠만 겹치는지, 끝 판의 벽이 바깥쪽만인지, 스타일별 두께, 모든 롱노트 그림이 그려지는지, `shapedEnd`가 단노트를 두 배 깊이로 그리고 몸통을 잇는지, 그림 세트의 롱노트 끝이 단노트 그림의 바깥 반인지. 고친 기대값: `flat` 항목 삭제, 별밤의 롱노트 'astral', 재질 노트의 윤곽이 크롬은 깎은 모서리 · 에나멜은 알약). e2e `graphicsLost` · `hud` · `phase3` · `settings` · `transitions` 42개 중 39개 통과, 실패 3개(`hud.spec.ts:152`, `phase3.spec.ts:79 · 170`)는 위 기록대로 이 변경 전에도 이 환경(NVIDIA GPU · 바깥 네트워크 없음)에서 실패하는 것. 화면으로 본 것(렌더러로 직접 찍음, `design-mockups/note-skins/`): 23개 스타일 × 4K SDVX(단노트 · 롱노트 · 누르는 중 · 놓침), 7K+1S SDVX 1920×1080의 단노트, 판정선 확대, 플레이 화면 9장(SDVX · LOW · PLANE × 4K · 6K · 6K+FX 사이드 레인 · 7K+1S).
@@ -623,8 +685,8 @@ Chromium이 화면을 그리는 방식을 바꿔 드라이버가 걸리는 경�
 
 ## 남은 것
 
-- **기어 사라짐 재발(2026-11-16)의 원인은 아직 모릅니다.** 다음에 끊기면 `graphics.log`의 `crash-dump` · `crash-stack`(어디서 멈췄는지), `driver-event`(드라이버가 초기화됐는지), `chromium`(GPU 프로세스가 한 말), `page-events`(게임이 직전에 한 일)가 가려 줍니다. 그 로그가 와야 고칠 곳이 정해집니다.
-- 그래픽 호환 모드가 사용자 PC(실제 그래픽 카드)에서 무엇으로 그려지는지, 그 모드에서 끊김이 사라지는지는 사용자 PC에서만 알 수 있습니다. 러너는 소프트웨어로 그려서 OpenGL 모드와 DirectComposition 끄기가 실제 카드에서 내는 차이는 확인하지 못했습니다.
+- **기어 사라짐 재발(2026-11-16): 멈추는 자리는 찾았고(Skia의 글자 그리기 검사, 위 "기본 모드의 끊김"), 무엇이 그 검사에 걸리는지는 모릅니다.** 기본 모드를 CPU 래스터로 바꾼 것이 사용자 PC에서 끊김을 없애는지는 사용자 PC에서만 알 수 있습니다: 설정 → 연출·배경 → 그래픽 호환 모드에서 **기본**을 고르고(마지막에 쓴 모드가 OpenGL로 기억돼 있을 수 있음) 다시 시작한 뒤, 끊겼던 곡과 자리(FIRESTARTER 2:06, THE ULTIMACY 0:57 · 1:47, Big Daddy 0:25, Skyriser 1:36)를 다시 칩니다. `graphics.log`의 `start` 줄이 `mode=default switches=disable-gpu-rasterization … rasterization=disabled_software`여야 합니다. 그래도 끊기면 이번에는 `crash-stack`이 64곳까지 남아, 그 그리기를 누가 시켰는지가 보입니다.
+- 그래픽 호환 모드가 사용자 PC에서 무엇으로 그려지는지는 사용자의 로그로 확인됐습니다(OpenGL: `ANGLE_OPENGL`, 11on12: `ANGLE_D3D11on12`, DirectComposition 끄기: `dcomp=no`). 러너는 소프트웨어로 그려서 CPU 래스터가 실제 카드에서 내는 차이(`rasterization=`)는 확인하지 못했습니다. CPU 래스터의 **실제 그래픽 카드에서의 프레임 시간도 재지 못했습니다**(이 환경은 소프트웨어 전용): 플레이가 무거워지거나 선곡 화면의 긴 목록이 느려지면 "GPU 래스터" 모드가 예전 그대로입니다.
 - 끊긴 뒤 새 캔버스로 돌아오는 시간이 실제 그래픽 카드에서 얼마인지는 사용자 PC의 `recoveredMs`로 처음 알게 됩니다(여기서는 소프트웨어로만 쟀음). 끊김이 없어지는 것은 아닙니다.
 - 끊긴 뒤에는 트랙이 원래 캔버스가 아니라 그 위의 새 캔버스(`canvas.track-canvas`)에 그려집니다. 원래 캔버스의 픽셀을 읽는 코드가 생기면 그 뒤로는 빈 그림을 읽게 됩니다(지금은 그런 코드가 없음).
 - 사용자 PC에서 그래픽 프로세스가 왜 끊겼는지는 아직 모릅니다(위 "원인은 아직 모릅니다"). 이제 끊기면 `graphics.log`와 사진이 남고, 기어는 끊긴 뒤에도 돌아옵니다. 사용자가 해 보기로 한 것: 배경 영상을 끄고 같은 곡을 쳐 보기.

@@ -1,12 +1,15 @@
 /**
  * The desktop app's graphics compatibility mode (설정 → 연출·배경 → 그래픽 호환 모드): another way for
- * Chromium to draw the game, for a PC whose graphics driver trips on the usual one (the whole screen blinks
- * and the gear is gone for a moment, in the same places of a song). The mode is the window's, not the
- * page's: Chromium is started with it, before any page is read, so the desktop app keeps it
- * (desktop/graphicsMode.js) and a change takes a restart. A browser has no such thing.
+ * Chromium to draw the game, for a PC on which the usual one fails (the whole screen blinks and the gear is
+ * gone for a moment, in the same places of a song). The mode is the window's, not the page's: Chromium is
+ * started with it, before any page is read, so the desktop app keeps it (desktop/graphicsMode.js) and a
+ * change takes a restart. A browser has no such thing.
+ *
+ * Every mode but the last draws the page's own pictures (text, buttons) on the CPU: drawing them on the
+ * graphics card is where a player's app stopped (2026-11-16). The last keeps that old way.
  */
 
-export const GRAPHICS_MODES = ['default', 'no-dcomp', 'gl', 'd3d11on12'] as const;
+export const GRAPHICS_MODES = ['default', 'no-dcomp', 'gl', 'd3d11on12', 'gpu-raster'] as const;
 export type GraphicsMode = (typeof GRAPHICS_MODES)[number];
 
 export interface GraphicsModeInfo {
@@ -53,13 +56,15 @@ export const GRAPHICS_MODE_NAMES: Record<GraphicsMode, string> = {
   'no-dcomp': 'DirectComposition 끄기',
   gl: 'OpenGL',
   d3d11on12: 'Direct3D 11on12',
+  'gpu-raster': 'GPU 래스터',
 };
 
 const ABOUT: Record<GraphicsMode, string> = {
-  default: '기본은 Direct3D 11로 그리고 DirectComposition으로 화면에 올립니다.',
-  'no-dcomp': 'DirectComposition 끄기는 Direct3D 11로 그리되, 화면에 올릴 때 DirectComposition과 오버레이를 쓰지 않습니다.',
+  default: '기본은 트랙과 노트를 Direct3D 11로 그려 DirectComposition으로 화면에 올리고, 글자와 버튼 같은 나머지 화면은 CPU로 그립니다.',
+  'no-dcomp': 'DirectComposition 끄기는 기본처럼 그리되, 화면에 올릴 때 DirectComposition과 오버레이를 쓰지 않습니다.',
   gl: 'OpenGL은 그래픽 카드의 OpenGL 드라이버로 그립니다.',
   d3d11on12: 'Direct3D 11on12는 Direct3D 12 드라이버 위에서 그립니다.',
+  'gpu-raster': 'GPU 래스터는 글자와 버튼 같은 화면까지 그래픽 카드로 그립니다(2026-11-16까지의 기본). 이 방식에서 플레이 중 화면이 깜빡이며 기어가 사라진 PC가 있습니다.',
 };
 
 /** Why the app gave a mode up (its own words, desktop/main.js and graphicsMode.js), for the player. */
