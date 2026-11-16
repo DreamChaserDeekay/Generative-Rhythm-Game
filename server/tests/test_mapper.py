@@ -485,12 +485,13 @@ def test_a_first_chart_whose_timing_lost_the_beat_is_made_again_without_it(tmp_p
     meta = {"songId": None, "title": "T", "artist": "A"}
     mapper = Mapper()
     try:
-        # off by default (it fitted real timings worse): the model's timing is kept as it came
-        assert mapper.config()["timingCheck"] is False
+        # with mapper.json timingCheck off the model's timing is kept as it came
+        assert mapper.config()["timingCheck"] is True
+        config = Mapper.config
+        monkeypatch.setattr(Mapper, "config", lambda self: {**config(self), "timingCheck": False})
         kept = mapper.generate(_analysis(), "4K", "HARD", None, 1, meta, wav)
         assert "timingFixed" not in kept["meta"]["generator"] and [p["bpm"] for p in kept["timing"]["tempoMap"]] == [128.0, 3.0]
-        config = Mapper.config
-        monkeypatch.setattr(Mapper, "config", lambda self: {**config(self), "timingCheck": True})
+        monkeypatch.setattr(Mapper, "config", config)
         chart = mapper.generate(_analysis(), "4K", "HARD", None, 1, meta, wav)
         gen = chart["meta"]["generator"]
         assert gen["timing"] == "model" and [(d["why"], d["ms"]) for d in gen["timingFixed"]] == [("bounds", 20000.0)]
