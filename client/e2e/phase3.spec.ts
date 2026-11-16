@@ -564,10 +564,10 @@ test('notes and side notes picked in the 노트 tab, gear and hit effect in the 
   await chooseSetting(page, 'opt-hit-style', 'flash');
   await page.getByRole('button', { name: /완료/ }).click();
   await tool(page, 'sync-auto');
-  // the default skin: its notes, its long note and its gear drawn in code, its hit a flipbook
+  // the default skin: its notes and its long note drawn from their pictures (made with the image model), its gear in code, its hit a flipbook
   await expect(page.locator('.play-canvas')).toHaveAttribute('data-style', 'flat solid bar standard flash');
-  await expect(page.locator('.play-canvas')).toHaveAttribute('data-art', 'gear hit');
-  // and the crystal skin (its parts saved as 'prism'), picked part by part: drawn in code too, its hit a flipbook
+  await expect(page.locator('.play-canvas')).toHaveAttribute('data-art', 'notes long gear hit');
+  // and the crystal skin (its parts saved as 'prism'), picked part by part: its notes and long note from their pictures too, its hit a flipbook
   await page.keyboard.press('Escape');
   await expect(page.getByTestId('pause-menu')).toBeVisible();
   await page.keyboard.press('KeyQ');
@@ -584,7 +584,7 @@ test('notes and side notes picked in the 노트 tab, gear and hit effect in the 
   await page.getByRole('button', { name: /완료/ }).click();
   await tool(page, 'sync-auto');
   await expect(page.locator('.play-canvas')).toHaveAttribute('data-style', 'prism prism bar prism prism');
-  await expect(page.locator('.play-canvas')).toHaveAttribute('data-art', 'gear hit');
+  await expect(page.locator('.play-canvas')).toHaveAttribute('data-art', 'notes long gear hit');
   // its HUD: the gauge named FEVER, the letters cut into planes (each word carries its text for them)
   await expect(page.locator('.hud')).toHaveAttribute('data-gear', 'prism');
   await expect(page.locator('.hud')).toHaveAttribute('data-fill', 'crystal');
@@ -711,7 +711,7 @@ test('the sky skin in play: its notes, gear and hit drawn in code, the lettering
   await page.getByRole('button', { name: /완료/ }).click();
   await tool(page, 'sync-auto');
   await expect(page.locator('.play-canvas')).toHaveAttribute('data-style', 'sky sky bar sky sky');
-  await expect(page.locator('.play-canvas')).toHaveAttribute('data-art', 'gear hit');
+  await expect(page.locator('.play-canvas')).toHaveAttribute('data-art', 'notes long gear hit');
   const hud = page.locator('.hud');
   await expect(hud).toHaveAttribute('data-gear', 'sky');
   await expect(hud).toHaveAttribute('data-fill', 'sky');
@@ -768,7 +768,7 @@ test('an AI company’s skin in play: the build’s two stickers over the gear�
   await tool(page, 'sync-auto');
   // its notes a shape of their own (the mark), its long notes the coin's (drawn from the record's pictures)
   await expect(page.locator('.play-canvas')).toHaveAttribute('data-style', 'gemini capsule bar gemini gemini');
-  await expect(page.locator('.play-canvas')).toHaveAttribute('data-art', 'long gear hit');
+  await expect(page.locator('.play-canvas')).toHaveAttribute('data-art', 'notes long gear hit');
   // the two stickers by the gear, and the mark in the notes
   await expect(page.locator('.play-canvas')).toHaveAttribute('data-standees', '2', { timeout: 30_000 });
   await expect(page.locator('.play-canvas')).toHaveAttribute('data-mark', '1', { timeout: 30_000 });
@@ -795,8 +795,8 @@ test('the Firestarter skin in play: drawn in code, its lettering tall and slante
   await page.getByRole('button', { name: /완료/ }).click();
   await tool(page, 'sync-auto');
   await expect(page.locator('.play-canvas')).toHaveAttribute('data-style', 'fire fire bar fire fire');
-  // drawn in code, as the default skin is
-  await expect(page.locator('.play-canvas')).toHaveAttribute('data-art', 'long gear hit');
+  // its notes and long note drawn from their pictures, as the default skin's are
+  await expect(page.locator('.play-canvas')).toHaveAttribute('data-art', 'notes long gear hit');
   // the two stand by the gear, one a side
   await expect(page.locator('.play-canvas')).toHaveAttribute('data-standees', '2', { timeout: 30_000 });
   const hud = page.locator('.hud');
@@ -943,10 +943,10 @@ test('the bar in six finishes picked by name in the notes tab, each with a long 
 
   await tool(page, 'sync-auto');
   await expect(page.getByTestId('play-screen')).toBeVisible();
-  // the last one picked, with its own long note; drawn in code (no notes from art)
+  // the last one picked, with its own long note; drawn from its pictures (made with the image model)
   await expect(page.locator('.play-canvas')).toHaveAttribute('data-style', /^carbon carbon bar /);
   await expect(page.locator('.play-overlay')).toHaveCount(0, { timeout: 30_000 });
-  await expect(page.locator('.play-canvas')).not.toHaveAttribute('data-art', /\bnotes\b/);
+  await expect(page.locator('.play-canvas')).toHaveAttribute('data-art', /^notes long /);
   await page.keyboard.press('Escape');
   await expect(page.getByTestId('pause-menu')).toBeVisible();
   await page.keyboard.press('KeyQ');

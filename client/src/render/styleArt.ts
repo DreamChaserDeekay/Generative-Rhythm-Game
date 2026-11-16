@@ -6,6 +6,7 @@ import {
   LONG_OF,
   LONG_PAINT,
   isLogoNote,
+  logoNote,
   NOTE_PAINT,
   NOTE_SHAPE,
   shapedEnd,
@@ -123,10 +124,13 @@ export function styleImageIds(style: SkinStyle): string[] {
   const ids: string[] = [];
   const notes = setOf(style.note);
   if (notes) ids.push(artId(notes, 'notes'), artId(notes, 'long'), ...(style.side === 'dots' ? [] : [artId(notes, 'side')]));
-  // the AI companies' marks play the coin's long note: its pictures (the record for its ends)
-  else if (isLogoNote(style.note)) ids.push(artId('club', 'notes'), artId('club', 'long'));
-  // a code long note drawn again with the image model
-  else if (ART_LONGS[LONG_OF[style.note]] !== undefined) ids.push(`longs/${LONG_OF[style.note]}`);
+  // the AI companies' marks play the coin's long note: its pictures (the record for its ends); their inside a material
+  else if (isLogoNote(style.note)) ids.push(artId('club', 'notes'), artId('club', 'long'), ...(ART_MATERIALS.includes(style.note) ? [`notes/${style.note}`] : []));
+  else {
+    // a code note and long note drawn again with the image model
+    if (ART_NOTES.includes(style.note)) ids.push(`notes/${style.note}`);
+    if (ART_LONGS[LONG_OF[style.note]] !== undefined) ids.push(`longs/${LONG_OF[style.note]}`);
+  }
   ids.push(...Object.values(GEAR_PICTURES[style.deck]));
   return ids;
 }
@@ -184,6 +188,11 @@ const PLATE_Y = 256;
  * them stretches to the lane (slices meet at whole px).
  */
 function slab(g: CanvasRenderingContext2D, notes: ArtImage, layout: SlabLayout, mark: Exclude<NoteMark, 'side'>, w: number, h: number): void {
+  slabRow(g, notes, layout, MARK_CELL[mark], w, h);
+}
+
+/** Row `row` of a slab layout drawn w × h: its ends and its middle keep their look, what lies between stretches to the lane. */
+function slabRow(g: CanvasRenderingContext2D, notes: ArtImage, layout: SlabLayout, row: number, w: number, h: number): void {
   const [c0, c1, c2, c3] = layout.cuts;
   const k = h / layout.h / NOTE_STRETCH;
   // a narrow lane: ends and mark narrower, so what lies between keeps some length
@@ -191,7 +200,7 @@ function slab(g: CanvasRenderingContext2D, notes: ArtImage, layout: SlabLayout, 
   const [cap, mid] = [c0 * k * fit, (c2 - c1) * k * fit];
   const half = (w - 2 * cap - mid) / 2;
   g.imageSmoothingQuality = 'high';
-  slices(g, notes, MARK_CELL[mark] * layout.row + layout.top, layout.h, [0, c0, c1, c2, c3, layout.w], [0, cap, cap + half, cap + half + mid, w - cap, w], h);
+  slices(g, notes, row * layout.row + layout.top, layout.h, [0, c0, c1, c2, c3, layout.w], [0, cap, cap + half, cap + half + mid, w - cap, w], h);
 }
 
 /**
@@ -332,6 +341,10 @@ export function noteWidthOf(style: NoteStyle): number {
 
 /** The note style's paint: drawn from art where its pictures loaded. */
 export function notePaintOf(style: NoteStyle, images: StyleImages): NotePaint {
+  const drawn = ART_NOTES.includes(style) || ART_MATERIALS.includes(style) ? images[`notes/${style}`] : undefined;
+  // an AI company's mark: its outline the build's picture, its inside the material drawn for it
+  if (drawn && isLogoNote(style)) return logoNote(style, drawn);
+  if (drawn) return artTap(drawn, NOTE_PAINT[style]);
   const set = setOf(style);
   const notes = set && images[artId(set, 'notes')];
   if (!set || !notes) return NOTE_PAINT[style];
@@ -360,7 +373,7 @@ export function noteShapeOf(style: NoteStyle, images: StyleImages): number | nul
 const LONG = { w: 128, tile: 256 } as const;
 const LONG_END: Record<ArtSet, number> = { mecha: 48, club: 78, crystal: 70, neon: 59 };
 
-function artLong(image: ArtImage, end: number, width: number): LongPaint {
+function artLong(image: ArtImage, end: number, width: number, tile = LONG.tile / LONG.w): LongPaint {
   const part =
     (x: number, h: number): Paint =>
     (g, w, ph) => {
@@ -372,7 +385,7 @@ function artLong(image: ArtImage, end: number, width: number): LongPaint {
     end: part(2 * LONG.w, end),
     held: { body: part(LONG.w, LONG.tile), end: part(3 * LONG.w, end) },
     // drawn NOTE_STRETCH times longer along the note: on the screen as the picture is
-    tile: (LONG.tile / LONG.w) * NOTE_STRETCH,
+    tile: tile * NOTE_STRETCH,
     endDepth: (end / LONG.w) * NOTE_STRETCH,
     width,
     px: LONG.w,
@@ -396,18 +409,54 @@ export function longPaintOf(style: NoteStyle, images: StyleImages): LongPaint {
 /**
  * The long notes that were drawn in code, drawn again with the image model (scripts/assets/make_long_notes.py and
  * build_long_notes.py: media/longs/<long>.png, "longs/<long>" in the manifest, the layout of the sets' long.png),
- * each with its end's depth in that picture (px of 128 across: build_long_notes.py's end_px). The code draws a long
- * note left out of this list, or whose picture did not load: take a name out to have its code drawing back.
+ * each with its end's depth in that picture (px of 128 across: build_long_notes.py's end_px) and how many body
+ * widths its body's tile is (one mark spaced down it, or a width of its plain middle: build_long_notes.py prints it). The code
+ * draws a long note left out of this list, or whose picture did not load: take a name out to have its code drawing back.
  */
-export const ART_LONGS: Partial<Record<LongStyle, number>> = {
-  fire: 44,
+export const ART_LONGS: Partial<Record<LongStyle, { end: number; tile: number }>> = {
+  solid: { end: 44, tile: 1 },
+  prism: { end: 102, tile: 1 },
+  sky: { end: 44, tile: 1 },
+  fire: { end: 44, tile: 1 },
+  aqua: { end: 44, tile: 1.5333 },
+  steel: { end: 44, tile: 1.3667 },
+  noir: { end: 44, tile: 0.7667 },
+  wire: { end: 44, tile: 1 },
+  astral: { end: 44, tile: 1 },
+  chrome: { end: 44, tile: 1 },
+  hairline: { end: 44, tile: 1 },
+  glass: { end: 44, tile: 1 },
+  enamel: { end: 44, tile: 1 },
+  pearl: { end: 44, tile: 1 },
+  carbon: { end: 44, tile: 1 },
 };
 
 /** A long note drawn from its picture (ART_LONGS), as wide as its code's; undefined where it has none loaded. */
 function artLongOf(long: LongStyle, images: StyleImages): LongPaint | undefined {
-  const end = ART_LONGS[long];
-  const picture = end === undefined ? undefined : images[`longs/${long}`];
-  return picture ? artLong(picture, end!, LONG_PAINT[long].width) : undefined;
+  const art = ART_LONGS[long];
+  const picture = art && images[`longs/${long}`];
+  return art && picture ? artLong(picture, art.end, LONG_PAINT[long].width, art.tile) : undefined;
+}
+
+/**
+ * The bars that were drawn in code, drawn again with the image model with their long notes (make_long_notes.py,
+ * build_long_notes.py: media/notes/<note>.png, "notes/<note>"): the key lanes' tap in the first row (every key's
+ * colour and a side lane's own), the scratch's in the second, each ART_NOTE's size. Take a name out to have its code
+ * drawing back; a picture that did not load is drawn in code too.
+ */
+export const ART_NOTES: readonly NoteStyle[] = ['flat', 'prism', 'sky', 'fire', 'aqua', 'steel', 'noir', 'wire', 'astral', 'chrome', 'hairline', 'glass', 'enamel', 'pearl', 'carbon'];
+/** The AI companies' marks whose inside is drawn from a material made with the image model (media/notes/<logo>.png, 512 × 512). */
+export const ART_MATERIALS: readonly NoteStyle[] = ['gpt', 'gemini', 'grok', 'claude'];
+/** media/notes/<note>.png's rows: 1024 × 224 a tap, its ends and its middle (the scratch's mark) kept as drawn. */
+const ART_NOTE: SlabLayout = { row: 256, top: 16, w: 1024, h: 224, cuts: [212, 332, 692, 812] };
+
+/** A bar drawn from its picture (ART_NOTES): a key's (and a side lane's) from its first row, the scratch's from its second. */
+function artTap(image: ArtImage, code: NotePaint): NotePaint {
+  return (g, w, h, mark) => {
+    if (!image) return code(g, w, h, mark);
+    g.imageSmoothingQuality = 'high';
+    slabRow(g, image, ART_NOTE, mark === 'scratch' ? 1 : 0, w, h);
+  };
 }
 
 /** The note styles whose taps are no bar (the coin, the stars): their long notes' ends are cut in the tap's outline. The AI companies' marks play the coin's. */
@@ -518,7 +567,10 @@ export function artPartsOf(style: SkinStyle, images: StyleImages): string[] {
     if (images[artId(set, 'notes')]) parts.push('notes');
     if (images[artId(set, 'long')]) parts.push('long');
     if (images[artId(set, 'side')] && style.side !== 'dots') parts.push('side');
-  } else if (isLogoNote(style.note) ? images[artId('club', 'long')] : images[`longs/${LONG_OF[style.note]}`]) parts.push('long');
+  } else {
+    if ((ART_NOTES.includes(style.note) || ART_MATERIALS.includes(style.note)) && images[`notes/${style.note}`]) parts.push('notes');
+    if (isLogoNote(style.note) ? images[artId('club', 'long')] : images[`longs/${LONG_OF[style.note]}`]) parts.push('long');
+  }
   if (Object.keys(gearArtOf(style.deck, images)).length === Object.keys(GEAR_PICTURES[style.deck]).length) parts.push('gear');
   return parts;
 }

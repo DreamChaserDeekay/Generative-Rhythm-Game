@@ -2906,25 +2906,146 @@
 - LED 그리드는 물결이 넓어질수록 켜진 칸이 늘어 예전에는 133 ms 뒤가 가장 밝았습니다. 이제 첫 프레임에 건반 둘레 5×5칸이 모두 켜지고, 물결은 그 가장자리에서 출발해 넓어지며 빨리 어두워집니다. 물결 뒤에서 깜빡이는 낱칸은 예전 속도로 사라져, 14번째 프레임의 빛은 예전과 같은 양입니다.
 - 길이는 그대로 16프레임 · 60fps(0.27초)이고, 매니페스트에 시작 프레임(`flipbook.peak`: 9장 모두 0)을 적습니다.
 
-## 코드로 그리던 롱노트를 그림으로 (`styles/longs`, 2026-11-16)
+## 코드로 그리던 단노트 · 롱노트를 그림으로 (`styles/longs`, 2026-11-16)
 
-사용자 요청(조정 세션 경유): "롱노트도 코드로 만든거 있으면 제미나이로 다시 뽑아줘". 코드로 그리던 롱노트(아래 목록)를, 지금의 코드 그림을 "지킬 모습"으로 보내 질감만 그림 수준으로 올려 다시 그립니다. 세트의 롱노트(`styles/<set>/long.jpg`)와 같은 꼴: 검은 바탕에 선 레일 둘(왼쪽 대기, 오른쪽 누르는 중), 양끝이 몸통 자신의 끝으로 닫힘.
+사용자 요청(조정 세션 경유): "롱노트도 코드로 만든거 있으면 제미나이로 다시 뽑아줘", "단노트도 그림으로 그려줘". 코드로 그리던 막대 단노트 15종과 그 롱노트를, 지금의 코드 그림을 "지킬 모습"으로 보내 질감만 그림 수준으로 올려 다시 그렸습니다. 스타일마다 한 장에 단노트 둘(건반 · 스크래치)과 롱노트 레일 둘(대기 · 누르는 중)을 함께 그려 재질 · 색 · 빛이 맞게 했습니다. AI 회사 넷의 단노트는 로고 윤곽(빌드의 `stage/<스킨>/note.png`)을 그대로 쓰고, 그 안을 채우는 재질 사각형만 그렸습니다(로고는 모델에 보내지 않음).
 
-- 만드는 법: `scripts/assets/make_long_notes.py make <long>`(모델 `gemini-nano-banana-2.1`, 1:1 · 2K), 고르기 `pick <long> <번호>` → `assets-src/styles/longs/<long>.jpg`(1536 px JPEG), 게임 그림 `scripts/assets/build_long_notes.py` → `client/public/media/longs/<long>.png`(512×256, 세트의 long.png와 같은 배치) · 매니페스트 `longs/<long>`.
-- 보낸 그림: `assets-src/styles/longs/refs/<long>.jpg`. 게임의 코드 롱노트(대기 · 누르는 중)를 옅은 회색 레인으로 그린 것과, 그 스킨의 단노트(작게, 재질만 보라고). `design-mockups/note-skins/lab/refs.mjs`로 만듦. 다른 게임의 그림이나 로고는 보내지 않음.
-- 프롬프트: 스킨마다 한 줄의 설명(`make_long_notes.py`의 `LONGS`)을 공통 머리(`KEEP`: 같은 배치 · 폭 · 끝 모양 · 띠와 선의 자리 · 부분마다의 밝기와 비침을 지키고 질감만 올림, 없는 부품을 더하지 않음)와 꼬리(`RULES`: 끝 외에는 길이 방향으로 같아 이음매 없이 반복, 무채색, 정사영, 검은 바탕) 사이에 넣음. 전문은 `assets-src/styles/longs/_tries/record.json`(저장소 밖)과 스크립트.
-- 후처리(`build_long_notes.py`): 레일을 밝게 차 있는 행 · 열로 찾아 둘레의 빛은 버림, 몸통은 레일 가운데를 위아래 겹쳐 섞어 이음매 없이 128×256, 끝은 레일 위쪽을 코드 끝과 같은 깊이 비율로 128×`end`. 값 ÷ 0.72(옅은 회색 레인으로 그린 것)를 레인 색의 양으로, 밝은 부분을 흰색 쪽으로(대기 0.74부터 0.75까지, 누르는 중 0.6부터 0.9까지).
+- 모델 `gemini-nano-banana-2.1`(1:1 · 2K), `scripts/assets/make_long_notes.py`(`make <long>` · `material <logo>` · `pick <이름> <번호>`). 받은 것은 `assets-src/styles/longs/_tries/`(저장소 밖)와 `record.json`, 고른 것은 `assets-src/styles/longs/<이름>.jpg`(1536 px, JPEG 95).
+- 보낸 그림: `assets-src/styles/longs/refs/<long>.jpg`(게임의 코드 그림: 위에 단노트 둘을 화면에 보이는 비율로, 아래에 롱노트 대기 · 누르는 중을 옅은 회색 레인으로. `design-mockups/note-skins/lab/refs.mjs`). 다른 게임의 그림이나 로고는 보내지 않음. 재질 사각형은 그림 없이 말로만.
+- 게임 그림(`scripts/assets/build_long_notes.py`): 단노트 → `client/public/media/notes/<note>.png`(1024×512: 한 줄에 하나, 1024×224, 끝과 가운데는 그대로 두고 사이를 레인 폭에 맞춰 늘림), 롱노트 → `client/public/media/longs/<long>.png`(512×256, 세트의 long.png 배치: 몸통 · 누르는 중 몸통 · 끝 · 누르는 중 끝), 재질 → `client/public/media/notes/<logo>.png`(512×512). 값 ÷ 0.72를 레인 색의 양으로, 밝은 부분을 흰색 쪽으로 올림. 레일은 밝게 차 있는 행 · 열로 찾고(둘레의 빛은 버림), 몸통은 레일 가운데 한 폭(표시가 줄지은 아쿠아 · 스틸 · 레드라인은 표시 하나가 온전히 든 구간: 그림을 보고 정함)을 위아래를 섞어 이음매 없이, 길이 방향의 밝기 기울기는 평평하게 폄. 끝은 레일 위쪽을 코드 끝과 같은 깊이 비율로.
+- 비용: 단노트 · 롱노트 16회(파이어스타터 3회 포함) + 재질 4회 = 20회, 약 $1.3(회당 약 $0.063, 2026-11-03 기준).
 
-### `styles/longs/fire.jpg` (파이어스타터)
+### 공통 프롬프트
 
-- 시도 1: 2026-11-16 12:37:46 +0000 · 4,286,046바이트 · sha256 앞 16자리 `75d85d54e4a491d5` · 버림(단단한 래커가 어두운 유리관과 고리 마개로 바뀜). 이 뒤 공통 머리에 "부분마다의 밝기 · 비침을 지키고 없는 부품을 더하지 않음"을 넣음.
-- 시도 2(고름): 2026-11-16 12:38:33 +0000 · 3,015,747바이트 · sha256 앞 16자리 `cb5a0a15c2c0a19b` · 저장한 JPEG 255,624바이트
-- 프롬프트:
+단노트 · 롱노트 (`{THE SKIN AND ITS LONG NOTE}` 자리에 아래 스타일별 설명):
 
-  > The attached picture shows two long notes of one skin of a commercial PC keyboard rhythm game, as the game draws them now in flat code-drawn graphics, for a lane whose colour is a light neutral grey: the left one idle, the right one held. Under them, small, is the same skin's tap note, shown only so you can see the skin's material: do NOT draw it.
+  > The attached picture shows the notes of one skin of a commercial PC keyboard rhythm game, as the game draws them now in flat code-drawn graphics, for a lane whose colour is a light neutral grey. Top row: two TAP NOTES seen from above, the key lanes' note (left) and the scratch lane's note (right, the same note with its mark in the middle). Below: the skin's LONG NOTE twice, standing upright: idle (left) and held (right).
   >
-  > Draw the two long notes again as production game art at the finish level of a top commercial rhythm game: the SAME design, with real material detail. Keep exactly: the layout (two upright rails at the same places and sizes, the left idle, the right held), each rail's width and its outline, the shape of its two ends (square, rounded or cut corners, as shown), the bands, lines, grooves and marks running down it and where they are across its width, and HOW BRIGHT EACH PART IS: match the grey value of every part of the attached picture (a light grey part stays light grey, a near-white line stays near white, a dark part stays dark), and keep it as opaque as shown: a part is see-through only where the picture shows the black through it. Add nothing: no rings, collars, caps, screws or parts that are not in the picture. Only raise the finish: material texture, crisp bevels and edge highlights, subtle depth.
+  > Draw this same sheet again as production game art at the finish level of a top commercial rhythm game: the SAME design, with real material detail. Keep exactly: the layout (the two taps at the top, the two rails below them, each at the same place and size), every outline (the taps' corners, flames, cuts and ends; each rail's width and the shape of its two ends), every band, line, groove, bolt, stripe, star and mark and where it lies, and HOW BRIGHT EACH PART IS: match the grey value of every part of the attached picture (a light grey part stays light grey, a near-white line stays near white, a dark part stays dark), and keep it as opaque as shown: a part is see-through only where the picture shows the black through it. Add nothing: no rings, collars, caps, screws, marks or parts that are not in the picture. Only raise the finish: material texture, crisp bevels and edge highlights, subtle depth.
   >
-  > THE LONG NOTE: the Firestarter skin: an opaque, solid bar of glossy hot lacquer, light grey, darker toward its two sides as a rounded bar is, a white-hot wire glowing down its middle, ends cut straight across with a thin bright rim.
+  > THE SKIN AND ITS LONG NOTE: {스타일별 설명}. Its taps are of the same material.
   >
-  > RULES: A long note is one continuous body only, with no tap note at either end: each end is closed by the body's own end, drawn the same at the top and the bottom. Along its whole length between its ends the body looks exactly the same, so any stretch of it repeats seamlessly: no gradient from top to bottom, no one-off details, any mark down it evenly spaced. The held one is the same note, brighter, its inner light stronger. Colour: neutral greys and white only, with no hue at all, because the game tints it with the lane colour; glowing parts are near white. Strictly orthographic, straight top-down, no perspective, every edge straight and vertical. Pure black background (#000000) around and between the rails, no shadow cast onto it, nothing under the rails (the area where the small tap note was stays black). No text, letters, numbers, logos or watermarks.
+  > RULES: Each tap's lower long edge is the edge that meets the judgement line: keep it perfectly straight, crisp and the brightest edge of the tap. The scratch tap keeps its mark exactly as shown, clear and readable. A long note is one continuous body only, with no tap note at either end: each end is closed by the body's own end, drawn the same at the top and the bottom. Along its whole length between its ends the body looks exactly the same, so any stretch of it repeats seamlessly: no gradient from top to bottom, no one-off details, any mark down it evenly spaced. The held long note is the same note, brighter, its inner light stronger. Colour: neutral greys and white only, with no hue at all, because the game tints everything with the lane colour; glowing parts are near white. Strictly orthographic, straight top-down, no perspective, every edge straight and level. Pure black background (#000000) around and between everything, no shadow cast onto it, no glow spreading onto the black beyond a thin rim. No text, letters, numbers, logos or watermarks.
+
+재질(`{material}` 자리에 아래 회사별 설명):
+
+  > A seamless square material swatch for a game asset: the surface material of a small game note, filling the WHOLE image edge to edge with no border, no object, no shape and no background. The material: {material}. It is mostly light: light grey to white, with no area darker than mid grey, because the game fills a bright note with it and tints it with the lane colour. Neutral greys and white only, with no hue at all. Flat, straight-on view. No text, letters, numbers, logos or watermarks.
+
+### 스타일별 기록
+
+
+#### `styles/longs/solid.jpg` (기본)
+
+- 설명: the default skin: a plain, solid bar of glossy lacquer with a crisp bright rim down each long edge, lit from the left; held, a line of light glows down its middle
+- solid-1: 2026-11-16 12:52:52 +0000 · 3,083,142바이트 · sha256 앞 16자리 `236c4156b5dfab97` · 고름
+- 저장한 JPEG: 256,390바이트 · sha256 앞 16자리 `efaa8bcb039f94d9`
+
+#### `styles/longs/prism.jpg` (크리스털)
+
+- 설명: the crystal skin: a long triangular prism of cut glass, a bright ridge line down its middle between a lit left facet and a shaded right facet, each end closed by the prism's own pointed end facet
+- prism-1: 2026-11-16 12:53:19 +0000 · 3,442,010바이트 · sha256 앞 16자리 `c9fdd5e1f3a13653` · 고름
+- 저장한 JPEG: 308,313바이트 · sha256 앞 16자리 `3965d9b35b02dd45`
+
+#### `styles/longs/sky.jpg` (하늘)
+
+- 설명: the sky skin: a soft, matte, half see-through pillow band with fully rounded ends, a pale soft rim down each edge and a soft white line down its middle, like a band of cloud
+- sky-1: 2026-11-16 12:53:51 +0000 · 3,202,922바이트 · sha256 앞 16자리 `e17ecae12b6b707f` · 고름
+- 저장한 JPEG: 261,677바이트 · sha256 앞 16자리 `0a4bb0d34ed1dfeb`
+
+#### `styles/longs/fire.jpg` (파이어스타터)
+
+- 설명: the Firestarter skin: an opaque, solid bar of glossy hot lacquer, light grey, darker toward its two sides as a rounded bar is, a white-hot wire glowing down its middle, ends cut straight across with a thin bright rim
+- fire-1: 2026-11-16 12:37:46 +0000 · 4,286,046바이트 · sha256 앞 16자리 `75d85d54e4a491d5` · 버림 (단단한 래커가 어두운 유리관과 고리 마개로 바뀜: 이 뒤 공통 머리에 "부분마다의 밝기 · 비침을 지키고 없는 부품을 더하지 않음"을 넣음)
+- fire-2: 2026-11-16 12:38:33 +0000 · 3,015,747바이트 · sha256 앞 16자리 `cb5a0a15c2c0a19b` · 버림 (롱노트만 그리던 때의 것: 단노트를 함께 그리게 바꾼 뒤 다시 그림)
+- fire-3: 2026-11-16 12:54:15 +0000 · 3,053,613바이트 · sha256 앞 16자리 `e9dcf14e1f65b89e` · 고름
+- 저장한 JPEG: 259,779바이트 · sha256 앞 16자리 `86f9be5b90f2b72e`
+
+#### `styles/longs/aqua.jpg` (아쿠아)
+
+- 설명: the aqua mecha skin: a rail of clear, wet, glossy water-glass with bright edges and a row of evenly spaced chevrons pointing down its middle, ends cut at 45-degree corners
+- aqua-1: 2026-11-16 12:54:44 +0000 · 3,213,240바이트 · sha256 앞 16자리 `3d626bfe5aaae22a` · 고름
+- 저장한 JPEG: 286,500바이트 · sha256 앞 16자리 `e50b7589493e40f8`
+
+#### `styles/longs/steel.jpg` (스틸)
+
+- 설명: the gunmetal skin: a thick bar of brushed gunmetal with a deep dark groove down its middle and small round rivets evenly spaced down both sides, ends with slightly rounded corners
+- steel-1: 2026-11-16 12:55:12 +0000 · 3,176,565바이트 · sha256 앞 16자리 `7aa340742085d590` · 고름
+- 저장한 JPEG: 313,183바이트 · sha256 앞 16자리 `ce6949c4ec4a67a9`
+
+#### `styles/longs/noir.jpg` (레드라인)
+
+- 설명: the black-and-red skin: a hard-edged band between two bright edge lines, flat and graphic, small squares evenly spaced down its middle, ends cut at their corners
+- noir-1: 2026-11-16 12:55:45 +0000 · 3,794,393바이트 · sha256 앞 16자리 `f0d6e72226698fba` · 고름
+- 저장한 JPEG: 362,403바이트 · sha256 앞 16자리 `9f954c24bb068a20`
+
+#### `styles/longs/wire.jpg` (화이트 라인)
+
+- 설명: the white-line skin: a hollow rail of light: two thin bright lines along its edges, the inside nearly see-through and dark, ends cut straight across by a thin line
+- wire-1: 2026-11-16 12:56:12 +0000 · 3,598,887바이트 · sha256 앞 16자리 `3ed31ca1a60d7a86` · 고름
+- 저장한 JPEG: 357,943바이트 · sha256 앞 16자리 `1461a6da229dc36f`
+
+#### `styles/longs/astral.jpg` (별밤)
+
+- 설명: the starry-night skin: a deep night-sky band with tiny stars scattered over it and a small four-pointed star, a pale gold rim down each edge, ends cut at their corners
+- astral-1: 2026-11-16 12:56:36 +0000 · 3,233,909바이트 · sha256 앞 16자리 `ad42b3bfc26c87f4` · 고름
+- 저장한 JPEG: 309,160바이트 · sha256 앞 16자리 `8f8e964c6a41f51e`
+
+#### `styles/longs/chrome.jpg` (크롬)
+
+- 설명: a mirror-polished chrome bar: bevels down both edges, the left lit and the right in half shade, a mirror face between them with a sharp bright reflection line, ends cut at their corners
+- chrome-1: 2026-11-16 12:57:01 +0000 · 3,068,494바이트 · sha256 앞 16자리 `3dea12e8d511cf8f` · 고름
+- 저장한 JPEG: 273,007바이트 · sha256 앞 16자리 `259f5035beb89859`
+
+#### `styles/longs/hairline.jpg` (헤어라인)
+
+- 설명: a bar of brushed metal with fine hairline grain running along its length and a soft band of light down its left third, ends cut straight across
+- hairline-1: 2026-11-16 12:57:25 +0000 · 3,090,671바이트 · sha256 앞 16자리 `37a12477517f41e5` · 고름
+- 저장한 JPEG: 318,263바이트 · sha256 앞 16자리 `4239474d963c809e`
+
+#### `styles/longs/glass.jpg` (유리)
+
+- 설명: a bar of clear glass: mostly see-through and dark in the middle, bright refracting edges along both sides and a faint inner line, ends with slightly rounded corners
+- glass-1: 2026-11-16 12:57:45 +0000 · 3,157,651바이트 · sha256 앞 16자리 `938ac51f9bf8279c` · 고름
+- 저장한 JPEG: 276,581바이트 · sha256 앞 16자리 `142955ff4483dc32`
+
+#### `styles/longs/enamel.jpg` (에나멜)
+
+- 설명: a rod of deep glossy enamel: a crisp bright highlight down its left third, darker toward its right as it rounds over, ends fully rounded like a pill
+- enamel-1: 2026-11-16 12:58:19 +0000 · 2,834,930바이트 · sha256 앞 16자리 `ce9d218e71452129` · 고름
+- 저장한 JPEG: 231,474바이트 · sha256 앞 16자리 `7199d1d7b12b960d`
+
+#### `styles/longs/pearl.jpg` (펄)
+
+- 설명: a bar of soft satin pearl: pale, with a soft iridescent sheen down its left half, ends well rounded
+- pearl-1: 2026-11-16 12:58:49 +0000 · 3,376,211바이트 · sha256 앞 16자리 `05437045b7afdbc5` · 고름
+- 저장한 JPEG: 278,113바이트 · sha256 앞 16자리 `8ae918ccb01ba40c`
+
+#### `styles/longs/carbon.jpg` (카본)
+
+- 설명: a bar of woven carbon fibre under a clear coat: the twill weave along its length, a bright stripe down each edge and down its middle, ends cut straight across
+- carbon-1: 2026-11-16 12:59:20 +0000 · 3,198,038바이트 · sha256 앞 16자리 `283e1500327b7e4f` · 고름
+- 저장한 JPEG: 305,150바이트 · sha256 앞 16자리 `a3ba209c1c06c8df`
+
+#### `styles/longs/gpt.jpg` (GPT, 재질)
+
+- 설명: smooth satin porcelain, softly lit from the top-left: a broad soft highlight toward the top-left corner easing to a calm light grey, with a faint fine grain
+- gpt-1: 2026-11-16 12:59:52 +0000 · 3,611,235바이트 · sha256 앞 16자리 `b156bbecde77422c` · 고름
+- 저장한 JPEG: 397,820바이트 · sha256 앞 16자리 `323557c199ccdb9b`
+
+#### `styles/longs/gemini.jpg` (Gemini, 재질)
+
+- 설명: glossy glass with a soft inner glow: a smooth gradient from near white at the top-left to light grey, with a few soft rounded light reflections
+- gemini-1: 2026-11-16 13:00:43 +0000 · 3,624,646바이트 · sha256 앞 16자리 `fd688d96f7a5396c` · 고름
+- 저장한 JPEG: 356,624바이트 · sha256 앞 16자리 `44577db02486db41`
+
+#### `styles/longs/grok.jpg` (Grok, 재질)
+
+- 설명: polished metal, cool and sharp: light grey with crisp diagonal bands of reflection running from top-left to bottom-right
+- grok-1: 2026-11-16 13:01:19 +0000 · 6,374,964바이트 · sha256 앞 16자리 `40772a7b8953b8f5` · 고름
+- 저장한 JPEG: 654,695바이트 · sha256 앞 16자리 `5a8bb46b96c99790`
+
+#### `styles/longs/claude.jpg` (Claude, 재질)
+
+- 설명: warm handmade matte clay: an even light grey with a fine organic grain and the faintest brush texture, softly lit from the top-left
+- claude-1: 2026-11-16 13:02:06 +0000 · 7,109,415바이트 · sha256 앞 16자리 `d2d5530fde3e4a32` · 고름
+- 저장한 JPEG: 916,195바이트 · sha256 앞 16자리 `c9abeb9d661668fe`

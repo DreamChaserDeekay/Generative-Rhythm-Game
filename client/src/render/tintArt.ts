@@ -1548,7 +1548,27 @@ function outlineOf(picture: Emblem, w: number, h: number, fill: (g: CanvasRender
   return canvas;
 }
 
-function logoNote(style: LogoNote): NotePaint {
+/**
+ * `picture`'s outline filled with `material` (a tint picture: drawn into the outline as it is, stretched over it),
+ * on a canvas of its own `w` × `h`.
+ */
+function outlineFilled(picture: Emblem, w: number, h: number, material: Emblem): PaintCanvas {
+  const canvas = paintCanvas();
+  canvas.width = Math.max(1, Math.round(w));
+  canvas.height = Math.max(1, Math.round(h));
+  const g = context2d(canvas);
+  g.imageSmoothingQuality = 'high';
+  g.drawImage(picture, 0, 0, canvas.width, canvas.height);
+  g.globalCompositeOperation = 'source-in';
+  g.drawImage(material, 0, 0, canvas.width, canvas.height);
+  return canvas;
+}
+
+/**
+ * A logo note, its mark's inside drawn in `material` where one is given (a tint picture made with the image model:
+ * media/notes/<logo>.png, see styleArt's notePaintOf): the outline is the mark's own, whatever the material.
+ */
+export function logoNote(style: LogoNote, material?: Emblem): NotePaint {
   return (g, w, h, mark) => {
     const picture = EMBLEMS.get(style);
     if (!picture) {
@@ -1565,6 +1585,10 @@ function logoNote(style: LogoNote): NotePaint {
     for (let i = 0; i < 12; i++) {
       const a = (i / 12) * Math.PI * 2;
       g.drawImage(shade, x + Math.cos(a) * rim, y + Math.sin(a) * rim * NOTE_STRETCH, box.w, box.h);
+    }
+    if (material) {
+      g.drawImage(outlineFilled(picture, box.w, box.h, material), x, y, box.w, box.h);
+      return;
     }
     // the mark in the lane's colour, all of it bright: lifted toward white at its far side, the colour itself at its near side
     const body = outlineOf(picture, box.w, box.h, (c) => {

@@ -94,8 +94,9 @@ function asWhite(src: HTMLCanvasElement): HTMLCanvasElement {
 }
 
 /**
- * The long note of `long` as its code draws it, for a white lane, idle (left) and held (right): two rails standing
- * upright on black, each closed at its top and its bottom by its end, and the tap of `note` small at the bottom middle.
+ * One style's notes as its code draws them, for a light grey lane, on black: its key tap (left) and its scratch tap
+ * (right) along the top, as they look on the screen (the pictures are drawn NOTE_STRETCH times deeper than they look),
+ * and under them its long note idle (left) and held (right), two rails standing upright, each closed at both ends.
  */
 (window as unknown as { labLongRef: (long: LongStyle, note: NS) => string }).labLongRef = (long, note) => {
   const S = 1024;
@@ -103,7 +104,7 @@ function asWhite(src: HTMLCanvasElement): HTMLCanvasElement {
   const rw = 200;
   const tile = Math.round(rw * paint.tile * 1.7);
   const end = Math.max(8, Math.round(rw * paint.endDepth * 1.7));
-  const [top, bottom] = [60, 820];
+  const [top, bottom] = [360, 990];
   const canvas = document.createElement('canvas');
   [canvas.width, canvas.height] = [S, S];
   const g = canvas.getContext('2d')!;
@@ -113,6 +114,11 @@ function asWhite(src: HTMLCanvasElement): HTMLCanvasElement {
     p(c.getContext('2d')!, w, h);
     return asWhite(c);
   };
+  // the taps, 440 × 96 on the screen (their pictures 1.7 times deeper)
+  const [tw, th] = [440, 96];
+  (['white', 'scratch'] as const).forEach((mark, i) => {
+    g.drawImage(piece(tw, Math.round(th * 1.7), (c, w, h) => NOTE_PAINT[note](c, w, h, mark)), i === 0 ? 40 : 544, 110, tw, th);
+  });
   [false, true].forEach((held, i) => {
     const x = i === 0 ? 232 : 592;
     const body = held && paint.held ? paint.held.body : paint.body;
@@ -127,9 +133,6 @@ function asWhite(src: HTMLCanvasElement): HTMLCanvasElement {
     g.drawImage(e, 0, 0);
     g.restore();
   });
-  // the tap, as wide as a rail, at the bottom
-  const tapH = 70;
-  g.drawImage(piece(rw, tapH, (c, w, h) => NOTE_PAINT[note](c, w, h, 'white')), (S - rw) / 2, 900);
   return canvas.toDataURL('image/png');
 };
 void LONG_OF;
