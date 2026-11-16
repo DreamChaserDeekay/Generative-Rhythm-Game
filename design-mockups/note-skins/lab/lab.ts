@@ -70,3 +70,69 @@ let current: TrackRenderer | null = null;
     );
 };
 (window as unknown as { labReady: boolean }).labReady = true;
+
+// ---------- the references sent to the image model (scripts/assets/make_long_notes.py) ----------
+import { LONG_OF, LONG_PAINT, NOTE_PAINT, type LongStyle, type NoteStyle as NS } from '../../../client/src/render/tintArt';
+
+/** A tint picture as a light grey lane shows it, over black (red is how much of the grey, green lifts it toward white). */
+function asWhite(src: HTMLCanvasElement): HTMLCanvasElement {
+  const g = src.getContext('2d')!;
+  const img = g.getImageData(0, 0, src.width, src.height);
+  const d = img.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const [r, gr, a] = [d[i] / 255, d[i + 1] / 255, d[i + 3] / 255];
+    // a light grey lane (0.72): a white one would wash the shading out
+    const k = r * 0.72;
+    const v = (k + (1 - k) * gr) * a;
+    d[i] = d[i + 1] = d[i + 2] = Math.round(v * 255);
+    d[i + 3] = 255;
+  }
+  const out = document.createElement('canvas');
+  [out.width, out.height] = [src.width, src.height];
+  out.getContext('2d')!.putImageData(img, 0, 0);
+  return out;
+}
+
+/**
+ * One style's notes as its code draws them, for a light grey lane, on black: its key tap (left) and its scratch tap
+ * (right) along the top, as they look on the screen (the pictures are drawn NOTE_STRETCH times deeper than they look),
+ * and under them its long note idle (left) and held (right), two rails standing upright, each closed at both ends.
+ */
+(window as unknown as { labLongRef: (long: LongStyle, note: NS) => string }).labLongRef = (long, note) => {
+  const S = 1024;
+  const paint = LONG_PAINT[long];
+  const rw = 200;
+  const tile = Math.round(rw * paint.tile * 1.7);
+  const end = Math.max(8, Math.round(rw * paint.endDepth * 1.7));
+  const [top, bottom] = [360, 990];
+  const canvas = document.createElement('canvas');
+  [canvas.width, canvas.height] = [S, S];
+  const g = canvas.getContext('2d')!;
+  const piece = (w: number, h: number, p: (c: CanvasRenderingContext2D, w: number, h: number) => void) => {
+    const c = document.createElement('canvas');
+    [c.width, c.height] = [w, h];
+    p(c.getContext('2d')!, w, h);
+    return asWhite(c);
+  };
+  // the taps, 440 × 96 on the screen (their pictures 1.7 times deeper)
+  const [tw, th] = [440, 96];
+  (['white', 'scratch'] as const).forEach((mark, i) => {
+    g.drawImage(piece(tw, Math.round(th * 1.7), (c, w, h) => NOTE_PAINT[note](c, w, h, mark)), i === 0 ? 40 : 544, 110, tw, th);
+  });
+  [false, true].forEach((held, i) => {
+    const x = i === 0 ? 232 : 592;
+    const body = held && paint.held ? paint.held.body : paint.body;
+    const cap = held && paint.held ? paint.held.end : paint.end;
+    const b = piece(rw, tile, body);
+    for (let y = top + end; y < bottom - end; y += tile) g.drawImage(b, 0, 0, rw, Math.min(tile, bottom - end - y), x, y, rw, Math.min(tile, bottom - end - y));
+    const e = piece(rw, end, cap);
+    g.drawImage(e, x, top);
+    g.save();
+    g.translate(x, bottom);
+    g.scale(1, -1);
+    g.drawImage(e, 0, 0);
+    g.restore();
+  });
+  return canvas.toDataURL('image/png');
+};
+void LONG_OF;

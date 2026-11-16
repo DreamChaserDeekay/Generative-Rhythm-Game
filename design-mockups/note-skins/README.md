@@ -12,6 +12,18 @@
 | `close-ups-1.jpg`, `close-ups-2.jpg` | 판정선 근처 확대, 왼쪽 전 · 오른쪽 후 |
 | `play-<스킨>-<키 모드>-<카메라>.jpg` | 실제 플레이 화면(스킨의 기어까지), 왼쪽 전 · 오른쪽 후 |
 
+## 그림으로 바꾼 단노트 · 롱노트 (`art/`)
+
+코드 단노트 · 롱노트를 이미지 모델로 다시 그린 것(`docs/GEAR_NOTE_FX.md`의 "코드로 그리던 단노트 · 롱노트를 그림으로"). 모두 왼쪽 코드(`15f68a2`) · 오른쪽 그림.
+
+| 파일 | 내용 |
+|---|---|
+| `art/close-ups-1.jpg`, `art/close-ups-2.jpg` | 판정선 근처 확대: 단노트, 롱노트, 누르는 중, 놓침 (15종 + AI 회사 넷) |
+| `art/taps-7k-1.jpg`, `art/taps-7k-2.jpg` | 7K+1S 1080p 플레이 크기의 단노트 |
+| `art/play-*.jpg` | 스킨 9개의 플레이 화면 |
+| `art/longs-and-taps-art.jpg`, `art/taps-play-size-art.jpg` | 23개 스타일을 한 장에(그림 판) |
+| `art/sent-and-made.jpg` | 보낸 참고 그림(위)과 고른 그림(아래) |
+
 ## 다시 찍기 (`lab/`)
 
 `lab/lab.ts`는 렌더러 하나를 만들고 손으로 놓은 노트로 한 프레임을 그리는 페이지입니다(`window.labRender`).
@@ -22,6 +34,7 @@ node ../../../client/node_modules/vite/bin/vite.js --config vite.config.mjs &   
 node shoot.mjs <출력 폴더> sheet|taps|zoom|heads|play [스타일,…]
 python3 sheet.py <출력 폴더> longs.png      # sheet-*.png를 한 장으로
 python3 tapsheet.py <출력 폴더> taps.png    # taps-*.png를 한 장으로
+node refs.mjs <폴더>                      # 이미지 모델에 보낼 참고 그림(코드 단노트 · 롱노트)
 ```
 
 `client`의 `node_modules`가 있어야 합니다. 브라우저는 미리 설치된 Playwright의 Chromium(SwiftShader)을 씁니다.

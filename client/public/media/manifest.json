@@ -632,6 +632,126 @@
         876
       ]
     },
+    "longs/aqua": {
+      "file": "longs/aqua.png",
+      "bundle": "notes",
+      "size": [
+        512,
+        256
+      ]
+    },
+    "longs/astral": {
+      "file": "longs/astral.png",
+      "bundle": "notes",
+      "size": [
+        512,
+        256
+      ]
+    },
+    "longs/carbon": {
+      "file": "longs/carbon.png",
+      "bundle": "notes",
+      "size": [
+        512,
+        256
+      ]
+    },
+    "longs/chrome": {
+      "file": "longs/chrome.png",
+      "bundle": "notes",
+      "size": [
+        512,
+        256
+      ]
+    },
+    "longs/enamel": {
+      "file": "longs/enamel.png",
+      "bundle": "notes",
+      "size": [
+        512,
+        256
+      ]
+    },
+    "longs/fire": {
+      "file": "longs/fire.png",
+      "bundle": "notes",
+      "size": [
+        512,
+        256
+      ]
+    },
+    "longs/glass": {
+      "file": "longs/glass.png",
+      "bundle": "notes",
+      "size": [
+        512,
+        256
+      ]
+    },
+    "longs/hairline": {
+      "file": "longs/hairline.png",
+      "bundle": "notes",
+      "size": [
+        512,
+        256
+      ]
+    },
+    "longs/noir": {
+      "file": "longs/noir.png",
+      "bundle": "notes",
+      "size": [
+        512,
+        256
+      ]
+    },
+    "longs/pearl": {
+      "file": "longs/pearl.png",
+      "bundle": "notes",
+      "size": [
+        512,
+        256
+      ]
+    },
+    "longs/prism": {
+      "file": "longs/prism.png",
+      "bundle": "notes",
+      "size": [
+        512,
+        256
+      ]
+    },
+    "longs/sky": {
+      "file": "longs/sky.png",
+      "bundle": "notes",
+      "size": [
+        512,
+        256
+      ]
+    },
+    "longs/solid": {
+      "file": "longs/solid.png",
+      "bundle": "notes",
+      "size": [
+        512,
+        256
+      ]
+    },
+    "longs/steel": {
+      "file": "longs/steel.png",
+      "bundle": "notes",
+      "size": [
+        512,
+        256
+      ]
+    },
+    "longs/wire": {
+      "file": "longs/wire.png",
+      "bundle": "notes",
+      "size": [
+        512,
+        256
+      ]
+    },
     "mecha/hitBurst": {
       "file": "styles/mecha/hit_burst.png",
       "bundle": "effects",
@@ -795,6 +915,158 @@
       "size": [
         2048,
         876
+      ]
+    },
+    "notes/aqua": {
+      "file": "notes/aqua.png",
+      "bundle": "notes",
+      "size": [
+        1024,
+        512
+      ]
+    },
+    "notes/astral": {
+      "file": "notes/astral.png",
+      "bundle": "notes",
+      "size": [
+        1024,
+        512
+      ]
+    },
+    "notes/carbon": {
+      "file": "notes/carbon.png",
+      "bundle": "notes",
+      "size": [
+        1024,
+        512
+      ]
+    },
+    "notes/chrome": {
+      "file": "notes/chrome.png",
+      "bundle": "notes",
+      "size": [
+        1024,
+        512
+      ]
+    },
+    "notes/claude": {
+      "file": "notes/claude.png",
+      "bundle": "notes",
+      "size": [
+        512,
+        512
+      ]
+    },
+    "notes/enamel": {
+      "file": "notes/enamel.png",
+      "bundle": "notes",
+      "size": [
+        1024,
+        512
+      ]
+    },
+    "notes/fire": {
+      "file": "notes/fire.png",
+      "bundle": "notes",
+      "size": [
+        1024,
+        512
+      ]
+    },
+    "notes/flat": {
+      "file": "notes/flat.png",
+      "bundle": "notes",
+      "size": [
+        1024,
+        512
+      ]
+    },
+    "notes/gemini": {
+      "file": "notes/gemini.png",
+      "bundle": "notes",
+      "size": [
+        512,
+        512
+      ]
+    },
+    "notes/glass": {
+      "file": "notes/glass.png",
+      "bundle": "notes",
+      "size": [
+        1024,
+        512
+      ]
+    },
+    "notes/gpt": {
+      "file": "notes/gpt.png",
+      "bundle": "notes",
+      "size": [
+        512,
+        512
+      ]
+    },
+    "notes/grok": {
+      "file": "notes/grok.png",
+      "bundle": "notes",
+      "size": [
+        512,
+        512
+      ]
+    },
+    "notes/hairline": {
+      "file": "notes/hairline.png",
+      "bundle": "notes",
+      "size": [
+        1024,
+        512
+      ]
+    },
+    "notes/noir": {
+      "file": "notes/noir.png",
+      "bundle": "notes",
+      "size": [
+        1024,
+        512
+      ]
+    },
+    "notes/pearl": {
+      "file": "notes/pearl.png",
+      "bundle": "notes",
+      "size": [
+        1024,
+        512
+      ]
+    },
+    "notes/prism": {
+      "file": "notes/prism.png",
+      "bundle": "notes",
+      "size": [
+        1024,
+        512
+      ]
+    },
+    "notes/sky": {
+      "file": "notes/sky.png",
+      "bundle": "notes",
+      "size": [
+        1024,
+        512
+      ]
+    },
+    "notes/steel": {
+      "file": "notes/steel.png",
+      "bundle": "notes",
+      "size": [
+        1024,
+        512
+      ]
+    },
+    "notes/wire": {
+      "file": "notes/wire.png",
+      "bundle": "notes",
+      "size": [
+        1024,
+        512
       ]
     },
     "piano/deck": {
