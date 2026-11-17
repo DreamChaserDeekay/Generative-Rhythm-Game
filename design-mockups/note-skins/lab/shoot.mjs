@@ -67,7 +67,7 @@ if (what === 'taps') {
   for (const note of STYLES.filter((s) => !only || only.includes(s))) {
     const notes = [];
     for (let lane = 0; lane < 8; lane++) notes.push({ lane, t: T + 90 + (lane % 2) * 140 }, { lane, t: T + 520 + (lane % 3) * 60 });
-    await shot({ note, deck: 'standard', hit: 'flash', mode: '7K+1S', camera: 'SDVX', width: 1920, height: 1080, notes, timeMs: T, visibleMs: 1000 }, `taps-${note}`, { x: 480, y: 330, width: 960, height: 470 });
+    await shot({ note, deck: 'standard', hit: 'flash', mode: '8K', camera: 'SDVX', width: 1920, height: 1080, notes, timeMs: T, visibleMs: 1000 }, `taps-${note}`, { x: 480, y: 330, width: 960, height: 470 });
   }
 }
 if (what === 'heads') {
@@ -103,11 +103,11 @@ if (what === 'side') {
 }
 if (what === 'play' || what === 'all') {
   const plays = [
-    ['default', 'flat', '7K+1S', 'SDVX'], ['fire', 'fire', '7K+1S', 'SDVX'], ['gemini', 'gemini', '6K', 'LOW'], ['claude', 'claude', '4K', 'PLANE'],
-    ['steel', 'steel', '6K+FX', 'SDVX'], ['aqua', 'aqua', '7K+1S', 'LOW'], ['crystal', 'prism', '4K', 'SDVX'], ['gpt', 'gpt', '7K+1S', 'SDVX'], ['grok', 'grok', '6K+FX', 'PLANE'],
+    ['default', 'flat', '8K', 'SDVX'], ['fire', 'fire', '8K', 'SDVX'], ['gemini', 'gemini', '6K', 'LOW'], ['claude', 'claude', '4K', 'PLANE'],
+    ['steel', 'steel', '6K+FX', 'SDVX'], ['aqua', 'aqua', '8K', 'LOW'], ['crystal', 'prism', '4K', 'SDVX'], ['gpt', 'gpt', '8K', 'SDVX'], ['grok', 'grok', '6K+FX', 'PLANE'],
   ];
   for (const [skin, note, mode, camera] of plays.filter((p) => !only || only.includes(p[0]))) {
-    const lanes = { '4K': 4, '6K': 6, '6K+FX': 8, '7K+1S': 8 }[mode];
+    const lanes = { '4K': 4, '6K': 6, '6K+FX': 8, '8K': 8 }[mode];
     await shot({ note, deck: SKIN_DECK[note], hit: note === 'flat' ? 'flash' : note, mode, camera, width: 1280, height: 720, notes: PLAY_NOTES(lanes), timeMs: T, visibleMs: 1300 }, `play-${skin}-${mode}-${camera}`);
   }
 }

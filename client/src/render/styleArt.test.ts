@@ -123,7 +123,7 @@ describe('the pictures and flipbooks a style’s parts load', () => {
 
   it('has every picture and flipbook in the media, at the size its layout is drawn from', () => {
     const sizes: Record<string, [number, number]> = {
-      'notes/flat': [1024, 512],
+      'notes/flat': [1024, 256],
       'longs/solid': [512, 256],
       'club/notes': [1024, 1024],
       'club/long': [512, 256],
@@ -587,10 +587,10 @@ describe('the long notes drawn in code, drawn again with the image model', () =>
 });
 
 describe('the bars drawn in code, drawn again with the image model with their long notes', () => {
-  it('are in the media (a row a tap: the keys’ and the scratch’s), one for every bar and none for a company’s mark', () => {
+  it('are in the media (a tap each), one for every bar and none for a company’s mark', () => {
     expect([...ART_NOTES]).toEqual(NOTE_STYLES.filter(isBarNote));
     for (const note of ART_NOTES) {
-      expect(manifest.textures[`notes/${note}`]?.size, note).toEqual([1024, 512]);
+      expect(manifest.textures[`notes/${note}`]?.size, note).toEqual([1024, 256]);
       expect(manifest.textures[`notes/${note}`]?.file, note).toBe(`notes/${note}.png`);
       expect(LOGO_NOTES as readonly string[], note).not.toContain(note);
     }
@@ -608,7 +608,7 @@ describe('the bars drawn in code, drawn again with the image model with their lo
       const { g, draws } = recorder();
       paint(g, w, h, 'gold');
       expect(draws).toHaveLength(5);
-      // a key's row (the first), all of the note's height
+      // the tap, all of the note's height
       for (const d of draws) expect([d.id, d.sy, d.sh, d.dy, d.dh]).toEqual(['notes/flat', 16, 224, 0, h]);
       // the picture's columns in order, none left out
       expect(draws.map((d) => [d.sx, d.sx + d.sw])).toEqual([[0, 212], [212, 332], [332, 692], [692, 812], [812, 1024]]);
@@ -624,16 +624,16 @@ describe('the bars drawn in code, drawn again with the image model with their lo
     }
   });
 
-  it('draw a key’s and a side lane’s tap from the first row and the scratch’s from the second, its ends and middle kept as drawn; in code without the picture', () => {
+  it('draw a key’s and a side lane’s tap from the picture, its ends and middle kept as drawn; in code without the picture', () => {
     for (const note of ART_NOTES) {
       expect(notePaintOf(note, {}), note).toBe(NOTE_PAINT[note]);
-      const picture = { id: `notes/${note}`, width: 1024, height: 512 };
+      const picture = { id: `notes/${note}`, width: 1024, height: 256 };
       const paint = notePaintOf(note, { [`notes/${note}`]: picture } as never);
-      for (const [mark, row] of [['white', 0], ['blue', 0], ['gold', 0], ['side', 0], ['scratch', 1]] as const) {
+      for (const mark of ['white', 'blue', 'gold', 'side'] as const) {
         const { g, draws } = recorder();
         paint(g, 400, 96, mark);
         expect(draws.length, `${note} ${mark}`).toBe(5);
-        for (const d of draws) expect(d.sy, `${note} ${mark}`).toBe(row * 256 + 16);
+        for (const d of draws) expect(d.sy, `${note} ${mark}`).toBe(16);
         // its ends as drawn (as wide for their depth), the rest stretched
         expect(draws[0].dw).toBeCloseTo(draws[4].dw, 0);
         expect(draws[4].dx + draws[4].dw).toBeCloseTo(400, 0);

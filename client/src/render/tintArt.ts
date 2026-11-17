@@ -130,8 +130,8 @@ function roundRect(g: CanvasRenderingContext2D, x: number, y: number, w: number,
 
 /**
  * PRISM (the crystal skin's, 크리스털) is a bar of cut glass (its long note a long prism closed by its end
- * facets, its scratch a long hexagon), SKY (the sky skin's, 하늘) a soft matte bar with round corners (its
- * scratch marked with a pair of wings, its long note a see-through band), FIRE (the Firestarter skin's, 파이어스타터) a bar of gloss lacquer in a chrome lip (its scratch a white double slash, its long note a tube of heated glass cut straight across), FLAT (the default skin's) is a plain bar,
+ * facets), SKY (the sky skin's, 하늘) a soft matte bar with round corners (its
+ * long note a see-through band), FIRE (the Firestarter skin's, 파이어스타터) a bar of gloss lacquer in a chrome lip (its long note a tube of heated glass cut straight across), FLAT (the default skin's) is a plain bar,
  * each with a long note of its own (LONG_OF). GPT, GEMINI, GROK and
  * CLAUDE (the four AI companies' skins) are the company's mark itself, a picture that comes with the build (LOGO_NOTES).
  * The notes with no gear of their own (the bars in other finishes, the machined plate, the coin and the stars) are gone
@@ -146,10 +146,10 @@ const SKIN_BARS: readonly NoteStyle[] = ['prism', 'sky', 'fire', 'aqua', 'steel'
 export const isBarNote = (style: NoteStyle): boolean => style === 'flat' || SKIN_BARS.includes(style);
 
 /**
- * The lane a note is drawn for: its key's colour, the scratch or a side lane. A note may mark a
+ * The lane a note is drawn for: its key's colour, or a side lane. A note may mark a
  * key's notes by it (see noteMark), so they are told apart without their colour too.
  */
-export type NoteMark = 'white' | 'blue' | 'gold' | 'scratch' | 'side';
+export type NoteMark = 'white' | 'blue' | 'gold' | 'side';
 
 /** A note of a lane of `mark`, filling w×h (the note's own proportions seen from above). */
 export type NotePaint = (g: CanvasRenderingContext2D, w: number, h: number, mark: NoteMark) => void;
@@ -176,7 +176,7 @@ export function noteDepthOf(style: NoteStyle, base: number, width: number, flatt
 
 /**
  * How deep a lane's notes are, for notes `share` as wide as a key lane's (`depth` deep): the
- * marks keep their shape in a wider lane (the scratch) or a narrower one (a side lane), deeper
+ * marks keep their shape in a wider lane or a narrower one (a side lane), deeper
  * or shallower (no more than three bars deep); the plain bars stay as deep.
  */
 export function laneDepthOf(style: NoteStyle, depth: number, share: number, base: number): number {
@@ -230,8 +230,7 @@ function chamferOutline(x: number, y: number, w: number, h: number, c: number, t
 
 /**
  * The lane's mark at a family note's middle, `r` across: a ring on a white key's note, a triangle
- * pointing up the track on a blue key's, a diamond on a gold key's, two slashes on the scratch's,
- * none on a side lane's. Filled, or drawn as an outline.
+ * pointing up the track on a blue key's, a diamond on a gold key's, none on a side lane's. Filled, or drawn as an outline.
  */
 export function noteMark(g: CanvasRenderingContext2D, mark: NoteMark, cx: number, cy: number, r: number, colour: string, filled: boolean): void {
   if (mark === 'side') return;
@@ -261,22 +260,13 @@ export function noteMark(g: CanvasRenderingContext2D, mark: NoteMark, cx: number
       [0.95, 0.68],
       [-0.95, 0.68],
     ]);
-  } else if (mark === 'gold') {
+  } else {
     shape([
       [0, -1],
       [0.95, 0],
       [0, 1],
       [-0.95, 0],
     ]);
-  } else {
-    g.lineWidth = r * 0.42;
-    g.lineCap = 'butt';
-    g.beginPath();
-    for (const dx of [-0.55, 0.55]) {
-      g.moveTo((dx - 0.36) * r, 0.9 * r);
-      g.lineTo((dx + 0.36) * r, -0.9 * r);
-    }
-    g.stroke();
   }
   g.restore();
 }
@@ -421,85 +411,8 @@ function prismBar(g: CanvasRenderingContext2D, w: number, h: number): void {
   g.restore();
 }
 
-/**
- * PRISM's scratch: a long hexagon, pointed at both ends, cut as a gem is: a table in the middle, the
- * far facets lit and the near ones deep, the point facets between; its near edge a razor of light as
- * the bars' is. Told from a key's bar by its outline alone.
- */
-function prismGem(g: CanvasRenderingContext2D, w: number, h: number): void {
-  const u = unit(h);
-  // the points as long as they are deep on the screen, no more than a fifth of the note each
-  const p = Math.min((h / NOTE_STRETCH) * 0.9, w * 0.2);
-  const t = Math.min(p * 0.55, w * 0.1);
-  const [ty, by] = [h * 0.26, h * 0.74];
-  const hexagon: [number, number][] = [
-    [p, 0],
-    [w - p, 0],
-    [w, h / 2],
-    [w - p, h],
-    [p, h],
-    [0, h / 2],
-  ];
-  const table: [number, number][] = [
-    [p + t, ty],
-    [w - p - t, ty],
-    [w - p * 0.45, h / 2],
-    [w - p - t, by],
-    [p + t, by],
-    [p * 0.45, h / 2],
-  ];
-  g.save();
-  polygon(g, hexagon);
-  g.clip();
-  g.fillStyle = tone(0.8);
-  g.fillRect(0, 0, w, h);
-  // far facets lit, near ones deep
-  g.fillStyle = ink(1, 0.42);
-  g.fillRect(0, 0, w, h / 2);
-  g.fillStyle = tone(0.66);
-  g.fillRect(0, h / 2, w, h / 2);
-  // the point facets: the left pair lit, the right in shade
-  polygon(g, [hexagon[5], hexagon[0], table[0], table[5]]);
-  g.fillStyle = ink(1, 0.6);
-  g.fill();
-  polygon(g, [hexagon[5], hexagon[4], table[4], table[5]]);
-  g.fillStyle = tone(0.9);
-  g.fill();
-  polygon(g, [hexagon[2], hexagon[1], table[1], table[2]]);
-  g.fillStyle = tone(0.74);
-  g.fill();
-  polygon(g, [hexagon[2], hexagon[3], table[3], table[2]]);
-  g.fillStyle = tone(0.46);
-  g.fill();
-  // the table, and the ridges round it
-  const top = g.createLinearGradient(0, ty, 0, by);
-  top.addColorStop(0, ink(1, 0.18));
-  top.addColorStop(1, tone(0.9));
-  polygon(g, table);
-  g.fillStyle = top;
-  g.fill();
-  g.lineWidth = Math.max(1, u(1.2));
-  g.strokeStyle = ink(1, 0.8, 0.9);
-  g.stroke();
-  for (let i = 0; i < 6; i++) {
-    g.beginPath();
-    g.moveTo(hexagon[i][0], hexagon[i][1]);
-    g.lineTo(table[i][0], table[i][1]);
-    g.stroke();
-  }
-  // the razor along its near edge
-  const edge = h * 0.16;
-  const razor = g.createLinearGradient(0, h - edge, 0, h);
-  razor.addColorStop(0, ink(1, 0.6, 0));
-  razor.addColorStop(0.4, ink(1, 0.95));
-  razor.addColorStop(1, ink(1, 0.85));
-  g.fillStyle = razor;
-  g.fillRect(0, h - edge, w, edge);
-  g.restore();
-}
-
-/** PRISM's notes: the gem on the scratch, a bar on a key and in a side lane of its own (side notes laid over the keys are none of a skin's parts: they stay the game's see-through bars). */
-const prismNote: NotePaint = (g, w, h, mark) => (mark === 'scratch' ? prismGem(g, w, h) : prismBar(g, w, h));
+/** PRISM's notes: a bar on a key and in a side lane of its own (side notes laid over the keys are none of a skin's parts: they stay the game's see-through bars). */
+const prismNote: NotePaint = (g, w, h) => prismBar(g, w, h);
 
 // ---------- SKY (the sky skin's notes, 하늘): soft matte bars ----------
 
@@ -563,44 +476,8 @@ function skyBar(g: CanvasRenderingContext2D, w: number, h: number): void {
   g.restore();
 }
 
-/** One wing of SKY's mark, opening to the right of (0, 0), `r` its half height: the arm along its top, three flight feathers falling from it, each shorter than the last. */
-function wing(g: CanvasRenderingContext2D, r: number): void {
-  g.beginPath();
-  g.moveTo(r * 0.12, r * 0.62);
-  // up the root and out along the arm to the tip
-  g.bezierCurveTo(r * 0.02, -r * 0.1, r * 0.55, -r * 0.85, r * 2.25, -r * 0.92);
-  // the feathers, tip first
-  g.quadraticCurveTo(r * 1.95, -r * 0.5, r * 1.42, -r * 0.34);
-  g.quadraticCurveTo(r * 1.7, -r * 0.22, r * 1.78, -r * 0.02);
-  g.quadraticCurveTo(r * 1.45, r * 0.12, r * 1.0, r * 0.12);
-  g.quadraticCurveTo(r * 1.22, r * 0.28, r * 1.24, r * 0.48);
-  g.quadraticCurveTo(r * 0.7, r * 0.72, r * 0.12, r * 0.62);
-  g.closePath();
-  g.fill();
-}
-
-/** SKY's scratch: the bar, and a pair of white wings opening from its middle. Told from a key's bar by the wings alone. */
-function skyWings(g: CanvasRenderingContext2D, w: number, h: number): void {
-  skyBar(g, w, h);
-  // as tall on the screen as most of the bar's depth, no wider than a third of the bar a wing
-  const r = Math.min((h / NOTE_STRETCH) * 0.36, w / 7);
-  for (const side of [-1, 1]) {
-    g.save();
-    g.translate(w / 2 + side * r * 0.1, h * 0.5);
-    g.scale(side, NOTE_STRETCH);
-    // a soft shade under the wing, then the wing
-    g.fillStyle = tone(0.62, 0.5);
-    g.translate(0, r * 0.12);
-    wing(g, r);
-    g.translate(0, -r * 0.12);
-    g.fillStyle = ink(1, 1);
-    wing(g, r);
-    g.restore();
-  }
-}
-
-/** SKY's notes: the wings on the scratch, the bar on a key and in a side lane of its own (side notes laid over the keys are none of a skin's parts). */
-const skyNote: NotePaint = (g, w, h, mark) => (mark === 'scratch' ? skyWings(g, w, h) : skyBar(g, w, h));
+/** SKY's notes: the bar on a key and in a side lane of its own (side notes laid over the keys are none of a skin's parts). */
+const skyNote: NotePaint = (g, w, h) => skyBar(g, w, h);
 
 // ---------- FIRE (the Firestarter skin's notes, 파이어스타터): lacquered bars in a chrome lip ----------
 
@@ -608,9 +485,9 @@ const skyNote: NotePaint = (g, w, h, mark) => (mark === 'scratch' ? skyWings(g, 
  * FIRE's bar (the Firestarter skin's, 파이어스타터): an ember: tongues of flame rising off its far edge (the
  * only bar whose far edge is not straight), the lacquer white-hot along its near side and cooling to the
  * colour's deep shade toward the flames' tips, sparks over it, and the chrome lip along its near edge, the
- * brightest thing on it (its timing). The scratch's is told from a key's by a white double slash.
+ * brightest thing on it (its timing).
  */
-function fireNote(g: CanvasRenderingContext2D, w: number, h: number, mark: NoteMark): void {
+function fireNote(g: CanvasRenderingContext2D, w: number, h: number): void {
   const u = unit(h);
   const lip = Math.max(3, u(9));
   const top = h * 0.36;
@@ -644,21 +521,6 @@ function fireNote(g: CanvasRenderingContext2D, w: number, h: number, mark: NoteM
     g.ellipse(x, y, r, r * NOTE_STRETCH, 0, 0, Math.PI * 2);
     g.fill();
   }
-  if (mark === 'scratch') {
-    const lean = (h / NOTE_STRETCH) * 0.9;
-    const wide = Math.max(3, (h / NOTE_STRETCH) * 0.3);
-    for (const at of [-0.75, 0.75]) {
-      const x = w / 2 + at * wide * 1.5;
-      polygon(g, [
-        [x + lean / 2 - wide / 2, top * 0.6],
-        [x + lean / 2 + wide / 2, top * 0.6],
-        [x - lean / 2 + wide / 2, h - lip],
-        [x - lean / 2 - wide / 2, h - lip],
-      ]);
-      g.fillStyle = ink(0, 1);
-      g.fill();
-    }
-  }
   // the chrome lip along the near edge
   g.fillStyle = tone(0.3);
   g.fillRect(0, h - lip - Math.max(1, u(1.4)), w, Math.max(1, u(1.4)));
@@ -675,10 +537,9 @@ function fireNote(g: CanvasRenderingContext2D, w: number, h: number, mark: NoteM
 /**
  * AQUA's plate (the aqua mecha skin's, 아쿠아): a plate of clear water-blue gloss, its four corners cut at 45°
  * on the screen in a white rim: a wet highlight across its far half (a bright window), two bubbles rising
- * in it, and a light edge along its near side (its timing). The scratch's is told from a key's by a white
- * chevron pointing down the track.
+ * in it, and a light edge along its near side (its timing).
  */
-function aquaNote(g: CanvasRenderingContext2D, w: number, h: number, mark: NoteMark): void {
+function aquaNote(g: CanvasRenderingContext2D, w: number, h: number): void {
   const u = unit(h);
   const c = Math.min(u(8), w * 0.1);
   polygon(g, chamferOutline(0, 0, w, h, c));
@@ -725,19 +586,6 @@ function aquaNote(g: CanvasRenderingContext2D, w: number, h: number, mark: NoteM
   const edge = Math.max(2, u(7));
   g.fillStyle = ink(1, 0.72);
   g.fillRect(0, h - t * NOTE_STRETCH - edge, w, edge);
-  if (mark === 'scratch') {
-    const r = Math.min(w * 0.08, (h / NOTE_STRETCH) * 0.32);
-    g.translate(w / 2, h * 0.5);
-    g.scale(1, NOTE_STRETCH);
-    g.beginPath();
-    g.moveTo(-r * 1.5, -r * 0.5);
-    g.lineTo(0, r * 0.5);
-    g.lineTo(r * 1.5, -r * 0.5);
-    g.lineWidth = Math.max(1.5, r * 0.5);
-    g.lineJoin = 'miter';
-    g.strokeStyle = ink(0, 1);
-    g.stroke();
-  }
   g.restore();
 }
 
@@ -745,10 +593,9 @@ function aquaNote(g: CanvasRenderingContext2D, w: number, h: number, mark: NoteM
  * STEEL's bar (the gunmetal skin's, 스틸): a thick machined key cap of brushed metal in the lane's colour
  * (the thickest bar: NOTE_THICKNESS): fine brushing across it, a deep bevel lighter along its far side
  * and its left and darker along its right and near side, a hex bolt at each end, and a bright line where
- * the face meets the near bevel (its timing). The scratch's is told from a key's by a cross engraved in
- * its middle.
+ * the face meets the near bevel (its timing).
  */
-function steelNote(g: CanvasRenderingContext2D, w: number, h: number, mark: NoteMark): void {
+function steelNote(g: CanvasRenderingContext2D, w: number, h: number): void {
   const u = unit(h);
   g.save();
   softOutline(g, w, h, u(4) / NOTE_STRETCH);
@@ -800,30 +647,15 @@ function steelNote(g: CanvasRenderingContext2D, w: number, h: number, mark: Note
   const edge = Math.max(2, u(4));
   g.fillStyle = ink(1, 0.66);
   g.fillRect(b, h - b * NOTE_STRETCH - edge, w - 2 * b, edge);
-  if (mark === 'scratch') {
-    const rr = Math.min(w * 0.06, (h / NOTE_STRETCH) * 0.26);
-    g.translate(w / 2, h * 0.44);
-    g.scale(1, NOTE_STRETCH);
-    g.rotate(Math.PI / 4);
-    g.beginPath();
-    g.moveTo(-rr, 0);
-    g.lineTo(rr, 0);
-    g.moveTo(0, -rr);
-    g.lineTo(0, rr);
-    g.lineWidth = Math.max(1.5, rr * 0.36);
-    g.strokeStyle = tone(0.3);
-    g.stroke();
-  }
   g.restore();
 }
 
 /**
  * NOIR's bar (the black and red skin's, 레드라인): a flat hard-edged block of the lane's colour, low, no bevel
  * and no gloss, its far right corner clipped off, black hazard stripes slanting across both its ends, a
- * thin black line inset along its far edge and a brighter band along its near side (its timing). The
- * scratch's is told from a key's by a white chevron.
+ * thin black line inset along its far edge and a brighter band along its near side (its timing).
  */
-function noirNote(g: CanvasRenderingContext2D, w: number, h: number, mark: NoteMark): void {
+function noirNote(g: CanvasRenderingContext2D, w: number, h: number): void {
   const u = unit(h);
   const c = Math.min(u(12), w * 0.14);
   g.save();
@@ -857,29 +689,15 @@ function noirNote(g: CanvasRenderingContext2D, w: number, h: number, mark: NoteM
   const edge = Math.max(2, u(9));
   g.fillStyle = ink(1, 0.62);
   g.fillRect(0, h - edge, w, edge);
-  if (mark === 'scratch') {
-    const r = Math.min(w * 0.08, (h / NOTE_STRETCH) * 0.3);
-    g.translate(w / 2, h * 0.46);
-    g.scale(1, NOTE_STRETCH);
-    g.beginPath();
-    g.moveTo(-r * 1.5, -r * 0.5);
-    g.lineTo(0, r * 0.5);
-    g.lineTo(r * 1.5, -r * 0.5);
-    g.lineWidth = Math.max(1.5, r * 0.5);
-    g.lineJoin = 'miter';
-    g.strokeStyle = ink(0, 1);
-    g.stroke();
-  }
   g.restore();
 }
 
 /**
  * WIRE's bar (the white line skin's, 화이트 라인): a bar drawn in line, hollow and low: its outline a bright line
  * of the lane's colour, the inside all but see-through, a white bracket at each corner standing off the
- * outline as a drawing's crop marks, and a white line along its near side (its timing). The scratch's is
- * told from a key's by a chevron.
+ * outline as a drawing's crop marks, and a white line along its near side (its timing).
  */
-function wireNote(g: CanvasRenderingContext2D, w: number, h: number, mark: NoteMark): void {
+function wireNote(g: CanvasRenderingContext2D, w: number, h: number): void {
   const u = unit(h);
   g.save();
   g.beginPath();
@@ -913,19 +731,6 @@ function wireNote(g: CanvasRenderingContext2D, w: number, h: number, mark: NoteM
   const edge = Math.max(2, u(7));
   g.fillStyle = ink(0, 1);
   g.fillRect(0, h - edge, w, edge);
-  if (mark === 'scratch') {
-    const r = Math.min(w * 0.08, (h / NOTE_STRETCH) * 0.28);
-    g.translate(w / 2, h * 0.42);
-    g.scale(1, NOTE_STRETCH);
-    g.beginPath();
-    g.moveTo(-r * 1.5, -r * 0.5);
-    g.lineTo(0, r * 0.5);
-    g.lineTo(r * 1.5, -r * 0.5);
-    g.lineWidth = Math.max(1.5, r * 0.44);
-    g.lineJoin = 'miter';
-    g.strokeStyle = ink(1, 0.7);
-    g.stroke();
-  }
   g.restore();
 }
 
@@ -933,9 +738,8 @@ function wireNote(g: CanvasRenderingContext2D, w: number, h: number, mark: NoteM
  * ASTRAL's bar (the starry night skin's, 별밤): a bar with cut corners, as its gear's key caps, the night in
  * the lane's colour: a pale gold rim round a deep face lighter toward its near side, small stars scattered
  * over it, a light edge along its near side (its timing), and a white four-pointed star in its middle.
- * The scratch's has a crescent there.
  */
-function astralNote(g: CanvasRenderingContext2D, w: number, h: number, mark: NoteMark): void {
+function astralNote(g: CanvasRenderingContext2D, w: number, h: number): void {
   const u = unit(h);
   const c = Math.min(u(9), w * 0.1);
   polygon(g, chamferOutline(0, 0, w, h, c));
@@ -966,22 +770,16 @@ function astralNote(g: CanvasRenderingContext2D, w: number, h: number, mark: Not
   g.scale(1, NOTE_STRETCH);
   const r = Math.min(w * 0.09, (h / NOTE_STRETCH) * 0.36);
   g.beginPath();
-  if (mark === 'scratch') {
-    g.arc(0, 0, r, 0, Math.PI * 2);
-    g.moveTo(r * 0.45 + r * 0.82, -r * 0.1);
-    g.arc(r * 0.45, -r * 0.1, r * 0.82, 0, Math.PI * 2, true);
-  } else {
-    const k = 0.2;
-    g.moveTo(0, -r);
-    g.lineTo(r * k, -r * k);
-    g.lineTo(r, 0);
-    g.lineTo(r * k, r * k);
-    g.lineTo(0, r);
-    g.lineTo(-r * k, r * k);
-    g.lineTo(-r, 0);
-    g.lineTo(-r * k, -r * k);
-    g.closePath();
-  }
+  const k = 0.2;
+  g.moveTo(0, -r);
+  g.lineTo(r * k, -r * k);
+  g.lineTo(r, 0);
+  g.lineTo(r * k, r * k);
+  g.lineTo(0, r);
+  g.lineTo(-r * k, r * k);
+  g.lineTo(-r, 0);
+  g.lineTo(-r * k, -r * k);
+  g.closePath();
   g.fillStyle = ink(0, 0.96);
   g.fill('evenodd');
   g.restore();
@@ -990,10 +788,9 @@ function astralNote(g: CanvasRenderingContext2D, w: number, h: number, mark: Not
 /**
  * FLAT (the default skin's): a plain bar with square corners, the top of a slab (the renderer draws
  * its walls): a gloss over its far half, lit along its left end and shaded along its
- * right, a crisp light edge along its near side (its timing). The scratch's is told from a key's
- * by two slanted notches cut through it.
+ * right, a crisp light edge along its near side (its timing).
  */
-function flatNote(g: CanvasRenderingContext2D, w: number, h: number, mark: NoteMark): void {
+function flatNote(g: CanvasRenderingContext2D, w: number, h: number): void {
   const u = unit(h);
   g.save();
   g.beginPath();
@@ -1022,24 +819,6 @@ function flatNote(g: CanvasRenderingContext2D, w: number, h: number, mark: NoteM
   // the near edge, crisp
   g.fillStyle = ink(1, 0.7);
   g.fillRect(0, h - Math.max(2, u(5)), w, Math.max(2, u(5)));
-  if (mark === 'scratch') {
-    // two notches slanting through it, a third and two thirds along
-    const lean = (h / NOTE_STRETCH) * 0.8;
-    const wide = Math.max(3, (h / NOTE_STRETCH) * 0.32);
-    for (const at of [1 / 3, 2 / 3]) {
-      const x = w * at;
-      polygon(g, [
-        [x + lean / 2, 0],
-        [x + lean / 2 + wide, 0],
-        [x - lean / 2 + wide, h],
-        [x - lean / 2, h],
-      ]);
-      g.fillStyle = tone(0.38);
-      g.fill();
-      g.fillStyle = ink(1, 0.5);
-      g.fillRect(x - lean / 2 + wide, 0, Math.max(1, wide * 0.18), h);
-    }
-  }
   g.restore();
 }
 
@@ -1072,7 +851,7 @@ export const noteEmblemOf = (style: LogoNote): Emblem | undefined => EMBLEMS.get
  * Where a mark `aspect` wide for its height lies on a note's picture `w` × `h`, so it keeps its shape on
  * the screen: the picture is the note seen from above, NOTE_STRETCH times deeper than it looks at the
  * judge line; a note as deep as its lane lets it be (noteDepthOf) is filled, a shallower one (a wide
- * lane: the scratch's, a 4K key's) holds the mark in its middle, as tall as the note is deep.
+ * lane: a 4K key's) holds the mark in its middle, as tall as the note is deep.
  */
 export function emblemBox(w: number, h: number, aspect: number): { x: number; y: number; w: number; h: number } {
   // the room across for a mark as tall as the note looks: all of the note where that is (about) the note's width
