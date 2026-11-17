@@ -6,10 +6,12 @@ client/public/media/styles/hits/ as "<hit>/hitBurst" and "<hit>/hitHold".
     python scripts/assets/build_styles.py
 
 The sources are the picked generations, stored as JPEG (quality 95, no chroma subsampling) to keep the
-repository small; where each came from: assets-src/PROVENANCE.md. Notes, long notes and side notes become tint
-pictures (client/src/render/tintArt.ts): red is how much of the lane colour shows, green how far it is then
-lifted toward white, alpha the shape; the art is drawn for a neutral white lane, so its value says how much
-colour shows. Hit effects become flipbooks of light on black. The sets have no gear: the four gears are built by
+repository small; where each came from: assets-src/PROVENANCE.md. What is built of a set is its hit effect (a
+flipbook of light on black), and of CLUB its record and its capsule too, which the AI companies' marks play as
+their long note: the sets' own notes, long notes and side notes were taken out of the game (2026-11-17), and
+their sources with them. The record and the capsule are tint pictures (client/src/render/tintArt.ts): red is how
+much of the lane colour shows, green how far it is then lifted toward white, alpha the shape; the art is drawn
+for a neutral white lane, so its value says how much colour shows. The sets have no gear: the gears are built by
 scripts/assets/build_gears.py. The layouts written here are read by client/src/render/styleArt.ts: change the
 two together.
 Needs Pillow, numpy and scipy.
@@ -82,10 +84,6 @@ def resize_premultiplied(rgba: np.ndarray, w: int, h: int) -> np.ndarray:
     return np.concatenate([colour, oa], axis=2)
 
 
-def resize_grey(v: np.ndarray, w: int, h: int) -> np.ndarray:
-    return np.clip(np.asarray(Image.fromarray(v.astype(np.float32)).resize((w, h), Image.LANCZOS)), 0, 1)
-
-
 def tint(v: np.ndarray, alpha: np.ndarray, gain: float, lift: float, white: float = 0.85, power: float = 1.3) -> np.ndarray:
     """A tint picture (RGBA float) of neutral art of value `v` (unpremultiplied): red = v × gain, the brightest
     parts (from `lift` up) lifted toward white, at most `white` of the way."""
@@ -121,115 +119,9 @@ def seamless_rows(a: np.ndarray, length: int, overlap: int) -> np.ndarray:
 MECHA = SRC / "mecha"
 MECHA_OUT = OUT / "mecha"
 
-# notes.png: a row per lane mark (white ○, blue △, gold ◇, scratch //), each note NOTE_W × NOTE_H at
-# y = row × NOTE_ROW + NOTE_TOP; NOTE_CUTS: the end caps' and the mark's edges (x) — what lies between is
-# stretched to the lane's proportions (styleArt.ts: MECHA_NOTES)
-NOTE_W, NOTE_H, NOTE_ROW, NOTE_TOP = 1024, 210, 256, 23
-NOTE_CUTS = (156, 451, 573, 868)
-
-# long.png: the rail's body (a tile that repeats along the note) and its end, idle and held, LONG_W wide
-LONG_W, LONG_TILE, LONG_END = 128, 256, 48
-
-# side.png: the bar laid over half the keys at (0, 0), the side lane's own note at (0, SIDE_PLATE_Y)
-SIDE_BAR_W, SIDE_PLATE_W, SIDE_PLATE_Y = 1024, 512, 240
-
-
-def mecha_notes(textures: dict) -> None:
-    a = load(MECHA / "notes.jpg")
-    v = value(a)
-    boxes = blobs(v, 0.05, 4)
-    h = max(b[0].stop - b[0].start for b in boxes)
-    w = max(b[1].stop - b[1].start for b in boxes)
-    atlas = np.zeros((1024, 1024, 4), np.float32)
-    for row, (ys, xs) in enumerate(boxes):
-        cy, cx = (ys.start + ys.stop) // 2, (xs.start + xs.stop) // 2
-        crop = v[cy - h // 2:cy - h // 2 + h, cx - w // 2:cx - w // 2 + w]
-        alpha = shape_alpha(crop)
-        own = unpremultiply(crop, alpha)
-        rgba = tint(own, alpha, gain=1 / 0.62, lift=0.66, white=0.8)
-        paste(atlas, resize_premultiplied(rgba, NOTE_W, NOTE_H), 0, row * NOTE_ROW + NOTE_TOP)
-    save_rgba(atlas, MECHA_OUT / "notes.png")
-    textures["mecha/notes"] = {"file": "styles/mecha/notes.png", "bundle": "notes", "size": [1024, 1024]}
-
-
-def mecha_long(textures: dict) -> None:
-    a = load(MECHA / "long.jpg")
-    v = value(a)
-    idle, held = sorted(blobs(v, 0.06, 2), key=lambda b: b[1].start)
-    # the held rail glows past its edges: cut it as wide as the idle one, about its middle
-    (iy, ix) = idle
-    rail_w = ix.stop - ix.start
-    mid = (held[1].start + held[1].stop) // 2
-    hx = slice(mid - rail_w // 2, mid - rail_w // 2 + rail_w)
-    # its end: the cut corners and the bevel under them, as deep as LONG_END is of LONG_W
-    cap = round(rail_w * LONG_END / LONG_W)
-    atlas = np.zeros((256, 512, 4), np.float32)
-    for i, (xs, top) in enumerate([(ix, iy.start), (hx, iy.start)]):
-        rail = v[:, xs]
-        alpha = shape_alpha(rail)
-        own = unpremultiply(rail, alpha)
-        # held: the glow inside the rail is light, lifted toward white more than the idle metal is
-        rgba = tint(own, alpha, gain=1 / 0.6, lift=0.62, white=0.85) if i == 0 else tint(own, alpha, gain=1 / 0.55, lift=0.55, white=0.9)
-        # the body: a stretch of the rail's middle that repeats without a seam, LONG_TILE / LONG_W widths long
-        length = round(rail_w * LONG_TILE / LONG_W)
-        y0 = (iy.start + iy.stop) // 2 - length // 2
-        body = seamless_rows(rgba[y0:y0 + length + length // 4], length, length // 4)
-        paste(atlas, resize_premultiplied(body, LONG_W, LONG_TILE), i * LONG_W, 0)
-        # the end: from the rail's top edge down, alpha cut off where the body takes over
-        end = rgba[top:top + cap]
-        paste(atlas, resize_premultiplied(end, LONG_W, LONG_END), 256 + i * LONG_W, 0)
-    save_rgba(atlas, MECHA_OUT / "long.png")
-    textures["mecha/long"] = {"file": "styles/mecha/long.png", "bundle": "notes", "size": [512, 256]}
-
-
-def mecha_side(textures: dict) -> dict:
-    a = load(MECHA / "side.jpg")
-    v = value(a)
-    plate, bar = sorted(blobs(v, 0.06, 2), key=lambda b: b[0].start)
-    atlas = np.zeros((512, 1024, 4), np.float32)
-    layout = {}
-    # the bar over the keys: its two long edges glow; the grille between them is see-through
-    ys, xs = bar
-    crop = v[ys, xs]
-    alpha = shape_alpha(crop, threshold=0.04, rim=0.3)
-    own = unpremultiply(crop, alpha)
-    h, w = crop.shape
-    # the end blocks are opaque metal; the middle (grille) is half see-through, the glowing tubes opaque
-    ends = np.zeros_like(crop, bool)
-    profile = (v[ys, xs][h // 2 - 4:h // 2 + 4] > 0.45).mean(0)
-    block = int(np.argmax(profile[: w // 3] < 0.5)) if (profile[: w // 3] < 0.5).any() else w // 10
-    block = max(block, int(w * 0.06))
-    ends[:, : block] = True
-    ends[:, w - block:] = True
-    tubes = own > 0.7
-    see = (~ends) & (~tubes) & (alpha > 0.99)
-    alpha = np.where(see, 0.62, alpha)
-    rgba = tint(own, alpha, gain=1 / 0.55, lift=0.6, white=0.85)
-    bh = round(SIDE_BAR_W * h / w)
-    paste(atlas, resize_premultiplied(rgba, SIDE_BAR_W, bh), 0, 0)
-    layout["bar"] = {"h": bh, "cut": round(block * SIDE_BAR_W / w)}
-    # the side lane's own note: a grille plate
-    ys, xs = plate
-    crop = v[ys, xs]
-    alpha = shape_alpha(crop)
-    own = unpremultiply(crop, alpha)
-    h, w = crop.shape
-    rgba = tint(own, alpha, gain=1 / 0.6, lift=0.66, white=0.8)
-    ph = round(SIDE_PLATE_W * h / w)
-    paste(atlas, resize_premultiplied(rgba, SIDE_PLATE_W, ph), 0, SIDE_PLATE_Y)
-    layout["plate"] = {"h": ph}
-    save_rgba(atlas, MECHA_OUT / "side.png")
-    textures["mecha/side"] = {"file": "styles/mecha/side.png", "bundle": "notes", "size": [1024, 512]}
-    return layout
-
-
-def chamfer_alpha(h: int, w: int, cut: float) -> np.ndarray:
-    s = 4
-    im = Image.new("L", (w * s, h * s), 0)
-    c = min(w, h) * cut * s
-    W, H = w * s, h * s
-    ImageDraw.Draw(im).polygon([(c, 0), (W - c, 0), (W, c), (W, H - c), (W - c, H), (c, H), (0, H - c), (0, c)], fill=255)
-    return np.asarray(im.resize((w, h), Image.LANCZOS), dtype=np.float32) / 255
+# A long note's picture (the coin's capsule here, and build_long_notes.py's): the body (a tile that repeats along
+# the note) and its end, idle and held, LONG_W wide
+LONG_W, LONG_TILE = 128, 256
 
 
 # hit_burst.png: 16 frames (4 × 4 of HIT_CELL px) of a hit, played once; hit_hold.png: 16 frames of the light while a
@@ -389,37 +281,22 @@ def mecha_hold(weld: np.ndarray, textures: dict) -> None:
     textures["mecha/hitHold"] = hit_entry("styles/mecha/hit_hold.png", "hold")
 
 
-# ---------- CLUB, CRYSTAL, NEON: one builder, each set's own numbers ----------
+# ---------- CLUB, CRYSTAL, NEON, PIANO ----------
 #
-# Px of a source sheet. The atlases (styleArt.ts):
-#   notes.png 1024 × 1024: a 2 × 2 grid of 512 cells (white, blue, gold, scratch), the note fitted in 500 px about
-#     the cell's middle (CRYSTAL's four-pointed star STAR_CELL deep and as wide as its shape makes it, see gem_star;
-#     `rows`: the source sheet's notes lie one under another; without `star` they would go a row of 256 each, 1024
-#     wide about the row's middle)
+# Px of a source sheet. CLUB's atlases, the coin's (styleArt.ts: COIN):
+#   notes.png 1024 × 1024: a 2 × 2 grid of 512 cells (white, blue, gold, scratch), the record fitted in 500 px about
+#     the cell's middle
 #   long.png 512 × 256: body idle | body held | end idle | end held, 128 wide (ends `end` px deep)
-#   side.png 1024 × 512: the bar over the keys at (0, 0); the side lane's own note at (0, 256)
 
-SET_ART = {
+COIN_ART = {
     "club": {
-        "notes": {"rows": False, "gain": 1 / 0.6, "lift": 0.7, "white": 0.8, "disc": True},
-        "long": {"cap": 140, "idle": (1 / 0.8, 0.74, 0.7), "held": (1 / 0.62, 0.6, 0.9), "see": None},
-        "side": {"cut": 0.105, "plate_cut": 0.21, "tint": (1 / 0.62, 0.68, 0.85), "bright": 0.62},
-    },
-    "crystal": {
-        # its long cut gem drawn as a four-pointed star (gem_star), in a cell as the others'
-        "notes": {"rows": True, "gain": 1 / 0.7, "lift": 0.74, "white": 0.85, "star": {"shape": 1.15, "arm": 2.6, "reach": 0.2, "power": 3}},
-        "long": {"cap": 150, "idle": (1 / 0.7, 0.72, 0.8), "held": (1 / 0.6, 0.6, 0.9), "see": None},
-        "side": {"cut": 0.04, "plate_cut": 0.07, "tint": (1 / 0.65, 0.7, 0.9), "bright": 0.6},
-    },
-    "neon": {
-        "notes": {"rows": False, "gain": 1 / 0.7, "lift": 0.72, "white": 0.85},
-        "long": {"cap": 184, "idle": (1 / 0.72, 0.7, 0.85), "held": (1 / 0.62, 0.6, 0.9), "see": 0.55},
-        "side": {"cut": 0.04, "plate_cut": 0.16, "tint": (1 / 0.7, 0.7, 0.9), "bright": 0.62},
+        "notes": {"gain": 1 / 0.6, "lift": 0.7, "white": 0.8},
+        "long": {"cap": 140, "idle": (1 / 0.8, 0.74, 0.7), "held": (1 / 0.62, 0.6, 0.9)},
     },
 }
 
-# Sets whose notes were taken out of the game: their hit alone is built (PIANO's musical notes).
-HIT_ONLY = ["piano"]
+# Sets whose hit alone is built.
+HIT_ONLY = ["crystal", "neon", "piano"]
 
 
 def fit_into(rgba: np.ndarray, w: int, h: int) -> np.ndarray:
@@ -446,74 +323,28 @@ def disc_of(v: np.ndarray, ys: slice, xs: slice) -> tuple[float, float, float]:
     return ys.start + b, xs.start + a, float(np.sqrt(sol[2] + a * a + b * b))
 
 
-# A four-pointed star's cell (CRYSTAL's notes): as deep as this, as wide as its shape makes it, in the middle of a
-# 512 cell's 500 (styleArt.ts: NOTE_CELL.crystal).
-STAR_CELL = 500
-
-
-def gem_star(rgba: np.ndarray, w: int, h: int, arm: float, reach: float, power: float) -> np.ndarray:
-    """CRYSTAL's long cut gem (`rgba`, fitted across a row about its middle) drawn as a four-pointed star w × h, in
-    proportions as on the screen: each column of the gem stretched deeper the nearer the middle, `arm` times the gem's
-    own depth (drawn w wide) out along its arms and rising to all of h in its middle column, the stretch falling off as
-    (1 − u / reach) ** power of the half width u, so its short vertical points grow into long ones and its horizontal
-    points stay at the edges. Filtered with the colours weighted by their alpha (no dark fringes)."""
-    sh, sw = rgba.shape[:2]
-    a = rgba[..., 3]
-    rows = np.where(a.max(axis=1) > 0.05)[0]
-    own = (rows[-1] - rows[0] + 1) * w / sw
-    cy = (rows[0] + rows[-1] + 1) / 2
-    yy, xx = np.mgrid[0:h, 0:w].astype(np.float32)
-    u = np.abs((xx + 0.5) / w - 0.5) * 2
-    stretch = arm + (h / own - arm) * np.clip(1 - u / reach, 0, 1) ** power
-    sx = (xx + 0.5) * sw / w - 0.5
-    sy = cy + (yy + 0.5 - h / 2) / (stretch * w / sw) - 0.5
-    pre = [rgba[..., 0] * a, rgba[..., 1] * a, a]
-    out = [ndimage.map_coordinates(c, [sy, sx], order=3, mode="constant", cval=0.0) for c in pre]
-    oa = np.clip(out[2], 0, 1)
-    colour = [np.where(oa > 1e-3, np.clip(c / np.maximum(oa, 1e-3), 0, 1), 0) for c in out[:2]]
-    return np.stack([colour[0], colour[1], np.zeros_like(oa), oa], axis=2).astype(np.float32)
-
-
 def set_notes(cid: str, textures: dict) -> None:
-    c = SET_ART[cid]["notes"]
+    c = COIN_ART[cid]["notes"]
     a = load(SRC / cid / "notes.jpg")
     v = value(a)
-    boxes = blobs(v, 0.05, 4)
-    if c["rows"]:
-        boxes = sorted(boxes, key=lambda b: b[0].start)
-    h = max(b[0].stop - b[0].start for b in boxes)
-    w = max(b[1].stop - b[1].start for b in boxes)
     atlas = np.zeros((1024, 1024, 4), np.float32)
-    for i, (ys, xs) in enumerate(boxes):
-        cy, cx = (ys.start + ys.stop) // 2, (xs.start + xs.stop) // 2
-        if c.get("disc"):
-            # the coin alone, cut round about its own middle
-            dy, dx, r = disc_of(v, ys, xs)
-            cy, cx, h = round(dy), round(dx), 2 * int(r - 1)
-            w = h
+    for i, (ys, xs) in enumerate(blobs(v, 0.05, 4)):
+        # the coin alone, cut round about its own middle
+        dy, dx, r = disc_of(v, ys, xs)
+        cy, cx, h = round(dy), round(dx), 2 * int(r - 1)
+        w = h
         cut = (slice(cy - h // 2 + h, cy - h // 2 + 2 * h), slice(cx - w // 2 + w, cx - w // 2 + 2 * w))
         crop = np.pad(v, ((h, h), (w, w)))[cut]
-        alpha = shape_alpha(crop)
-        if c.get("disc"):
-            alpha = alpha * circle_mask(h, w)
+        alpha = shape_alpha(crop) * circle_mask(h, w)
         rgba = tint(unpremultiply(crop, alpha), alpha, gain=c["gain"], lift=c["lift"], white=c["white"])
-        if c.get("star"):
-            st = c["star"]
-            r, col = divmod(i, 2)
-            sw = round(STAR_CELL / st["shape"])
-            star = gem_star(fit_into(rgba, 1024, 256), sw, STAR_CELL, st["arm"], st["reach"], st["power"])
-            paste(atlas, star, col * 512 + 6 + (500 - sw) // 2, r * 512 + 6)
-        elif c["rows"]:
-            paste(atlas, fit_into(rgba, 1024, 256), 0, i * 256)
-        else:
-            r, col = divmod(i, 2)
-            paste(atlas, fit_into(rgba, 500, 500), col * 512 + 6, r * 512 + 6)
+        r, col = divmod(i, 2)
+        paste(atlas, fit_into(rgba, 500, 500), col * 512 + 6, r * 512 + 6)
     save_rgba(atlas, OUT / cid / "notes.png")
     textures[f"{cid}/notes"] = {"file": f"styles/{cid}/notes.png", "bundle": "notes", "size": [1024, 1024]}
 
 
 def set_long(cid: str, textures: dict) -> dict:
-    c = SET_ART[cid]["long"]
+    c = COIN_ART[cid]["long"]
     a = load(SRC / cid / "long.jpg")
     v = value(a)
     idle, held = sorted(blobs(v, 0.06, 2), key=lambda b: b[1].start)
@@ -527,9 +358,6 @@ def set_long(cid: str, textures: dict) -> dict:
         rail = v[:, xs]
         alpha = shape_alpha(rail)
         own = unpremultiply(rail, alpha)
-        if c["see"] is not None:
-            # between its tubes the body is dark glass: half see-through
-            alpha = np.where((alpha > 0.99) & (own < 0.2), c["see"], alpha)
         gain, lift, white = params
         rgba = tint(own, alpha, gain=gain, lift=lift, white=white)
         length = round(rail_w * LONG_TILE / LONG_W)
@@ -540,35 +368,6 @@ def set_long(cid: str, textures: dict) -> dict:
     save_rgba(atlas, OUT / cid / "long.png")
     textures[f"{cid}/long"] = {"file": f"styles/{cid}/long.png", "bundle": "notes", "size": [512, 256]}
     return {"end": end}
-
-
-def set_side(cid: str, textures: dict) -> dict:
-    c = SET_ART[cid]["side"]
-    v = value(load(SRC / cid / "side.jpg"))
-    plate, bar = sorted(blobs(v, 0.06, 2), key=lambda b: b[0].start)
-    atlas = np.zeros((512, 1024, 4), np.float32)
-    layout = {}
-    gain, lift, white = c["tint"]
-    for key, (ys, xs), width, y, cut in [("bar", bar, 1024, 0, c["cut"]), ("plate", plate, 512, 256, c["plate_cut"])]:
-        crop = v[ys, xs]
-        alpha = shape_alpha(crop, threshold=0.04, rim=0.3)
-        own = unpremultiply(crop, alpha)
-        h, w = crop.shape
-        if key == "bar":
-            # its ends and bright edges are solid; the rest of it lets the lanes show through
-            ends = np.zeros_like(crop, bool)
-            e = int(w * cut)
-            ends[:, :e] = True
-            ends[:, w - e:] = True
-            see = (~ends) & (own < c["bright"]) & (alpha > 0.99)
-            alpha = np.where(see, 0.62, alpha)
-        rgba = tint(own, alpha, gain=gain, lift=lift, white=white)
-        th = min(round(width * h / w), 256)
-        paste(atlas, resize_premultiplied(rgba, width, th), 0, y)
-        layout[key] = {"h": th, "cut": round(cut * width)}
-    save_rgba(atlas, OUT / cid / "side.png")
-    textures[f"{cid}/side"] = {"file": f"styles/{cid}/side.png", "bundle": "notes", "size": [1024, 512]}
-    return layout
 
 
 def circle_mask(h: int, w: int) -> np.ndarray:
@@ -950,16 +749,13 @@ def main() -> None:
     textures: dict = {}
     if MECHA_OUT.exists():
         shutil.rmtree(MECHA_OUT)
-    mecha_notes(textures)
-    mecha_long(textures)
-    side = mecha_side(textures)
     mecha_hits(textures)
-    report = {"mecha": {"side": side}}
-    for cid in SET_ART:
+    report = {}
+    for cid in COIN_ART:
         if (OUT / cid).exists():
             shutil.rmtree(OUT / cid)
         set_notes(cid, textures)
-        report[cid] = {"long": set_long(cid, textures), "side": set_side(cid, textures)}
+        report[cid] = {"long": set_long(cid, textures)}
         set_hits(cid, textures)
     for cid in HIT_ONLY:
         if (OUT / cid).exists():

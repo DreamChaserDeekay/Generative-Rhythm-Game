@@ -33,7 +33,7 @@ LOOK: dict[str, dict] = {
     "solid": {}, "prism": {}, "sky": {"see": 0.55}, "fire": {},
     # a chevron every 460 rows (at 310 and 770), a rivet pair every 410 (305, 715), a square every 230 (210, 440, 670)
     "aqua": {"see": 0.75, "window": (80, 460)}, "steel": {"window": (100, 410)}, "noir": {"window": (325, 230)}, "wire": {"see": 0.4},
-    "astral": {}, "chrome": {}, "hairline": {}, "glass": {"see": 0.35}, "enamel": {}, "pearl": {}, "carbon": {},
+    "astral": {},
 }
 OUT = MEDIA / "longs"
 

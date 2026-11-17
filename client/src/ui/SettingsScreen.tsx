@@ -1,13 +1,13 @@
 import mapperJson from '@config/mapper.json';
 import { createPortal } from 'react-dom';
-import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 import { api, type MapperSettings, type MapperStatus } from '../api/client';
 import { cameraConfig, enabledKeyModes, keyModes } from '../engine/config';
 import type { KeyModeId } from '../engine/types';
 import { GamepadPoller, isPadCode, MENU_BUTTONS, MENU_PAD_CODE, padCodeLabel, suspendMenuBridges, type MenuButton, type PadEvent } from '../input/gamepad';
 import { DEFAULT_PAD_PLAY, PAD_PLAY_BUTTONS, RETRY_HOLD_MS, type PadPlayButton } from '../input/padPlay';
 import { bindingOf, laneTakes, modifierOf, PLAY_ACTION_LABELS, PLAY_ACTIONS, sharedPlayKeys, type PlayAction } from '../input/playKeys';
-import { skinOf, withSkin, type SkinParts } from '../render/skins';
+import type { SkinParts } from '../render/skins';
 import {
   activeCovers,
   bindingLabel,
@@ -52,9 +52,8 @@ import { NoteColorsPanel } from './NoteColorsPanel';
 import { PadInputTest } from './PadInputTest';
 import { coverText, judgeLineText, speedText } from './format';
 import { arrowTarget, type NavStop } from './gridNav';
-import { ActionOption, Choice, CUSTOM_SKIN, DECK_NAMES, HUD_TYPE_CHOICES, NumberOption, OptionalNumberOption, PART_CHOICES, pct, skinChoices, Toggle } from './optionRows';
+import { ActionOption, Choice, HUD_TYPE_CHOICES, NumberOption, OptionalNumberOption, PART_CHOICES, pct, Toggle } from './optionRows';
 import { RuleRow, type PlayRule } from './PlayOptions';
-import { GEAR_HELP, HUD_TYPE_HELP, pickedHelp } from './settingsHelp';
 import { HintBar, TopBar, type KeyHint } from './shell';
 import { useTwoPress } from './twoPress';
 import { keyPairText, syncTestKeys } from './visualSync';
@@ -92,8 +91,6 @@ const TABS: [SettingsTab, string, string][] = [
 ];
 
 const signedMs = (v: number) => `${v > 0 ? '+' : ''}${v}ms`;
-/** The gears by name, in the order their help texts go through them. */
-const GEAR_NAMES = PART_CHOICES.deck.map(([, name]) => name);
 /** The default of each rule of the next play (RuleRow), as the row's own choices name it. */
 const RULE_DEFAULTS: Record<PlayRule, string> = {
   placement: DEFAULT_SETTINGS.placement,
@@ -191,9 +188,10 @@ const BUTTON_TABS: ReadonlySet<SettingsTab> = new Set(['play', 'notes', 'mapper'
 function tabHints(tab: SettingsTab): KeyHint[] {
   const tabs: KeyHint = { keys: ['Q', 'E'], pad: ['LB', 'RB'], label: '탭' };
   const lanes = tab === 'keys' || tab === 'pad';
+  // on the key mode tabs of those two ←→ change the mode, on a line of keys the lane
   const hints: KeyHint[] = [
-    { keys: ['↑', '↓'], pad: ['↑', '↓'], label: lanes ? '모드' : '항목' },
-    { keys: ['←', '→'], pad: ['←', '→'], label: lanes ? '레인' : '값' },
+    { keys: ['↑', '↓'], pad: ['↑', '↓'], label: '항목' },
+    { keys: ['←', '→'], pad: ['←', '→'], label: lanes ? '모드 · 레인' : '값' },
   ];
   if (tab === 'keys') hints.push({ keys: ['Enter'], pad: ['A'], label: '바꾸기' });
   if (tab === 'pad') hints.push({ keys: ['Enter'], pad: ['A'], label: '지정' });
@@ -239,6 +237,8 @@ export function SettingsScreen({
   /** The key mode whose note colours the 노트 tab shows, and colours being picked there, not kept yet. */
   const [colorMode, setColorMode] = useState<KeyModeId>(settings.lastKeyMode);
   const [colorDraft, setColorDraft] = useState<number[] | null>(null);
+  /** The key mode whose keys the 키 설정 tab and whose pad controls the 게임패드 tab show (one mode at a time, as tabs). */
+  const [bindMode, setBindMode] = useState<KeyModeId>(settings.lastKeyMode);
   const rows = useRef<HTMLDivElement>(null);
   /** The tab's name line and its rows: the arrows go through both (a tab's own button sits on its name's line). */
   const main = useRef<HTMLElement>(null);
@@ -337,8 +337,6 @@ export function SettingsScreen({
     onDefault: setHelpDefault,
   };
   const d = DEFAULT_SETTINGS;
-  /** The skin the picked parts make (설정 → 기어 → 스킨), or null while they are picked one by one. */
-  const skin = skinOf(settings.parts, settings.hudType);
   // the 노트 tab shows the key mode whose colours it shows; the side notes' row shows them on 4K+FX or
   // 6K+FX when that key mode has no side lanes
   const shownMode = tab === 'notes' ? colorMode : settings.lastKeyMode;
@@ -563,25 +561,13 @@ export function SettingsScreen({
         <>
           <Choice
             {...row}
-            label="스킨"
-            testId="opt-skin-set"
-            value={skin ?? CUSTOM_SKIN}
-            defaultValue={skinOf(d.parts, d.hudType) ?? CUSTOM_SKIN}
-            options={skinChoices(skin)}
-            onChange={(v) => {
-              if (v !== CUSTOM_SKIN) onSettingsChange({ ...settings, parts: withSkin(settings.parts, v), hudType: 'gear' });
-            }}
-            help="기어, 노트, 타격 효과, 판정·콤보 글자를 한 벌로 한 번에 바꿉니다. 기본은 그래파이트 기어에 직각 막대 노트와 플래시, 크리스털은 크리스털 기어에 유리 막대 노트와 크리스털 분광, 면으로 깎은 글자, 하늘은 하늘 기어에 둥근 무광 막대 노트와 구름 깃털, 둥글고 기울어진 글자, 파이어스타터는 크롬과 빨간 래커의 기어에 크롬 테를 두른 유광 막대 노트와 불꽃놀이, 달아오른 금속빛 글자, GPT는 청록 채팅창 기어에 로고 모양 노트와 물방울 왕관, 깔끔한 고딕 글자, Gemini는 파랑·보라·분홍 빛이 번지는 어두운 기어에 로고 모양 노트와 반짝임, 둥근 고딕 글자, Grok은 별이 뿌려진 검은 기어에 로고 모양 노트와 엑스 섬광, 고정폭 글자, Claude는 크림색 종이 기어에 로고 모양 노트와 붓 빛살, 세리프 글자, 아쿠아는 흰 장갑판과 청록 유리의 메카 기어에 모서리를 깎은 장갑판 노트와 록온, 각진 기울어진 글자, 스틸은 슬레이트 하드웨어 기어에 무광 키캡 모양 노트와 십자 섬광, 둥근 고딕 글자, 레드라인은 검정과 빨강 그래픽 기어에 한 모서리를 자른 납작한 노트와 글리치, 각진 넓은 글자, 화이트 라인은 흰 선 그림의 검은 기어에 선으로 그린 노트와 선 불꽃, 속이 빈 윤곽선 글자, 별밤은 별 지도의 남색 기어에 작은 별이 박힌 모따기 노트와 별빛, 우아한 로마자 글자입니다(파이어스타터는 기어 양옆에 멤버들의 일러스트가 서고, 그 뒤의 네 스킨은 기어 하단 양옆에 그 회사의 콘 둘이 붙으며 노트는 그 회사의 로고 모양입니다). 사이드 노트와 화면 왼쪽 위의 곡 정보는 스킨과 상관없이 그대로이고, 레인도 어두운 바닥 그대로입니다(하늘은 받침의 하늘이 레인에 아주 옅게 깔립니다). 아래의 기어·판정·콤보 글꼴·타격 효과나 노트 탭의 노트를 따로 바꾸면 직접 고름으로 표시됩니다."
-          />
-          <Choice
-            {...row}
             label="기어"
             testId="opt-deck-style"
             value={settings.parts.deck}
             defaultValue={d.parts.deck}
             options={PART_CHOICES.deck}
             onChange={(v) => setPart('deck', v)}
-            help={GEAR_HELP}
+            help="트랙을 담는 기어입니다. 판정선 아래 받침, 트랙 양옆 테두리, 게이지·점수판의 모양과 숫자 글꼴이 함께 바뀝니다."
           />
           <Choice
             {...row}
@@ -591,7 +577,7 @@ export function SettingsScreen({
             defaultValue={d.hudType}
             options={HUD_TYPE_CHOICES}
             onChange={(v) => set('hudType', v)}
-            help={HUD_TYPE_HELP}
+            help="판정과 콤보를 쓰는 글꼴과 색입니다. 기어의 것을 따를지, 기어와 상관없이 기본 글꼴로 쓸지 고릅니다."
           />
           <Choice
             {...row}
@@ -601,7 +587,7 @@ export function SettingsScreen({
             defaultValue={d.parts.hit}
             options={PART_CHOICES.hit}
             onChange={(v) => setPart('hit', v)}
-            help="노트를 치거나 롱노트를 누르고 있을 때의 효과 모양입니다. 플래시·플레어·거품·LED 그리드, 스킨의 것(크리스털 분광, 하늘의 구름 깃털, 파이어스타터의 불꽃놀이, GPT의 물방울 왕관, Gemini의 반짝임, Grok의 엑스 섬광, Claude의 붓 빛살, 아쿠아의 록온, 스틸의 십자 섬광, 레드라인의 글리치, 화이트 라인의 선 불꽃, 별밤의 별빛)과 세트마다 하나(메카 섬광·클럽 링·크리스털 파편·네온 아크·피아노 음표)가 있고, 모두 판정선 위로는 짧게만 남아 내려오는 노트를 가리지 않습니다(LED 그리드는 판정선 아래에만). 크기는 연출·배경 탭의 타격 효과 크기에서 정합니다."
+            help="노트를 치거나 롱노트를 누르고 있을 때의 효과 모양입니다. 크기는 연출·배경 탭의 타격 효과 크기에서 정합니다."
           />
           <Choice
             {...row}
@@ -690,7 +676,7 @@ export function SettingsScreen({
             defaultValue={d.parts.note}
             options={PART_CHOICES.note}
             onChange={(v) => setPart('note', v)}
-            help="노트 모양입니다. 롱노트는 고른 노트와 같은 계열(크리스털은 유리 삼각기둥, 하늘은 가운데 흰 줄이 난 비치는 띠, 파이어스타터는 가운데가 흰빛으로 달아오른 유리관, GPT는 캡슐, Gemini는 프리즘, Grok은 레일, Claude는 막대, 아쿠아는 화살표가 흐르는 비치는 레일, 스틸은 가운데 홈이 난 금속 띠, 레드라인은 작은 네모가 줄지은 납작한 띠, 화이트 라인은 가는 두 줄 사이가 비치는 띠, 별밤은 하늘과 같은 비치는 띠, 메카 챔퍼는 레일, 원형은 캡슐, 별 (4각)은 프리즘, 별 (5각)은 네온관)로 시작과 끝에 단노트 없이 몸통의 끝 모양으로 닫습니다. 메카 챔퍼·원형·별은 건반마다 표식(흰 건반 ○, 파란 건반 △, 금색 건반 ◇, 스크래치 //)이 있어 색이 같아도 건반을 구분할 수 있습니다. 같은 컨셉의 타격 효과와 고르면 한 벌로 맞습니다: 크리스털 스킨(크리스털·크리스털 분광, 기어도 크리스털), 하늘 스킨(하늘·구름 깃털, 기어도 하늘), 파이어스타터 스킨(파이어스타터·불꽃, 기어도 파이어스타터), GPT·Gemini·Grok·Claude 스킨(같은 이름의 노트·타격 효과·기어: 노트는 그 회사의 로고 모양), 아쿠아 스킨(아쿠아·록온, 기어도 아쿠아), 스틸 스킨(스틸·십자 섬광, 기어도 스틸), 레드라인 스킨(레드라인·글리치, 기어도 레드라인), 화이트 라인 스킨(화이트 라인·선 불꽃, 기어도 화이트 라인), 별밤 스킨(별밤·별빛, 기어도 별밤), 메카(메카 챔퍼·메카 섬광), 클럽(원형·클럽 링), 별 크리스털(별 (4각)·크리스털 파편), 네온(별 (5각)·네온 아크)."
+            help="노트 모양입니다. 롱노트도 고른 노트에 맞는 모양으로 함께 바뀝니다."
           />
           <Choice
             {...row}
@@ -704,7 +690,7 @@ export function SettingsScreen({
             defaultValue={d.parts.side}
             options={PART_CHOICES.side}
             onChange={(v) => setPart('side', v)}
-            help="4K+FX·6K+FX 사이드 노트의 모양입니다. 사이드 노트는 DJMAX처럼 건반 레인의 왼쪽·오른쪽 절반을 덮습니다. 기본은 비치는 막대로, 도트 매트릭스는 LED 점으로 그려 노트의 시점에 놓인 줄이 가장 밝습니다."
+            help="4K+FX·6K+FX 사이드 노트의 모양입니다. 사이드 노트는 건반 레인의 왼쪽·오른쪽 절반을 덮습니다."
           />
           <NoteColorsPanel settings={settings} onSettingsChange={onSettingsChange} onHelp={row.onHelp} mode={colorMode} onMode={setColorMode} onDraft={setColorDraft} />
         </>
@@ -744,7 +730,7 @@ export function SettingsScreen({
               ] as [HitEffectSize, string][]
             }
             onChange={(v) => set('hitEffectSize', v)}
-            help="노트를 치거나 롱노트를 누르고 있을 때 판정선에 번지는 빛입니다. 크게는 보통의 1.4배로 그리고(레일 밖으로는 나가지 않음, 반쪽 덮기의 사이드 노트는 절반 폭 그대로 더 높게), 작게는 한 레인 남짓으로 줄이고(사이드 노트는 절반 폭 그대로 낮게), 끄기는 그리지 않습니다."
+            help="노트를 치거나 롱노트를 누르고 있을 때 판정선에 번지는 빛의 크기입니다."
           />
           <Toggle
             {...row}
@@ -826,19 +812,18 @@ export function SettingsScreen({
       );
       break;
     case 'keys':
-      content = <KeysPanel settings={settings} onSettingsChange={onSettingsChange} onHelp={showHelp} onCapture={setCapture} />;
+      content = <KeysPanel settings={settings} onSettingsChange={onSettingsChange} mode={bindMode} onMode={setBindMode} onHelp={showHelp} onCapture={setCapture} />;
       break;
     case 'pad':
-      content = <GamepadPanel settings={settings} onSettingsChange={onSettingsChange} onHelp={showHelp} onDefault={setHelpDefault} onCapture={setCapture} />;
+      content = (
+        <GamepadPanel settings={settings} onSettingsChange={onSettingsChange} mode={bindMode} onMode={setBindMode} onHelp={showHelp} onDefault={setHelpDefault} onCapture={setCapture} />
+      );
       break;
     case 'mapper':
       content = <MapperPanel onHelp={showHelp} onDefault={setHelpDefault} onRows={focusLateRows} actionSlot={headAction} />;
       break;
   }
 
-  // the two rows whose help goes through every gear in turn show the picked gear's words only
-  const gear = DECK_NAMES[settings.parts.deck];
-  const gearHelp = help === GEAR_HELP || help === HUD_TYPE_HELP ? pickedHelp(help, GEAR_NAMES, gear) : null;
   return (
     <div className="menu-screen settings-screen screen-enter" data-testid="settings-screen">
       <TopBar name="설정">
@@ -880,17 +865,7 @@ export function SettingsScreen({
           </div>
           {/* what the row under the cursor means, and its default where its value is another */}
           <div className="settings-help" data-testid="settings-help">
-            {gearHelp ? (
-              <>
-                {gearHelp.intro && <p>{gearHelp.intro}</p>}
-                <p className="help-picked">
-                  <b>{gear}</b> {gearHelp.clause}
-                </p>
-                {gearHelp.outro && <p>{gearHelp.outro}</p>}
-              </>
-            ) : (
-              <p>{help || defaultHelp(tab)}</p>
-            )}
+            <p>{help || defaultHelp(tab)}</p>
             {helpDefault !== null && <span className="help-default">기본값 {helpDefault}</span>}
           </div>
         </section>
@@ -959,23 +934,70 @@ function swallowRelease(code: string): void {
 }
 
 /**
- * The keyboard: a row per key mode with each lane's key and a second key under it, then the keys
+ * The key modes as tabs (설정 → 키 설정, 게임패드): the keys or pad controls of one mode show at a time
+ * (the user's, 2026-11-17). The arrows stop on the picked tab alone; there ←→ pick the mode next to
+ * it, as an option row's change its value, and a click picks any.
+ */
+function KeyModeTabs({ name, mode, onMode, onHelp }: { name: 'keys' | 'pad'; mode: KeyModeId; onMode: (mode: KeyModeId) => void; onHelp: (help: string) => void }) {
+  const onKeyDown = (e: ReactKeyboardEvent<HTMLButtonElement>) => {
+    if (e.code !== 'ArrowLeft' && e.code !== 'ArrowRight') return;
+    // (taken here: the screen's arrows then leave it alone)
+    e.preventDefault();
+    const next = enabledKeyModes[enabledKeyModes.indexOf(mode) + (e.code === 'ArrowLeft' ? -1 : 1)];
+    if (!next) return;
+    onMode(next);
+    e.currentTarget.parentElement?.querySelector<HTMLElement>(`[data-mode="${next}"]`)?.focus();
+  };
+  return (
+    <div className="segmented wrap key-mode-tabs" role="tablist" aria-label="키 모드" data-testid={`${name}-modes`}>
+      {enabledKeyModes.map((m) => (
+        <button
+          key={m}
+          role="tab"
+          aria-selected={m === mode}
+          tabIndex={m === mode ? 0 : -1}
+          className={m === mode ? 'active' : ''}
+          data-testid={`${name}-mode-${m}`}
+          data-mode={m}
+          onKeyDown={onKeyDown}
+          onFocus={() => onHelp(name === 'keys' ? '키를 지정할 키 모드입니다. 고른 모드의 레인 키가 아래에 나옵니다.' : '패드 버튼을 지정할 키 모드입니다. 고른 모드의 레인 버튼이 아래에 나옵니다.')}
+          onClick={() => onMode(m)}
+        >
+          {m}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * The keyboard: the key modes as tabs, the picked mode's row with each lane's key and a second key under it, then the keys
  * of the in-play functions. A lane key that takes a function's key (lanes are read first) and a
  * function on the key of another are marked; a lane on Shift, Ctrl or Alt gets the Windows notes.
  */
 function KeysPanel({
   settings,
   onSettingsChange,
+  mode,
+  onMode,
   onHelp,
   onCapture,
 }: {
   settings: Settings;
   onSettingsChange: (s: Settings) => void;
+  mode: KeyModeId;
+  onMode: (mode: KeyModeId) => void;
   onHelp: (help: string) => void;
   onCapture: (kind: CaptureKind | null) => void;
 }) {
   const [capture, setCapture] = useState<KeyCapture | null>(null);
   const [ghostMode, setGhostMode] = useState<KeyModeId | null>(null);
+  // another mode's tab: a lane of the mode left waits for no key, and its rollover test closes
+  const pickMode = (next: KeyModeId) => {
+    setCapture((c) => (c?.kind === 'lane' ? null : c));
+    setGhostMode(null);
+    onMode(next);
+  };
   const playKeys = playKeysOf(settings);
   const shared = sharedPlayKeys(playKeys);
   useEffect(() => onCapture(capture === null ? null : capture.kind === 'play' ? 'playKey' : capture.run ? 'run' : capture.second ? 'second' : 'key'), [capture, onCapture]);
@@ -1038,122 +1060,119 @@ function KeysPanel({
     second
       ? '이 레인의 보조 키입니다. 누른 뒤 쓸 키를 입력하세요 (Backspace: 비우기). 첫 키와 함께 눌러도 한 번으로 칩니다.'
       : '누른 뒤 쓸 키를 입력하세요. 이미 쓰는 키를 고르면 서로 바뀝니다. 한글 입력 상태와 무관하게 동작합니다.';
+  const first = bindingsFor(settings, mode);
+  const second = secondBindingsFor(settings, mode);
+  const lanes = keyModes[mode].lanes;
+  const all = laneKeysFor(settings, mode);
+  const clashes = all.filter((code) => takes(code).length > 0);
+  // lanes that take the same functions are named together (both Shifts of an FX mode)
+  const clashGroups = new Map<string, string[]>();
+  for (const code of clashes) {
+    const names = takes(code)
+      .map((a) => PLAY_ACTION_LABELS[a])
+      .join('·');
+    clashGroups.set(names, [...(clashGroups.get(names) ?? []), keyLabel(code)]);
+  }
+  // a Shift / Ctrl / Alt lane whose twin is no lane: with the twin, the function presses no lane
+  const twins = clashes.flatMap((code) => {
+    const twin = modifierOf(code) ? code.replace(/Left$|Right$/, (side) => (side === 'Left' ? 'Right' : 'Left')) : null;
+    return twin && !all.includes(twin) ? [twin] : [];
+  });
+  const modifiers = [...new Set(all.map(modifierOf).filter((m): m is NonNullable<typeof m> => m !== null))];
+  const bothShifts = all.includes('ShiftLeft') && all.includes('ShiftRight');
+  const running = capture?.kind === 'lane' && capture.mode === mode && capture.run;
+  const cap = (code: string | null, lane: number, isSecond: boolean) => {
+    const active = capturing(mode, lane, isSecond);
+    const taken = code ? takes(code) : [];
+    return (
+      <button
+        key={`${isSecond ? 2 : 1}-${lane}`}
+        className={`key-cap lane-${lanes[lane].color}${isSecond ? ' second' : ''}${active ? ' active' : ''}${taken.length > 0 ? ' clash' : ''}${code ? '' : ' empty'}`}
+        data-testid={`${isSecond ? 'key2' : 'key'}-${mode}-${lane}`}
+        data-nav-line={`${mode}-${isSecond ? 2 : 1}`}
+        data-lane={lane}
+        title={taken.length > 0 ? `플레이 중 키와 겹침: ${taken.map((a) => PLAY_ACTION_LABELS[a]).join(', ')}` : isSecond ? (code ? '보조 키' : '보조 키 (비어 있음)') : undefined}
+        onFocus={() => onHelp(laneHelp(isSecond))}
+        onClick={() => setCapture(active ? null : { kind: 'lane', mode, lane, second: isSecond, run: false })}
+      >
+        {active ? '…' : code ? keyLabel(code) : ''}
+      </button>
+    );
+  };
   return (
     <>
-      {enabledKeyModes.map((mode) => {
-        const first = bindingsFor(settings, mode);
-        const second = secondBindingsFor(settings, mode);
-        const lanes = keyModes[mode].lanes;
-        const all = laneKeysFor(settings, mode);
-        const clashes = all.filter((code) => takes(code).length > 0);
-        // lanes that take the same functions are named together (both Shifts of an FX mode)
-        const clashGroups = new Map<string, string[]>();
-        for (const code of clashes) {
-          const names = takes(code)
-            .map((a) => PLAY_ACTION_LABELS[a])
-            .join('·');
-          clashGroups.set(names, [...(clashGroups.get(names) ?? []), keyLabel(code)]);
-        }
-        // a Shift / Ctrl / Alt lane whose twin is no lane: with the twin, the function presses no lane
-        const twins = clashes.flatMap((code) => {
-          const twin = modifierOf(code) ? code.replace(/Left$|Right$/, (side) => (side === 'Left' ? 'Right' : 'Left')) : null;
-          return twin && !all.includes(twin) ? [twin] : [];
-        });
-        const modifiers = [...new Set(all.map(modifierOf).filter((m): m is NonNullable<typeof m> => m !== null))];
-        const bothShifts = all.includes('ShiftLeft') && all.includes('ShiftRight');
-        const running = capture?.kind === 'lane' && capture.mode === mode && capture.run;
-        const cap = (code: string | null, lane: number, isSecond: boolean) => {
-          const active = capturing(mode, lane, isSecond);
-          const taken = code ? takes(code) : [];
-          return (
-            <button
-              key={`${isSecond ? 2 : 1}-${lane}`}
-              className={`key-cap lane-${lanes[lane].color}${isSecond ? ' second' : ''}${active ? ' active' : ''}${taken.length > 0 ? ' clash' : ''}${code ? '' : ' empty'}`}
-              data-testid={`${isSecond ? 'key2' : 'key'}-${mode}-${lane}`}
-              data-nav-line={`${mode}-${isSecond ? 2 : 1}`}
-              data-lane={lane}
-              title={taken.length > 0 ? `플레이 중 키와 겹침: ${taken.map((a) => PLAY_ACTION_LABELS[a]).join(', ')}` : isSecond ? (code ? '보조 키' : '보조 키 (비어 있음)') : undefined}
-              onFocus={() => onHelp(laneHelp(isSecond))}
-              onClick={() => setCapture(active ? null : { kind: 'lane', mode, lane, second: isSecond, run: false })}
-            >
-              {active ? '…' : code ? keyLabel(code) : ''}
-            </button>
-          );
-        };
-        return (
-          <Fragment key={mode}>
-            <div className="opt opt-block" data-testid={`keys-${mode}`}>
-              <span className="opt-name key-row-names">
-                <span>{mode}</span>
-                <span className="key-grid-label">보조 키</span>
-              </span>
-              <div className="opt-lanes">
-                <div className="opt-keys">
-                  <div className="key-grid" style={{ ['--lanes' as string]: lanes.length } as CSSProperties}>
-                    {first.map((code, lane) => cap(code, lane, false))}
-                    {second.map((code, lane) => cap(code, lane, true))}
-                  </div>
-                  <div className="opt-actions">
-                    <button
-                      className="small"
-                      data-testid={`keys-run-${mode}`}
-                      onFocus={() => onHelp('1번 레인부터 차례로 키를 누르면 한 칸씩 넘어가며 지정합니다. Esc로 멈춥니다.')}
-                      onClick={() => setCapture(running ? null : { kind: 'lane', mode, lane: 0, second: false, run: true })}
-                    >
-                      {running ? '멈추기' : '차례로 지정'}
-                    </button>
-                    {mode === '7K+1S' && (
-                      <button className="small" onClick={() => onSettingsChange(sanitizeSettings({ ...settings, bindings: { ...settings.bindings, [mode]: keyModes[mode].bindings.BMS } }))}>
-                        BMS 배치
-                      </button>
-                    )}
-                    <button
-                      className="small"
-                      data-testid={`keys-default-${mode}`}
-                      onClick={() => onSettingsChange({ ...settings, bindings: { ...settings.bindings, [mode]: keyModes[mode].bindings.default }, secondBindings: { ...settings.secondBindings, [mode]: undefined } })}
-                    >
-                      기본값
-                    </button>
-                    <button
-                      className="small"
-                      data-testid={`ghost-${mode}`}
-                      onFocus={() => onHelp('키보드가 여러 키를 한꺼번에 인식하는지 봅니다. 레인 키를 (보조 키까지) 모두 누르세요.')}
-                      onClick={() => setGhostMode(ghostMode === mode ? null : mode)}
-                    >
-                      {ghostMode === mode ? '테스트 닫기' : '동시 입력 테스트'}
-                    </button>
-                  </div>
-                </div>
-                {clashes.length > 0 && (
-                  <p className="key-note clash" data-testid={`keys-clash-${mode}`}>
-                    플레이 중 키와 겹침:{' '}
-                    {[...clashGroups].map(([names, codes], i) => (
-                      <Fragment key={names}>
-                        {i > 0 && ', '}
-                        <KeyNames names={codes} /> {names}
-                      </Fragment>
-                    ))}
-                    . 이 모드에서는 레인이 먼저 받습니다.
-                    {twins.length > 0 && (
-                      <>
-                        {' '}
-                        다른 쪽 키(<KeyNames names={twins.map(keyLabel)} />)와 함께 누르면 레인은 눌리지 않습니다.
-                      </>
-                    )}
-                  </p>
+      <KeyModeTabs name="keys" mode={mode} onMode={pickMode} onHelp={onHelp} />
+      <Fragment key={mode}>
+        <div className="opt opt-block" data-testid={`keys-${mode}`}>
+          <span className="opt-name key-row-names">
+            <span>{mode}</span>
+            <span className="key-grid-label">보조 키</span>
+          </span>
+          <div className="opt-lanes">
+            <div className="opt-keys">
+              <div className="key-grid" style={{ ['--lanes' as string]: lanes.length } as CSSProperties}>
+                {first.map((code, lane) => cap(code, lane, false))}
+                {second.map((code, lane) => cap(code, lane, true))}
+              </div>
+              <div className="opt-actions">
+                <button
+                  className="small"
+                  data-testid={`keys-run-${mode}`}
+                  onFocus={() => onHelp('1번 레인부터 차례로 키를 누르면 한 칸씩 넘어가며 지정합니다. Esc로 멈춥니다.')}
+                  onClick={() => setCapture(running ? null : { kind: 'lane', mode, lane: 0, second: false, run: true })}
+                >
+                  {running ? '멈추기' : '차례로 지정'}
+                </button>
+                {mode === '7K+1S' && (
+                  <button className="small" onClick={() => onSettingsChange(sanitizeSettings({ ...settings, bindings: { ...settings.bindings, [mode]: keyModes[mode].bindings.BMS } }))}>
+                    BMS 배치
+                  </button>
                 )}
-                {modifiers.length > 0 && (
-                  <p className="key-note" data-testid={`keys-note-${mode}`}>
-                    {modifiers.map((m) => MODIFIER_NAMES[m]).join('·')} 레인: Windows 고정 키 단축키를 끄세요 (설정 → 접근성 → 키보드).
-                    {bothShifts && ' 양쪽 Shift를 함께 누르다 한쪽을 떼면 늦게 떼어질 수 있습니다.'}
-                  </p>
-                )}
+                <button
+                  className="small"
+                  data-testid={`keys-default-${mode}`}
+                  onClick={() => onSettingsChange({ ...settings, bindings: { ...settings.bindings, [mode]: keyModes[mode].bindings.default }, secondBindings: { ...settings.secondBindings, [mode]: undefined } })}
+                >
+                  기본값
+                </button>
+                <button
+                  className="small"
+                  data-testid={`ghost-${mode}`}
+                  onFocus={() => onHelp('키보드가 여러 키를 한꺼번에 인식하는지 봅니다. 레인 키를 (보조 키까지) 모두 누르세요.')}
+                  onClick={() => setGhostMode(ghostMode === mode ? null : mode)}
+                >
+                  {ghostMode === mode ? '테스트 닫기' : '동시 입력 테스트'}
+                </button>
               </div>
             </div>
-            {ghostMode === mode && <KeyGhostTest mode={mode} bindings={first} seconds={second} onClose={() => setGhostMode(null)} />}
-          </Fragment>
-        );
-      })}
+            {clashes.length > 0 && (
+              <p className="key-note clash" data-testid={`keys-clash-${mode}`}>
+                플레이 중 키와 겹침:{' '}
+                {[...clashGroups].map(([names, codes], i) => (
+                  <Fragment key={names}>
+                    {i > 0 && ', '}
+                    <KeyNames names={codes} /> {names}
+                  </Fragment>
+                ))}
+                . 이 모드에서는 레인이 먼저 받습니다.
+                {twins.length > 0 && (
+                  <>
+                    {' '}
+                    다른 쪽 키(<KeyNames names={twins.map(keyLabel)} />)와 함께 누르면 레인은 눌리지 않습니다.
+                  </>
+                )}
+              </p>
+            )}
+            {modifiers.length > 0 && (
+              <p className="key-note" data-testid={`keys-note-${mode}`}>
+                {modifiers.map((m) => MODIFIER_NAMES[m]).join('·')} 레인: Windows 고정 키 단축키를 끄세요 (설정 → 접근성 → 키보드).
+                {bothShifts && ' 양쪽 Shift를 함께 누르다 한쪽을 떼면 늦게 떼어질 수 있습니다.'}
+              </p>
+            )}
+          </div>
+        </div>
+        {ghostMode === mode && <KeyGhostTest mode={mode} bindings={first} seconds={second} onClose={() => setGhostMode(null)} />}
+      </Fragment>
 
       <div className="settings-group" data-testid="play-keys">
         <h3>플레이 중 키</h3>
@@ -1241,12 +1260,16 @@ function axisOf(code: string | null): string | null {
 function GamepadPanel({
   settings,
   onSettingsChange,
+  mode,
+  onMode,
   onHelp,
   onDefault,
   onCapture,
 }: {
   settings: Settings;
   onSettingsChange: (s: Settings) => void;
+  mode: KeyModeId;
+  onMode: (mode: KeyModeId) => void;
   onHelp: (help: string) => void;
   onDefault: (text: string | null) => void;
   onCapture: (kind: CaptureKind | null) => void;
@@ -1256,6 +1279,12 @@ function GamepadPanel({
   // the key mode whose input check is open
   const [padTest, setPadTest] = useState<KeyModeId | null>(null);
   const closePadTest = useCallback(() => setPadTest(null), []);
+  // another mode's tab: a lane of the mode left waits for no control, and its input check closes
+  const pickMode = (next: KeyModeId) => {
+    setCapture((c) => (c?.kind === 'lane' ? null : c));
+    setPadTest(null);
+    onMode(next);
+  };
   useEffect(
     () => onCapture(capture !== null ? (capture.kind !== 'lane' ? 'padButton' : capture.run ? 'padRun' : 'pad') : padTest !== null ? 'padTest' : null),
     [capture, padTest, onCapture],
@@ -1344,6 +1373,7 @@ function GamepadPanel({
   const playButtons = padPlayOf(settings);
   const menu = padMenuFor(settings);
   const row = { onHelp, onDefault };
+  const running = capture?.kind === 'lane' && capture.mode === mode && capture.run;
   return (
     <div data-testid="gamepad-settings">
       <p className="settings-status" data-testid="gamepad-status">
@@ -1377,73 +1407,69 @@ function GamepadPanel({
         onChange={(v) => onSettingsChange({ ...settings, turntableReleaseMs: v })}
         help="턴테이블이 이 시간 동안 멈춰 있으면 스크래치를 뗍니다. 짧으면 천천히 돌릴 때 끊기고, 길면 같은 방향의 다음 스크래치가 앞의 것에 이어집니다."
       />
-      {enabledKeyModes.map((mode) => {
-        const running = capture?.kind === 'lane' && capture.mode === mode && capture.run;
-        return (
-          <Fragment key={mode}>
-            <div className="opt opt-block">
-              <span className="opt-name">{mode}</span>
-              <div className="opt-keys">
-                <div className="keys">
-                  {padBindingsFor(settings, mode).map((code, lane) => {
-                    const active = capture?.kind === 'lane' && capture.mode === mode && capture.lane === lane;
-                    return (
-                      <button
-                        key={lane}
-                        className={`key-cap pad-cap lane-${keyModes[mode].lanes[lane].color}${active ? ' active' : ''}${code ? '' : ' empty'}`}
-                        data-testid={`pad-${mode}-${lane}`}
-                        data-nav-line={`pad-${mode}`}
-                        data-lane={lane}
-                        title={code ? padCodeLabel(code) : '지정 안 됨'}
-                        onFocus={() => onHelp(padHelp)}
-                        onClick={() => setCapture(active ? null : { kind: 'lane', mode, lane, run: false })}
-                      >
-                        {active ? '…' : code ? padCodeLabel(code) : ''}
-                      </button>
-                    );
-                  })}
-                </div>
-                <div className="opt-actions">
+      <KeyModeTabs name="pad" mode={mode} onMode={pickMode} onHelp={onHelp} />
+      <Fragment key={mode}>
+        <div className="opt opt-block" data-testid={`pad-${mode}`}>
+          <span className="opt-name">{mode}</span>
+          <div className="opt-keys">
+            <div className="keys">
+              {padBindingsFor(settings, mode).map((code, lane) => {
+                const active = capture?.kind === 'lane' && capture.mode === mode && capture.lane === lane;
+                return (
                   <button
-                    className="small"
-                    data-testid={`pad-run-${mode}`}
-                    onFocus={() => onHelp('1번 레인부터 차례로 버튼을 누르거나 턴테이블을 돌리면 한 칸씩 넘어가며 지정합니다. Esc로 멈춥니다.')}
-                    onClick={() => setCapture(running ? null : { kind: 'lane', mode, lane: 0, run: true })}
+                    key={lane}
+                    className={`key-cap pad-cap lane-${keyModes[mode].lanes[lane].color}${active ? ' active' : ''}${code ? '' : ' empty'}`}
+                    data-testid={`pad-${mode}-${lane}`}
+                    data-nav-line={`pad-${mode}`}
+                    data-lane={lane}
+                    title={code ? padCodeLabel(code) : '지정 안 됨'}
+                    onFocus={() => onHelp(padHelp)}
+                    onClick={() => setCapture(active ? null : { kind: 'lane', mode, lane, run: false })}
                   >
-                    {running ? '멈추기' : '차례로 지정'}
+                    {active ? '…' : code ? padCodeLabel(code) : ''}
                   </button>
-                  <button className="small" onClick={() => onSettingsChange({ ...settings, padBindings: { ...settings.padBindings, [mode]: undefined } })}>
-                    지우기
-                  </button>
-                  <button
-                    className="small"
-                    data-testid={`pad-test-${mode}`}
-                    onFocus={() =>
-                      onHelp('패드 버튼과 턴테이블이 들어오는지 봅니다. 누른 레인이 켜지고, 턴테이블은 스크래치 횟수와 도는 방향이 나옵니다. Esc나 패드의 Start를 길게 눌러 닫습니다.')
-                    }
-                    onClick={() => {
-                      setCapture(null);
-                      setPadTest(padTest === mode ? null : mode);
-                    }}
-                  >
-                    {padTest === mode ? '입력 확인 닫기' : '입력 확인'}
-                  </button>
-                </div>
-              </div>
+                );
+              })}
             </div>
-            {padTest === mode && (
-              <PadInputTest
-                mode={mode}
-                lanes={padBindingsFor(settings, mode)}
-                // with no Start for play the pad's own Start still closes it, as the hint bar says
-                start={playButtons.start ?? DEFAULT_PAD_PLAY.start}
-                turntable={{ steps: settings.turntableSteps, releaseMs: settings.turntableReleaseMs }}
-                onClose={closePadTest}
-              />
-            )}
-          </Fragment>
-        );
-      })}
+            <div className="opt-actions">
+              <button
+                className="small"
+                data-testid={`pad-run-${mode}`}
+                onFocus={() => onHelp('1번 레인부터 차례로 버튼을 누르거나 턴테이블을 돌리면 한 칸씩 넘어가며 지정합니다. Esc로 멈춥니다.')}
+                onClick={() => setCapture(running ? null : { kind: 'lane', mode, lane: 0, run: true })}
+              >
+                {running ? '멈추기' : '차례로 지정'}
+              </button>
+              <button className="small" onClick={() => onSettingsChange({ ...settings, padBindings: { ...settings.padBindings, [mode]: undefined } })}>
+                지우기
+              </button>
+              <button
+                className="small"
+                data-testid={`pad-test-${mode}`}
+                onFocus={() =>
+                  onHelp('패드 버튼과 턴테이블이 들어오는지 봅니다. 누른 레인이 켜지고, 턴테이블은 스크래치 횟수와 도는 방향이 나옵니다. Esc나 패드의 Start를 길게 눌러 닫습니다.')
+                }
+                onClick={() => {
+                  setCapture(null);
+                  setPadTest(padTest === mode ? null : mode);
+                }}
+              >
+                {padTest === mode ? '입력 확인 닫기' : '입력 확인'}
+              </button>
+            </div>
+          </div>
+        </div>
+        {padTest === mode && (
+          <PadInputTest
+            mode={mode}
+            lanes={padBindingsFor(settings, mode)}
+            // with no Start for play the pad's own Start still closes it, as the hint bar says
+            start={playButtons.start ?? DEFAULT_PAD_PLAY.start}
+            turntable={{ steps: settings.turntableSteps, releaseMs: settings.turntableReleaseMs }}
+            onClose={closePadTest}
+          />
+        )}
+      </Fragment>
 
       <div className="settings-group" data-testid="pad-play">
         <h3>플레이 중 버튼</h3>
@@ -1707,7 +1733,7 @@ function MapperSettingsRows({
           ] as [MapperSettings['precision'], string][]
         }
         onChange={(v) => change('precision', v)}
-        help={`자동은 GPU가 bf16을 지원하면 bf16, 아니면 fp32입니다${auto ? ` (이 PC에서는 ${auto})` : ''}. fp16은 RTX 20xx에서 몇 배 빠르지만, 이 모델은 bf16으로 학습되어 fp16으로는 수가 넘칠 수 있습니다. 그래서 fp16을 고르면 음악을 읽는 인코더는 fp32로 돌고 노트를 쓰는 디코더만 fp16으로 돕니다(시간은 거의 디코더가 씁니다). 이전 빌드의 fp16은 곡의 큰 소리 구간에서 채보가 망가졌습니다. fp16 채보가 이상하면 fp32로 두세요.`}
+        help="채보 생성 모델을 돌리는 연산 정밀도입니다. 낮은 정밀도는 빠르지만 채보가 이상해질 수 있습니다."
       />
       <NumberOption
         {...row}

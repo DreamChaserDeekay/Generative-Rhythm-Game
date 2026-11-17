@@ -68,12 +68,6 @@ LONGS = {
     "noir": "the black-and-red skin: a hard-edged band between two bright edge lines, flat and graphic, small squares evenly spaced down its middle, ends cut at their corners",
     "wire": "the white-line skin: a hollow rail of light: two thin bright lines along its edges, the inside nearly see-through and dark, ends cut straight across by a thin line",
     "astral": "the starry-night skin: a deep night-sky band with tiny stars scattered over it and a small four-pointed star, a pale gold rim down each edge, ends cut at their corners",
-    "chrome": "a mirror-polished chrome bar: bevels down both edges, the left lit and the right in half shade, a mirror face between them with a sharp bright reflection line, ends cut at their corners",
-    "hairline": "a bar of brushed metal with fine hairline grain running along its length and a soft band of light down its left third, ends cut straight across",
-    "glass": "a bar of clear glass: mostly see-through and dark in the middle, bright refracting edges along both sides and a faint inner line, ends with slightly rounded corners",
-    "enamel": "a rod of deep glossy enamel: a crisp bright highlight down its left third, darker toward its right as it rounds over, ends fully rounded like a pill",
-    "pearl": "a bar of soft satin pearl: pale, with a soft iridescent sheen down its left half, ends well rounded",
-    "carbon": "a bar of woven carbon fibre under a clear coat: the twill weave along its length, a bright stripe down each edge and down its middle, ends cut straight across",
 }
 
 

@@ -32,19 +32,15 @@ describe('the desktop app’s graphics compatibility mode', () => {
     }
   });
 
-  it('names every mode, and its help says what it is for, what is picked and what a restart would do', () => {
+  it('names every mode, and its help says what the row is for, what is running and what a restart would do, not what each mode is', () => {
     for (const id of GRAPHICS_MODES) expect(GRAPHICS_MODE_NAMES[id]).toBeTruthy();
     const at = (info: Partial<GraphicsModeInfo>) => graphicsModeHelp({ mode: 'default', running: 'default', modes: ALL, reverted: null, ...info });
     expect(at({})).toContain("지금 '기본' 모드로 실행 중입니다.");
     expect(at({})).toContain('그런 일이 없으면 기본을 쓰세요');
-    // the help follows the mode picked
-    expect(at({ mode: 'gl' })).toContain('OpenGL은 그래픽 카드의 OpenGL 드라이버로 그립니다.');
     expect(at({ mode: 'gl' })).toContain("지금은 '기본' 모드로 실행 중이고, 앱을 다시 시작하면 'OpenGL' 모드로 열립니다.");
     expect(at({ mode: 'no-dcomp', running: 'no-dcomp' })).toContain("지금 'DirectComposition 끄기' 모드로 실행 중입니다.");
-    // what the default draws on the CPU, and the mode that keeps the old way (the last of the choices)
-    expect(at({})).toContain('글자와 버튼 같은 나머지 화면은 CPU로 그립니다');
+    // the mode that keeps the old way is the last of the choices
     expect(GRAPHICS_MODES[GRAPHICS_MODES.length - 1]).toBe('gpu-raster');
-    expect(at({ mode: 'gpu-raster' })).toContain('GPU 래스터는 글자와 버튼 같은 화면까지 그래픽 카드로 그립니다(2026-11-16까지의 기본).');
     expect(at({ mode: 'gpu-raster' })).toContain("앱을 다시 시작하면 'GPU 래스터' 모드로 열립니다.");
     // a mode the app gave up, with the reason in the player's words
     expect(at({ reverted: { from: 'gl', why: 'the game gets no WebGL under it' } })).toContain("'OpenGL' 모드는 게임이 그래픽을 받지 못했습니다: 앱이 기본으로 되돌렸습니다.");
@@ -52,5 +48,12 @@ describe('the desktop app’s graphics compatibility mode', () => {
     expect(at({ reverted: { from: 'gl', why: '2 starts did not come up' } })).toContain('앱이 끝까지 뜨지 못했습니다');
     expect(at({ reverted: { from: 'gl', why: 'the GPU process went 2 times before the mode had come up' } })).toContain('그래픽 프로세스가 끊겼습니다');
     expect(at({ reverted: { from: 'gl', why: 'something new' } })).toContain('이 PC에서 동작하지 않았습니다');
+    // the row's help is about the row: no mode is described, whichever is picked (the user's, 2026-11-17)
+    for (const mode of GRAPHICS_MODES) {
+      const help = at({ mode });
+      expect(help, mode).not.toMatch(/그립니다|Direct3D 11로|드라이버/);
+      expect(help.startsWith('플레이 중 화면 전체가 깜빡이며 기어가 잠깐 사라지는 PC에서, 앱이 화면을 그리는 방식을 바꿔 봅니다. 그런 일이 없으면 기본을 쓰세요. 지금'), mode).toBe(true);
+      expect(help.length, mode).toBeLessThan(160);
+    }
   });
 });

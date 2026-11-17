@@ -391,7 +391,8 @@ test('key settings: lanes bound in a run, a second key and its clearing, the rol
   for (const key of ['KeyA', 'KeyS', 'KeyD', 'KeyF']) await page.keyboard.press(key);
   await expect(page.getByTestId('keys-4K').locator('.key-cap:not(.second)')).toHaveText(['A', 'S', 'D', 'F']);
   await expect(page.getByTestId('keys-run-4K')).toHaveText('차례로 지정');
-  // a run of 5K, whose middle lane is Space: its release does not start the capture again
+  // a run of 5K (its tab picked: a mode's keys show under its tab), whose middle lane is Space: its release does not start the capture again
+  await page.getByTestId('keys-mode-5K').click();
   await page.getByTestId('keys-run-5K').click();
   for (const key of ['KeyD', 'KeyF', 'Space', 'KeyJ', 'KeyK']) await page.keyboard.press(key);
   await expect(page.getByTestId('keys-5K').locator('.key-cap:not(.second)')).toHaveText(['D', 'F', 'Space', 'J', 'K']);
@@ -399,6 +400,7 @@ test('key settings: lanes bound in a run, a second key and its clearing, the rol
   expect((await stored(page)).bindings).toMatchObject({ '4K': ['KeyA', 'KeyS', 'KeyD', 'KeyF'] });
 
   // a second key for lane 1; a lane's only key is no other lane's second key; Backspace clears it
+  await page.getByTestId('keys-mode-4K').click();
   await page.getByTestId('key2-4K-0').click();
   await page.keyboard.press('KeyQ');
   await expect(page.getByTestId('key2-4K-0')).toHaveText('Q');
@@ -434,11 +436,27 @@ test('key settings: lanes bound in a run, a second key and its clearing, the rol
   await expect(page.getByTestId('ghost-test')).toHaveCount(0);
   await expect(page.getByTestId('ghost-4K')).toHaveText('동시 입력 테스트');
   await expect(page.getByTestId('settings-screen')).toBeVisible();
-  // the last mode's opens under it too, and its button closes it again
+  // the last mode's opens under it too, and its button closes it again; another mode's tab closes it as well
+  await page.getByTestId('keys-mode-8K').click();
   await page.getByTestId('ghost-8K').click();
   await expect(page.locator('[data-testid="keys-8K"] + [data-testid="ghost-test"]')).toBeInViewport();
   await page.getByTestId('ghost-8K').click();
   await expect(page.getByTestId('ghost-test')).toHaveCount(0);
+  await page.getByTestId('ghost-8K').click();
+  await expect(page.getByTestId('ghost-test')).toBeVisible();
+  await page.getByTestId('keys-mode-4K').click();
+  await expect(page.getByTestId('ghost-test')).toHaveCount(0);
+  await page.getByTestId('keys-mode-8K').click();
+  await expect(page.getByTestId('ghost-test')).toHaveCount(0);
+  await expect(page.getByTestId('ghost-8K')).toHaveText('동시 입력 테스트');
+  // a lane waiting for its key waits no more once another mode's tab is picked
+  await page.getByTestId('key-8K-0').click();
+  await expect(page.getByTestId('key-8K-0')).toHaveText('…');
+  await page.getByTestId('keys-mode-4K').click();
+  await expect(page.locator('.hintbar')).toContainText('바꾸기');
+  await page.getByTestId('keys-mode-8K').click();
+  await expect(page.getByTestId('key-8K-0')).toHaveText('A');
+  await page.getByTestId('keys-mode-4K').click();
 
   // a lane on Enter is marked against FEVER and the skip; L-Shift lanes get the Windows note
   await page.getByTestId('key-4K-3').click();
@@ -446,11 +464,14 @@ test('key settings: lanes bound in a run, a second key and its clearing, the rol
   await expect(page.getByTestId('keys-clash-4K')).toContainText('Enter');
   await expect(page.getByTestId('play-key-fever')).toHaveClass(/clash/);
   await expect(page.getByTestId('play-key-clash-fever')).toContainText('4K');
+  await page.getByTestId('keys-mode-7K+1S').click();
   await expect(page.getByTestId('keys-note-7K+1S')).toContainText('고정 키');
   // the bigger SPEED and offset steps are on Shift: the 7K+1S scratch on L-Shift and both FX side lanes take them
   await expect(page.getByTestId('keys-clash-7K+1S')).toContainText('L-Shift 노트 속도 −0.5·노트 속도 +0.5·곡 오프셋 −5ms·곡 오프셋 +5ms');
   await expect(page.getByTestId('keys-clash-7K+1S')).toContainText('R-Shift');
+  await page.getByTestId('keys-mode-6K+FX').click();
   await expect(page.getByTestId('keys-clash-6K+FX')).toContainText('L-Shift R-Shift 노트 속도 −0.5');
+  await page.getByTestId('keys-mode-7K+1S').click();
   await expect(page.getByTestId('play-key-speedUpBig')).toHaveClass(/clash/);
   await expect(page.getByTestId('play-key-clash-speedUpBig')).toContainText('7K+1S');
   // moved off Shift, the scratch takes them no more (a binding may have Shift too)

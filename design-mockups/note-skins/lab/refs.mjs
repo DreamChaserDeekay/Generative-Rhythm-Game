@@ -6,7 +6,7 @@ const { chromium } = require('playwright');
 const out = process.argv[2];
 mkdirSync(out, { recursive: true });
 // each code-drawn long note, and the tap of its skin
-const LONGS = { solid: 'flat', prism: 'prism', sky: 'sky', fire: 'fire', aqua: 'aqua', steel: 'steel', noir: 'noir', wire: 'wire', astral: 'astral', chrome: 'chrome', hairline: 'hairline', glass: 'glass', enamel: 'enamel', pearl: 'pearl', carbon: 'carbon' };
+const LONGS = { solid: 'flat', prism: 'prism', sky: 'sky', fire: 'fire', aqua: 'aqua', steel: 'steel', noir: 'noir', wire: 'wire', astral: 'astral' };
 const browser = await chromium.launch();
 const page = await browser.newPage();
 page.on('pageerror', (e) => console.log('pageerror:', e.message));

@@ -264,14 +264,6 @@
         1024
       ]
     },
-    "club/side": {
-      "file": "styles/club/side.png",
-      "bundle": "notes",
-      "size": [
-        1024,
-        512
-      ]
-    },
     "crystal/hitBurst": {
       "file": "styles/crystal/hit_burst.png",
       "bundle": "effects",
@@ -306,30 +298,6 @@
       },
       "anchorY": 0.5,
       "span": 1.375
-    },
-    "crystal/long": {
-      "file": "styles/crystal/long.png",
-      "bundle": "notes",
-      "size": [
-        512,
-        256
-      ]
-    },
-    "crystal/notes": {
-      "file": "styles/crystal/notes.png",
-      "bundle": "notes",
-      "size": [
-        1024,
-        1024
-      ]
-    },
-    "crystal/side": {
-      "file": "styles/crystal/side.png",
-      "bundle": "notes",
-      "size": [
-        1024,
-        512
-      ]
     },
     "fire/crests": {
       "file": "gears/fire/crests.png",
@@ -648,30 +616,6 @@
         256
       ]
     },
-    "longs/carbon": {
-      "file": "longs/carbon.png",
-      "bundle": "notes",
-      "size": [
-        512,
-        256
-      ]
-    },
-    "longs/chrome": {
-      "file": "longs/chrome.png",
-      "bundle": "notes",
-      "size": [
-        512,
-        256
-      ]
-    },
-    "longs/enamel": {
-      "file": "longs/enamel.png",
-      "bundle": "notes",
-      "size": [
-        512,
-        256
-      ]
-    },
     "longs/fire": {
       "file": "longs/fire.png",
       "bundle": "notes",
@@ -680,32 +624,8 @@
         256
       ]
     },
-    "longs/glass": {
-      "file": "longs/glass.png",
-      "bundle": "notes",
-      "size": [
-        512,
-        256
-      ]
-    },
-    "longs/hairline": {
-      "file": "longs/hairline.png",
-      "bundle": "notes",
-      "size": [
-        512,
-        256
-      ]
-    },
     "longs/noir": {
       "file": "longs/noir.png",
-      "bundle": "notes",
-      "size": [
-        512,
-        256
-      ]
-    },
-    "longs/pearl": {
-      "file": "longs/pearl.png",
       "bundle": "notes",
       "size": [
         512,
@@ -787,30 +707,6 @@
       "anchorY": 0.5,
       "span": 1.375
     },
-    "mecha/long": {
-      "file": "styles/mecha/long.png",
-      "bundle": "notes",
-      "size": [
-        512,
-        256
-      ]
-    },
-    "mecha/notes": {
-      "file": "styles/mecha/notes.png",
-      "bundle": "notes",
-      "size": [
-        1024,
-        1024
-      ]
-    },
-    "mecha/side": {
-      "file": "styles/mecha/side.png",
-      "bundle": "notes",
-      "size": [
-        1024,
-        512
-      ]
-    },
     "neon/hitBurst": {
       "file": "styles/neon/hit_burst.png",
       "bundle": "effects",
@@ -845,30 +741,6 @@
       },
       "anchorY": 0.5,
       "span": 1.375
-    },
-    "neon/long": {
-      "file": "styles/neon/long.png",
-      "bundle": "notes",
-      "size": [
-        512,
-        256
-      ]
-    },
-    "neon/notes": {
-      "file": "styles/neon/notes.png",
-      "bundle": "notes",
-      "size": [
-        1024,
-        1024
-      ]
-    },
-    "neon/side": {
-      "file": "styles/neon/side.png",
-      "bundle": "notes",
-      "size": [
-        1024,
-        512
-      ]
     },
     "noir/hitBurst": {
       "file": "fx/noir_burst.webp",
@@ -933,35 +805,11 @@
         512
       ]
     },
-    "notes/carbon": {
-      "file": "notes/carbon.png",
-      "bundle": "notes",
-      "size": [
-        1024,
-        512
-      ]
-    },
-    "notes/chrome": {
-      "file": "notes/chrome.png",
-      "bundle": "notes",
-      "size": [
-        1024,
-        512
-      ]
-    },
     "notes/claude": {
       "file": "notes/claude.png",
       "bundle": "notes",
       "size": [
         512,
-        512
-      ]
-    },
-    "notes/enamel": {
-      "file": "notes/enamel.png",
-      "bundle": "notes",
-      "size": [
-        1024,
         512
       ]
     },
@@ -989,14 +837,6 @@
         512
       ]
     },
-    "notes/glass": {
-      "file": "notes/glass.png",
-      "bundle": "notes",
-      "size": [
-        1024,
-        512
-      ]
-    },
     "notes/gpt": {
       "file": "notes/gpt.png",
       "bundle": "notes",
@@ -1013,24 +853,8 @@
         512
       ]
     },
-    "notes/hairline": {
-      "file": "notes/hairline.png",
-      "bundle": "notes",
-      "size": [
-        1024,
-        512
-      ]
-    },
     "notes/noir": {
       "file": "notes/noir.png",
-      "bundle": "notes",
-      "size": [
-        1024,
-        512
-      ]
-    },
-    "notes/pearl": {
-      "file": "notes/pearl.png",
       "bundle": "notes",
       "size": [
         1024,

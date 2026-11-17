@@ -4614,16 +4614,6 @@ p.hint {
   margin-top: 0.25rem;
 }
 
-/* the picked gear's own words, out of a help that goes through every gear */
-.settings-help .help-picked {
-  color: var(--text);
-}
-
-.help-picked b {
-  margin-right: 0.25rem;
-  font-weight: 800;
-}
-
 /* the row's default, named while its value is another */
 .help-default {
   display: inline-block;
@@ -4843,6 +4833,13 @@ button.opt:active:not(:disabled) {
 .settings-status:first-child,
 .settings-note:first-child {
   margin-top: 0;
+}
+
+/* the key modes as tabs over one mode's keys or pad controls (설정 → 키 설정, 게임패드) */
+.key-mode-tabs {
+  flex: none;
+  align-self: flex-start;
+  margin: var(--sp-2) 0 var(--sp-2) 0.875rem;
 }
 
 /* a group of a tab under its own name: a small bold heading over a hairline, nothing around it */

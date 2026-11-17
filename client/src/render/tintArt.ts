@@ -131,28 +131,23 @@ function roundRect(g: CanvasRenderingContext2D, x: number, y: number, w: number,
 /**
  * PRISM (the crystal skin's, 크리스털) is a bar of cut glass (its long note a long prism closed by its end
  * facets, its scratch a long hexagon), SKY (the sky skin's, 하늘) a soft matte bar with round corners (its
- * scratch marked with a pair of wings, its long note a see-through band), FIRE (the Firestarter skin's, 파이어스타터) a bar of gloss lacquer in a chrome lip (its scratch a white double slash, its long note a tube of heated glass cut straight across), FLAT (the default skin's) is a plain bar, and so are the materials (MATERIAL_NOTES): the same bar in another finish,
- * each with a long note of its own (LONG_OF). The others are families, each with its own long
- * note: CHAMFER a machined plate with cut corners, ROUND a coin, STAR4 a compass star stretched along
- * the judge line, STAR5 a five-pointed star; each as wide as its lane lets a note be. GPT, GEMINI, GROK and
+ * scratch marked with a pair of wings, its long note a see-through band), FIRE (the Firestarter skin's, 파이어스타터) a bar of gloss lacquer in a chrome lip (its scratch a white double slash, its long note a tube of heated glass cut straight across), FLAT (the default skin's) is a plain bar,
+ * each with a long note of its own (LONG_OF). GPT, GEMINI, GROK and
  * CLAUDE (the four AI companies' skins) are the company's mark itself, a picture that comes with the build (LOGO_NOTES).
+ * The notes with no gear of their own (the bars in other finishes, the machined plate, the coin and the stars) are gone
+ * (the user's, 2026-11-17); the coin is still drawn, as the ends of the marks' long note and where a mark's picture is missing (coinNote).
  * AQUA (the aqua mecha skin's, 아쿠아) is a bar as well: a plate of armour with cut corners in a white rim (its long note a light rail with chevrons).
  */
-export type NoteStyle = 'prism' | 'sky' | 'fire' | 'gpt' | 'gemini' | 'grok' | 'claude' | 'aqua' | 'steel' | 'noir' | 'wire' | 'astral' | 'flat' | 'chrome' | 'hairline' | 'glass' | 'enamel' | 'pearl' | 'carbon' | 'chamfer' | 'round' | 'star4' | 'star5';
-/**
- * The bars in a finish of their own (the bar's shape, FLAT's): mirror chrome cut with bevels,
- * brushed hairline metal, clear glass, glossy enamel, satin pearl, woven carbon.
- */
-export const MATERIAL_NOTES = ['chrome', 'hairline', 'glass', 'enamel', 'pearl', 'carbon'] as const satisfies readonly NoteStyle[];
-export const NOTE_STYLES: NoteStyle[] = ['flat', 'prism', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', 'aqua', 'steel', 'noir', 'wire', 'astral', ...MATERIAL_NOTES, 'chamfer', 'round', 'star4', 'star5'];
+export type NoteStyle = 'prism' | 'sky' | 'fire' | 'gpt' | 'gemini' | 'grok' | 'claude' | 'aqua' | 'steel' | 'noir' | 'wire' | 'astral' | 'flat';
+export const NOTE_STYLES: NoteStyle[] = ['flat', 'prism', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', 'aqua', 'steel', 'noir', 'wire', 'astral'];
 /** The skins' notes that are bars (as deep in every lane as FLAT's). */
 const SKIN_BARS: readonly NoteStyle[] = ['prism', 'sky', 'fire', 'aqua', 'steel', 'noir', 'wire', 'astral'];
-/** Whether a note style is a bar (FLAT's shape: the materials' too), as deep in every lane. */
-export const isBarNote = (style: NoteStyle): boolean => style === 'flat' || SKIN_BARS.includes(style) || (MATERIAL_NOTES as readonly NoteStyle[]).includes(style);
+/** Whether a note style is a bar (FLAT's shape), as deep in every lane. */
+export const isBarNote = (style: NoteStyle): boolean => style === 'flat' || SKIN_BARS.includes(style);
 
 /**
- * The lane a note is drawn for: its key's colour, the scratch or a side lane. The families mark
- * a key's notes by it (see noteMark), so they are told apart without their colour too.
+ * The lane a note is drawn for: its key's colour, the scratch or a side lane. A note may mark a
+ * key's notes by it (see noteMark), so they are told apart without their colour too.
  */
 export type NoteMark = 'white' | 'blue' | 'gold' | 'scratch' | 'side';
 
@@ -160,31 +155,28 @@ export type NoteMark = 'white' | 'blue' | 'gold' | 'scratch' | 'side';
 export type NotePaint = (g: CanvasRenderingContext2D, w: number, h: number, mark: NoteMark) => void;
 
 /**
- * How much longer along the track than across it the families draw their marks, cuts and ends, so
+ * How much longer along the track than across it the notes draw their marks, cuts and ends, so
  * they keep their shape where the camera flattens the track (about this much near the judge line).
  */
 export const NOTE_STRETCH = 1.7;
 
-/**
- * How tall the coin and the stars look for their width at the judge line (the bars keep a fixed
- * depth): the coin round, the five-pointed star as drawn, the compass star wide.
- */
-export const NOTE_SHAPE: Partial<Record<NoteStyle, number>> = { round: 1, star4: 1, star5: 0.95, gpt: 1, gemini: 1, grok: 1, claude: 1 };
+/** How tall the notes that are no bar (the companies' marks) look for their width at the judge line; the bars keep a fixed depth. */
+export const NOTE_SHAPE: Partial<Record<NoteStyle, number>> = { gpt: 1, gemini: 1, grok: 1, claude: 1 };
 
 /**
- * How deep a note of `style` is along the track: a bar `base` deep; the coin and the stars as deep
- * as keeps their shape at the judge line for a note `width` wide, where the camera shows the track
- * `flatten` times shorter along than across (no shallower than a bar, nor over three times as deep:
- * the plane camera and very wide lanes flatten them a little). `shape`: a note drawn from art
- * looks this tall for its width (null: it lies in a bar's depth; see styleArt's noteShapeOf).
+ * How deep a note of `style` is along the track: a bar `base` deep; a mark as deep
+ * as keeps its shape at the judge line (NOTE_SHAPE) for a note `width` wide, where the camera shows
+ * the track `flatten` times shorter along than across (no shallower than a bar, nor over three
+ * times as deep: the plane camera and very wide lanes flatten them a little).
  */
-export function noteDepthOf(style: NoteStyle, base: number, width: number, flatten: number, shape: number | null = NOTE_SHAPE[style] ?? null): number {
-  return shape === null ? base : Math.min(base * 3, Math.max(base, width * shape * flatten));
+export function noteDepthOf(style: NoteStyle, base: number, width: number, flatten: number): number {
+  const shape = NOTE_SHAPE[style];
+  return shape === undefined ? base : Math.min(base * 3, Math.max(base, width * shape * flatten));
 }
 
 /**
  * How deep a lane's notes are, for notes `share` as wide as a key lane's (`depth` deep): the
- * families keep their shape in a wider lane (the scratch) or a narrower one (a side lane), deeper
+ * marks keep their shape in a wider lane (the scratch) or a narrower one (a side lane), deeper
  * or shallower (no more than three bars deep); the plain bars stay as deep.
  */
 export function laneDepthOf(style: NoteStyle, depth: number, share: number, base: number): number {
@@ -200,13 +192,8 @@ const NOTE_THICKNESS: Partial<Record<NoteStyle, number>> = {
   sky: 0.6,
   wire: 0.4,
   noir: 0.7,
-  hairline: 0.75,
-  carbon: 0.8,
   steel: 1.55,
   prism: 1.35,
-  chrome: 1.2,
-  enamel: 1.25,
-  glass: 1.15,
   fire: 1.1,
 };
 export const noteThicknessOf = (style: NoteStyle): number => NOTE_THICKNESS[style] ?? 1;
@@ -218,12 +205,6 @@ function polygon(g: CanvasRenderingContext2D, points: [number, number][]): void 
   g.beginPath();
   points.forEach(([x, y], i) => (i === 0 ? g.moveTo(x, y) : g.lineTo(x, y)));
   g.closePath();
-}
-
-/** How much a face turned toward (dx, dy) on the screen catches the light, which comes from the far left (-1 … 1). */
-function litBy(dx: number, dy: number): number {
-  const len = Math.hypot(dx, dy) || 1;
-  return (-0.55 * dx - 0.83 * dy) / len;
 }
 
 /**
@@ -301,48 +282,12 @@ export function noteMark(g: CanvasRenderingContext2D, mark: NoteMark, cx: number
 }
 
 /**
- * CHAMFER: a machined plate, its corners cut at 45° on the screen: a light band across its middle
- * third (its time), darker bands to its far and near edges, a lit facet at its left end and a
- * shaded one at its right, a dark rim, and its lane's mark engraved in the band.
+ * The coin (it was the ROUND note, picked on its own until 2026-11-17): a coin lying on the track, as wide
+ * as any note and as deep as keeps it round (see noteDepthOf): a bright rim inside a dark one, a raised edge
+ * round a sunk field, a glint on the edge at its far left, and its lane's mark in the middle. Nothing crosses
+ * it. The companies' marks are drawn as it while their picture is missing, and their long note ends in it.
  */
-function chamferNote(g: CanvasRenderingContext2D, w: number, h: number, mark: NoteMark): void {
-  const st = NOTE_STRETCH;
-  const c = Math.min(w * 0.075, (h * 0.3) / st);
-  const rim = Math.max(1.2, Math.min(w * 0.02, h * 0.035));
-  polygon(g, chamferOutline(0, 0, w, h, c));
-  g.fillStyle = tone(0.3);
-  g.fill();
-  g.save();
-  polygon(g, chamferOutline(0, 0, w, h, c, rim));
-  g.clip();
-  const [b0, b1] = [h * 0.33, h * 0.67];
-  g.fillStyle = tone(0.84);
-  g.fillRect(0, 0, w, b0);
-  g.fillStyle = mark === 'scratch' ? ink(1, 0.55) : tone(1.12);
-  g.fillRect(0, b0, w, b1 - b0);
-  g.fillStyle = tone(0.6);
-  g.fillRect(0, b1, w, h - b1);
-  // the end facets: the cut corners and a strip in from each end, lit on the left, in shade on the right
-  const f = c * 1.7;
-  for (const [x0, x1, fill] of [
-    [0, f, ink(1, 1, 0.3)],
-    [w - f, w, ink(0, 0, 0.24)],
-  ] as [number, number, string][]) {
-    g.fillStyle = fill;
-    g.fillRect(x0, 0, x1 - x0, h);
-  }
-  // a fine light edge along the far side
-  g.fillStyle = ink(1, 0.5, 0.55);
-  g.fillRect(0, 0, w, Math.max(1, rim * st * 0.6));
-  g.restore();
-  noteMark(g, mark, w / 2, h / 2, Math.min(w * 0.055, h * 0.085), mark === 'scratch' ? tone(0.35) : tone(0.42), false);
-}
-
-/**
- * ROUND: a coin lying on the track, as wide as any note and as deep as keeps it round (see
- * noteDepthOf): a bright rim inside a dark one, a raised edge round a sunk field, a glint on the
- * edge at its far left, and its lane's mark in the middle. Nothing crosses it.
- */
+export const coinNote: NotePaint = roundNote;
 function roundNote(g: CanvasRenderingContext2D, w: number, h: number, mark: NoteMark): void {
   const st = NOTE_STRETCH;
   const [cx, cy, rx, ry] = [w / 2, h / 2, w / 2, h / 2];
@@ -374,120 +319,7 @@ function roundNote(g: CanvasRenderingContext2D, w: number, h: number, mark: Note
   noteMark(g, mark, cx, cy, Math.min(w * 0.055, h * 0.085), tone(0.36), true);
 }
 
-/**
- * A star of `points` tips (px of the note's picture about its middle; the note is as deep as keeps it a star on the screen), each tip
- * split along its axis into a lit and a shaded facet, with a dark outline. `tip(i)` and `waist(i)`
- * give the i-th tip and the inner corner after it.
- */
-function facetedStar(g: CanvasRenderingContext2D, tips: [number, number][], waists: [number, number][], outline: number): void {
-  const n = tips.length;
-  polygon(g, tips.flatMap((p, i) => [p, waists[i]]));
-  g.lineWidth = outline * 2;
-  g.lineJoin = 'miter';
-  g.miterLimit = 6;
-  g.strokeStyle = tone(0.3);
-  g.stroke();
-  for (let i = 0; i < n; i++) {
-    const tip = tips[i];
-    for (const side of [waists[(i + n - 1) % n], waists[i]]) {
-      // the facet faces away from the tip's axis toward its inner corner
-      const len = Math.hypot(tip[0], tip[1]) || 1;
-      const [ax, ay] = [tip[0] / len, tip[1] / len];
-      const along = side[0] * ax + side[1] * ay;
-      const lit = litBy(side[0] - ax * along, side[1] - ay * along);
-      g.fillStyle = tone(0.9 + 0.32 * lit);
-      polygon(g, [tip, side, [0, 0]]);
-      g.fill();
-      // the seam between the facets would show as a hairline gap: cover it
-      g.strokeStyle = g.fillStyle;
-      g.lineWidth = 0.6;
-      g.stroke();
-    }
-  }
-}
-
-/** Points round the middle at `angles` (radians from the right, up is negative), `reach(i)` far. */
-function around(angles: number[], reach: (i: number) => [number, number]): [number, number][] {
-  return angles.map((a, i) => {
-    const [rx, ry] = reach(i);
-    return [Math.cos(a) * rx, Math.sin(a) * ry];
-  });
-}
-
-/**
- * STAR4: a compass star stretched along the judge line: its side points reach almost to the lane's
- * edges, so its widest line is its time; a near-white heart. A blue key's has short points between
- * them and a gold key's longer ones (eight points), so the key reads without its colour.
- */
-function star4Note(g: CanvasRenderingContext2D, w: number, h: number, mark: NoteMark): void {
-  g.save();
-  g.translate(w / 2, h / 2);
-  const X = w * 0.49;
-  const Y = h * 0.49;
-  const minor = mark === 'blue' ? 0.5 : mark === 'gold' ? 0.8 : 0;
-  const outline = Math.max(0.8, Math.min(w * 0.012, Y * 0.04));
-  if (minor > 0) {
-    // the points between: a star of their own under the main one
-    const [dx, dy] = [X * 0.62 * minor, Y * 0.98 * minor];
-    const tips = around([0.25, 0.75, 1.25, 1.75].map((q) => q * Math.PI), () => [dx * 1.41, dy * 1.41]);
-    const waists = around([0.5, 1, 1.5, 2].map((q) => q * Math.PI), () => [dx * 0.3, dy * 0.3]);
-    facetedStar(g, tips, waists, outline);
-  }
-  const tips: [number, number][] = [
-    [X, 0],
-    [0, Y],
-    [-X, 0],
-    [0, -Y],
-  ];
-  // thin between its points: its vertical points as long as the note is deep, its arms as thick as a bar
-  const waists = around([0.25, 0.75, 1.25, 1.75].map((q) => q * Math.PI), () => [X * 0.2, Y * 0.27]);
-  facetedStar(g, tips, waists, outline);
-  // the heart
-  const [kx, ky] = [X * 0.1, Y * 0.2];
-  polygon(g, [
-    [0, -ky],
-    [kx, 0],
-    [0, ky],
-    [-kx, 0],
-  ]);
-  g.fillStyle = ink(1, 0.8);
-  g.fill();
-  g.restore();
-}
-
-/**
- * STAR5: a five-pointed star as wide as any note, its side points at the note's edges, its top
- * point at the far edge, its middle on the note's. A blue key's star holds a pentagon, a gold key's a dot.
- */
-function star5Note(g: CanvasRenderingContext2D, w: number, h: number, mark: NoteMark): void {
-  g.save();
-  g.translate(w / 2, h / 2);
-  // the side points lie 18° above the middle: they reach the edges; the top one the far edge
-  const Rx = (w * 0.49) / Math.cos(Math.PI / 10);
-  const Ry = h * 0.49;
-  const angle = (i: number) => -Math.PI / 2 + (i * 2 * Math.PI) / 5;
-  const at = (a: number, k: number): [number, number] => [Math.cos(a) * Rx * k, Math.sin(a) * Ry * k];
-  const tips = Array.from({ length: 5 }, (_, i) => at(angle(i), 1));
-  const waists = Array.from({ length: 5 }, (_, i) => at(angle(i) + Math.PI / 5, 0.44));
-  facetedStar(g, tips, waists, Math.max(0.8, Math.min(Rx, Ry) * 0.035));
-  if (mark === 'blue') {
-    polygon(
-      g,
-      Array.from({ length: 5 }, (_, i) => at(angle(i), 0.24)),
-    );
-    g.lineWidth = Math.min(Rx, Ry) * 0.06;
-    g.strokeStyle = tone(0.36);
-    g.stroke();
-  } else if (mark === 'gold') {
-    g.beginPath();
-    g.ellipse(0, 0, Rx * 0.1, Ry * 0.1, 0, 0, Math.PI * 2);
-    g.fillStyle = tone(0.34);
-    g.fill();
-  }
-  g.restore();
-}
-
-// ---------- the bars in a finish of their own (MATERIAL_NOTES): FLAT's outline, another surface ----------
+// ---------- what several of the bars' paints share ----------
 
 /** The same stream of numbers on every paint, so a note's grain never changes when it is painted again. */
 function seeded(seed: number): () => number {
@@ -496,13 +328,6 @@ function seeded(seed: number): () => number {
     s = (s * 1664525 + 1013904223) >>> 0;
     return s / 4294967296;
   };
-}
-
-/** Keeps the bar's outline (FLAT's) as the clip for what is drawn next, until restore. */
-function barClip(g: CanvasRenderingContext2D, w: number, h: number): void {
-  g.save();
-  roundRect(g, 0, 0, w, h, unit(h)(5));
-  g.clip();
 }
 
 /** A band slanting across a picture, from `x` (its far edge) `w` wide, leaning `lean` px over its depth `h`. */
@@ -516,282 +341,6 @@ function slant(g: CanvasRenderingContext2D, x: number, w: number, lean: number, 
   g.fillStyle = fill;
   g.fill();
 }
-
-/**
- * CHROME: mirror-polished metal in the lane's colour, its corners cut and bevels all round as a bevelled mirror
- * is: its far and left bevels catching the light, the right one in half shade, the near one dark;
- * the flat mirror between them shows the room it faces, a bright horizon across it, a glint slanting
- * over it.
- */
-function chromeNote(g: CanvasRenderingContext2D, w: number, h: number): void {
-  const u = unit(h);
-  // its corners cut as a bevelled mirror's are
-  g.save();
-  polygon(g, chamferOutline(0, 0, w, h, Math.min(w * 0.06, u(7) / NOTE_STRETCH)));
-  g.clip();
-  const [bx, by] = [Math.min(w * 0.1, u(14)), Math.min(h * 0.28, u(14))];
-  const [ix0, iy0, ix1, iy1] = [bx, by, w - bx, h - by];
-  const facet = (points: [number, number][], fill: string) => {
-    polygon(g, points);
-    g.fillStyle = fill;
-    g.fill();
-  };
-  facet(
-    [
-      [0, 0],
-      [w, 0],
-      [ix1, iy0],
-      [ix0, iy0],
-    ],
-    ink(1, 0.82),
-  );
-  facet(
-    [
-      [0, 0],
-      [ix0, iy0],
-      [ix0, iy1],
-      [0, h],
-    ],
-    ink(1, 0.5),
-  );
-  facet(
-    [
-      [w, 0],
-      [w, h],
-      [ix1, iy1],
-      [ix1, iy0],
-    ],
-    tone(0.5),
-  );
-  facet(
-    [
-      [0, h],
-      [ix0, iy1],
-      [ix1, iy1],
-      [w, h],
-    ],
-    tone(0.38),
-  );
-  // the room it faces, hard: bright sky over a dark floor, a sharp horizon between
-  const mirror = g.createLinearGradient(0, iy0, 0, iy1);
-  mirror.addColorStop(0, ink(1, 0.9));
-  mirror.addColorStop(0.46, ink(1, 0.45));
-  mirror.addColorStop(0.5, tone(0.25));
-  mirror.addColorStop(1, tone(0.75));
-  g.fillStyle = mirror;
-  g.fillRect(ix0, iy0, ix1 - ix0, iy1 - iy0);
-  g.fillStyle = ink(1, 0.92);
-  g.fillRect(ix0, iy0 + (iy1 - iy0) * 0.45, ix1 - ix0, Math.max(1, u(1.4)));
-  g.save();
-  g.beginPath();
-  g.rect(ix0, iy0, ix1 - ix0, iy1 - iy0);
-  g.clip();
-  slant(g, ix0 + (ix1 - ix0) * 0.2, (ix1 - ix0) * 0.07, (iy1 - iy0) * 0.6, iy1, ink(1, 0.75, 0.35));
-  g.restore();
-  // the ridges where the bevels meet, from the far corners
-  g.strokeStyle = ink(1, 0.95, 0.8);
-  g.lineWidth = Math.max(1, u(0.8));
-  g.beginPath();
-  g.moveTo(0, 0);
-  g.lineTo(ix0, iy0);
-  g.moveTo(w, 0);
-  g.lineTo(ix1, iy0);
-  g.stroke();
-  g.restore();
-}
-
-/**
- * HAIRLINE: brushed metal anodised in the lane's colour: fine hairlines across it, light and dark, a
- * soft band of light standing across the brushing (where brushed metal shows its light), a bright
- * chamfer along its far edge and a dark one along its near edge.
- */
-function hairlineNote(g: CanvasRenderingContext2D, w: number, h: number): void {
-  const u = unit(h);
-  barClip(g, w, h);
-  g.fillStyle = tone(0.8);
-  g.fillRect(0, 0, w, h);
-  const rand = seeded(11);
-  const line = Math.max(1, u(0.7));
-  for (let y = 0; y < h; y += line) {
-    for (let i = 0, n = 2 + Math.floor(rand() * 3); i < n; i++) {
-      const [x, len, light, a] = [rand() * w - w * 0.1, w * (0.25 + rand() * 0.7), rand() < 0.5, 0.16 + rand() * 0.3];
-      g.fillStyle = light ? ink(1, 0.55, a) : tone(0.5, a);
-      g.fillRect(x, y, len, line);
-    }
-  }
-  // the light standing across the brushing in two hard bands, as brushed metal shows it
-  const sheen = g.createLinearGradient(0, 0, w, 0);
-  sheen.addColorStop(0.16, ink(1, 0.7, 0));
-  sheen.addColorStop(0.27, ink(1, 0.8, 0.85));
-  sheen.addColorStop(0.38, ink(1, 0.7, 0));
-  sheen.addColorStop(0.5, tone(0.4, 0.35));
-  sheen.addColorStop(0.66, ink(1, 0.6, 0));
-  sheen.addColorStop(0.74, ink(1, 0.6, 0.55));
-  sheen.addColorStop(0.82, ink(1, 0.6, 0));
-  g.fillStyle = sheen;
-  g.fillRect(0, 0, w, h);
-  g.fillStyle = ink(1, 0.85, 0.9);
-  g.fillRect(0, 0, w, Math.max(1, u(2)));
-  g.fillStyle = tone(0.4, 0.9);
-  g.fillRect(0, h - Math.max(1, u(2.5)), w, Math.max(1, u(2.5)));
-  g.restore();
-}
-
-/**
- * GLASS: clear glass in the lane's colour, the track showing through most of it: only faintly tinted,
- * deeper toward its near edge, two strong glints slanting across it, a thick bright rim all round where its
- * edges catch the light and a fine one inside: told from the solid bars by what shows through it.
- */
-function glassNote(g: CanvasRenderingContext2D, w: number, h: number): void {
-  const u = unit(h);
-  barClip(g, w, h);
-  const body = g.createLinearGradient(0, 0, 0, h);
-  body.addColorStop(0, ink(1, 0.3, 0.16));
-  body.addColorStop(0.55, ink(0.95, 0.05, 0.22));
-  body.addColorStop(1, ink(0.8, 0, 0.42));
-  g.fillStyle = body;
-  g.fillRect(0, 0, w, h);
-  slant(g, w * 0.16, w * 0.12, h * 0.7, h, ink(1, 0.9, 0.5));
-  slant(g, w * 0.33, w * 0.03, h * 0.7, h, ink(1, 0.9, 0.4));
-  slant(g, w * 0.7, w * 0.05, h * 0.7, h, ink(1, 0.9, 0.22));
-  roundRect(g, 0, 0, w, h, u(5));
-  g.lineWidth = Math.max(3, u(7));
-  g.strokeStyle = ink(1, 0.8, 0.95);
-  g.stroke();
-  roundRect(g, u(6), u(6), w - u(12), h - u(12), u(3));
-  g.lineWidth = Math.max(1, u(1.2));
-  g.strokeStyle = ink(1, 0.7, 0.5);
-  g.stroke();
-  g.restore();
-}
-
-/**
- * ENAMEL: a pill of deep glossy enamel in the lane's colour, its ends fully round on the screen, darker
- * toward its near edge and its ends as it rounds over; a crisp reflection of a window across its far third,
- * a thin rim of light along its near edge.
- */
-function enamelNote(g: CanvasRenderingContext2D, w: number, h: number): void {
-  const u = unit(h);
-  const r = Math.min(w / 2, h / NOTE_STRETCH / 2);
-  g.save();
-  softOutline(g, w, h, r);
-  g.clip();
-  const body = g.createLinearGradient(0, 0, 0, h);
-  body.addColorStop(0, tone(0.95));
-  body.addColorStop(0.7, tone(0.78));
-  body.addColorStop(1, tone(0.5));
-  g.fillStyle = body;
-  g.fillRect(0, 0, w, h);
-  const ends = g.createLinearGradient(0, 0, w, 0);
-  const e = Math.min(0.2, (r * 1.2) / w);
-  ends.addColorStop(0, tone(0.4, 0.8));
-  ends.addColorStop(e, tone(0.5, 0));
-  ends.addColorStop(1 - e, tone(0.5, 0));
-  ends.addColorStop(1, tone(0.35, 0.85));
-  g.fillStyle = ends;
-  g.fillRect(0, 0, w, h);
-  const win = { x: r * 0.8, y: u(4), w: w - r * 1.6, h: h * 0.3 };
-  roundRect(g, win.x, win.y, win.w, win.h, Math.min(win.h / 2, u(5)));
-  const glare = g.createLinearGradient(0, win.y, 0, win.y + win.h);
-  glare.addColorStop(0, ink(1, 1, 1));
-  glare.addColorStop(0.5, ink(1, 0.85, 0.65));
-  glare.addColorStop(1, ink(1, 0.6, 0));
-  g.fillStyle = glare;
-  g.fill();
-  g.fillStyle = ink(1, 0.5, 0.6);
-  g.fillRect(r * 0.6, h - u(5.5), w - r * 1.2, Math.max(1, u(1.6)));
-  g.restore();
-}
-
-/**
- * PEARL: a satin pearl glaze, the lane's colour soft and pale, its corners well rounded: a broad soft
- * sheen over its far half, a round pearly orb glowing at its left with a sharp glint in it, two softer
- * glows across it, gently shaded toward its near edge.
- */
-function pearlNote(g: CanvasRenderingContext2D, w: number, h: number): void {
-  barClip(g, w, h);
-  const sheen = g.createLinearGradient(0, 0, 0, h);
-  sheen.addColorStop(0, ink(1, 0.78));
-  sheen.addColorStop(0.45, ink(1, 0.5));
-  sheen.addColorStop(1, ink(0.78, 0.2));
-  g.fillStyle = sheen;
-  g.fillRect(0, 0, w, h);
-  // concentric satin rings, as nacre is laid
-  g.save();
-  g.translate(w * 0.24, h * 0.4);
-  g.scale(1, NOTE_STRETCH);
-  for (let i = 3; i >= 1; i--) {
-    g.beginPath();
-    g.arc(0, 0, (h / NOTE_STRETCH) * 0.32 * i, 0, Math.PI * 2);
-    g.lineWidth = Math.max(1, (h / NOTE_STRETCH) * 0.05);
-    g.strokeStyle = ink(1, 0.95, 0.22);
-    g.stroke();
-  }
-  const orb = g.createRadialGradient(0, 0, 0, 0, 0, (h / NOTE_STRETCH) * 0.36);
-  orb.addColorStop(0, ink(1, 1, 1));
-  orb.addColorStop(0.35, ink(1, 0.95, 0.8));
-  orb.addColorStop(1, ink(1, 0.9, 0));
-  g.fillStyle = orb;
-  g.fillRect(-w, -h, 2 * w, 2 * h);
-  g.restore();
-  for (const [cx, cy, r, lift, a] of [
-    [0.62, 0.6, 0.3, 0.85, 0.55],
-    [0.9, 0.25, 0.14, 0.9, 0.45],
-  ]) {
-    g.save();
-    g.translate(cx * w, cy * h);
-    g.scale(1, (h / w) * 2.4);
-    const glow = g.createRadialGradient(0, 0, 0, 0, 0, r * w);
-    glow.addColorStop(0, ink(1, lift, a));
-    glow.addColorStop(1, ink(1, lift, 0));
-    g.fillStyle = glow;
-    g.fillRect(-r * w, -r * w, 2 * r * w, 2 * r * w);
-    g.restore();
-  }
-  g.restore();
-}
-
-/**
- * CARBON: woven carbon fibre under a clear coat, low and dark: the twill's tows large and catching the light
- * in steps (the only bar with a pattern all over it), the lane's colour in a thin stripe across its middle
- * and down its ends, the clear coat's gloss along its far edge and a bright line along its near edge (its timing).
- */
-function carbonNote(g: CanvasRenderingContext2D, w: number, h: number): void {
-  const u = unit(h);
-  barClip(g, w, h);
-  carbonWeave(g, w, h, Math.max(4, u(8)));
-  g.fillStyle = tone(1.05);
-  g.fillRect(0, h * 0.45, w, h * 0.1);
-  g.fillRect(0, 0, Math.max(2, u(4)), h);
-  g.fillRect(w - Math.max(2, u(4)), 0, Math.max(2, u(4)), h);
-  const gloss = g.createLinearGradient(0, 0, 0, h * 0.35);
-  gloss.addColorStop(0, ink(1, 0.6, 0.45));
-  gloss.addColorStop(1, ink(1, 0.6, 0));
-  g.fillStyle = gloss;
-  g.fillRect(0, 0, w, h * 0.35);
-  g.fillStyle = ink(1, 0.6);
-  g.fillRect(0, h - Math.max(2, u(4)), w, Math.max(2, u(4)));
-  g.restore();
-}
-
-/** A 2/2 twill of carbon tows `c` px square over the picture: each lit along its own run, across or along, in steps. */
-function carbonWeave(g: CanvasRenderingContext2D, w: number, h: number, c: number): void {
-  g.fillStyle = tone(0.08);
-  g.fillRect(0, 0, w, h);
-  for (let j = 0; j * c < h; j++) {
-    for (let i = 0; i * c < w; i++) {
-      const [x, y] = [i * c, j * c];
-      const across = (i + j) % 4 < 2;
-      const grad = across ? g.createLinearGradient(0, y, 0, y + c) : g.createLinearGradient(x, 0, x + c, 0);
-      grad.addColorStop(0, tone(0.08));
-      grad.addColorStop(0.5, across ? ink(0.5, 0.2) : ink(0.3, 0.06));
-      grad.addColorStop(1, tone(0.08));
-      g.fillStyle = grad;
-      g.fillRect(x, y, c, c);
-    }
-  }
-}
-
 
 // ---------- PRISM (the crystal skin's notes, 크리스털): bars of cut glass ----------
 
@@ -1500,7 +1049,7 @@ function flatNote(g: CanvasRenderingContext2D, w: number, h: number, mark: NoteM
  * The notes that are a mark and no bar (the four AI companies' skins): the note is the mark's own
  * outline in its lane's colour, bright, in a thin rim of the colour's deep shade. The mark is not drawn here: it
  * is a picture that comes with the build (public/stage/<skin>/note.png; standees.ts reads it and the
- * renderer hands it over with setNoteEmblem). Without one the note is ROUND's coin.
+ * renderer hands it over with setNoteEmblem). Without one the note is the coin (coinNote).
  */
 export const LOGO_NOTES = ['gpt', 'gemini', 'grok', 'claude'] as const satisfies readonly NoteStyle[];
 export type LogoNote = (typeof LOGO_NOTES)[number];
@@ -1616,22 +1165,12 @@ export const NOTE_PAINT: Record<NoteStyle, NotePaint> = {
   wire: wireNote,
   astral: astralNote,
   flat: flatNote,
-  chrome: chromeNote,
-  hairline: hairlineNote,
-  glass: glassNote,
-  enamel: enamelNote,
-  pearl: pearlNote,
-  carbon: carbonNote,
-  chamfer: chamferNote,
-  round: roundNote,
-  star4: star4Note,
-  star5: star5Note,
 };
 
 // ---------- long notes: a body repeated along the note, and its two ends ----------
 
-export type LongStyle = 'prism' | 'sky' | 'fire' | 'aqua' | 'steel' | 'noir' | 'wire' | 'astral' | 'solid' | 'chrome' | 'hairline' | 'glass' | 'enamel' | 'pearl' | 'carbon' | 'rail' | 'capsule' | 'ray';
-export const LONG_STYLES: LongStyle[] = ['prism', 'sky', 'fire', 'aqua', 'steel', 'noir', 'wire', 'astral', 'solid', ...MATERIAL_NOTES, 'rail', 'capsule', 'ray'];
+export type LongStyle = 'prism' | 'sky' | 'fire' | 'aqua' | 'steel' | 'noir' | 'wire' | 'astral' | 'solid' | 'capsule';
+export const LONG_STYLES: LongStyle[] = ['prism', 'sky', 'fire', 'aqua', 'steel', 'noir', 'wire', 'astral', 'solid', 'capsule'];
 
 /** The long note of each note style's family (each material its own). */
 export const LONG_OF: Record<NoteStyle, LongStyle> = {
@@ -1639,7 +1178,7 @@ export const LONG_OF: Record<NoteStyle, LongStyle> = {
   sky: 'sky',
   fire: 'fire',
   // the marks' long notes are the coin's (the user's, 2026-11-16: a long note with a tap's mark stuck on its
-  // ends looked awkward); the renderer draws ROUND's long note for them, from art where it loaded (styleArt's longPaintOf)
+  // ends looked awkward); the renderer draws the coin's long note for them, from art where it loaded (styleArt's longPaintOf)
   gpt: 'capsule',
   gemini: 'capsule',
   grok: 'capsule',
@@ -1650,16 +1189,6 @@ export const LONG_OF: Record<NoteStyle, LongStyle> = {
   wire: 'wire',
   astral: 'astral',
   flat: 'solid',
-  chrome: 'chrome',
-  hairline: 'hairline',
-  glass: 'glass',
-  enamel: 'enamel',
-  pearl: 'pearl',
-  carbon: 'carbon',
-  chamfer: 'rail',
-  round: 'capsule',
-  star4: 'ray',
-  star5: 'ray',
 };
 
 /**
@@ -1682,7 +1211,7 @@ export interface LongPaint {
   endDepth: number;
   /** Share of the lane the body covers. */
   width: number;
-  /** How wide its ends are for its body (default 1): an end cut in a note's outline may reach past the body (a star's points). */
+  /** How wide its ends are for its body (default 1): an end cut in a note's outline may reach past the body (the coin's rim). */
   endWidth?: number;
   /** The share of its body, from each long edge, its walls are copies of (default: the renderer's). */
   wall?: number;
@@ -1710,17 +1239,7 @@ function stripes(g: CanvasRenderingContext2D, w: number, h: number, bands: [numb
   }
 }
 
-/** RAIL (CHAMFER's): an octagonal rail: lit bevels down both edges, a darker face, a bright groove in its middle. */
-const RAIL: [number, number, string][] = [
-  [0, 54, tone(0.3)],
-  [2.5, 10, tone(1.3)],
-  [10, 44, tone(0.64)],
-  [44, 51.5, tone(0.98)],
-  [24, 30, tone(0.4)],
-  [25.5, 28.5, ink(1, 0.62)],
-];
-
-/** CAPSULE (ROUND's): a rod shaded as a cylinder in flat steps, a bright rim inside a dark one, a bright line down its middle. */
+/** CAPSULE (the coin's, the long note of the companies' marks): a rod shaded as a cylinder in flat steps, a bright rim inside a dark one, a bright line down its middle. */
 const CAPSULE: [number, number, string][] = [
   [0, 54, tone(0.3)],
   [2.5, 51.5, tone(1.38)],
@@ -1729,14 +1248,6 @@ const CAPSULE: [number, number, string][] = [
   [19, 35, tone(1.08)],
   [25.5, 28.5, ink(1, 0.62)],
 ];
-
-/** RAY (the stars'): one long star point, split down its middle into a lit and a shaded facet. */
-const RAY: [number, number, string][] = [
-  [0, 54, tone(0.3)],
-  [2.5, 27, tone(1.12)],
-  [27, 51.5, tone(0.72)],
-];
-
 
 /**
  * PRISM's long note across (px of a 54 px body, [from, to, fill]): a long triangular prism of glass
@@ -2084,10 +1595,9 @@ function barEnd(body: Paint, rim: string, corner: Corner = 'square', t = 3, r = 
 }
 
 /**
- * A long note's end cut in its tap's outline (the stars', the coin's): the tap as it is drawn (its walls the
+ * A long note's end cut in its tap's outline (the coin's): the tap as it is drawn (its walls the
  * renderer's), from its outer edge to its widest row (`widest`: the share of the tap's depth from its top;
- * a half for the coin and the four-pointed star, less for the five-pointed star, whose arms are above its
- * middle), that row on the end's inner edge, where the body meets it: nothing of the body is wider there
+ * a half for the coin), that row on the end's inner edge, where the body meets it: nothing of the body is wider there
  * than the shape, so no square shoulder of it shows. Where the cut is at the tap's middle (its lane mark on the
  * end's inner edge) the body (`neck`, as wide as `share` of the end) runs on into it over the mark, fading out
  * toward its outer edge, painted only inside the tap's outline: whatever shading the end has follows the shape, and the end is the body's own end widening into the note's outline, not one
@@ -2096,8 +1606,8 @@ function barEnd(body: Paint, rim: string, corner: Corner = 'square', t = 3, r = 
 export function shapedEnd(tap: NotePaint, neck: Paint, share: number, widest = 0.5): Paint {
   return (g, w, h) => {
     tap(g, w, h / widest, 'white');
-    // cut above the tap's middle, its lane mark is not in the end: the shape is all there is (the five-pointed
-    // star's arms meet the body; a body run into them would cover them)
+    // cut above the tap's middle, its lane mark is not in the end: the shape is all there is (a body run
+    // into it would cover it)
     if (widest < 0.45) return;
     const bw = w * share;
     const x0 = (w - bw) / 2;
@@ -2200,41 +1710,6 @@ export const LONG_PAINT: Record<LongStyle, LongPaint> = {
   // the default skin's: a bar lit from the left, a rim of light down each side; held, bright from
   // inside with a line of light down its middle; each end the bar itself, square, a rim along it
   solid: barLong((lit) => solidLong(lit), { rim: ink(1, 0.97), t: 4 }),
-  rail: {
-    body: raised((g, w, h) => stripes(g, w, h, RAIL), { sheen: 0, bevel: 3 }),
-    // the rail's own end: its corners cut as the plate's are, a bright rim along it
-    end: (g, w, h) => {
-      const a = across(w);
-      const c = a(9);
-      // the plate's outline (see chamferOutline) at its outer end only, its sides running on past the picture
-      const outline = (t: number): [number, number][] => {
-        const cut = c + t * Math.tan(Math.PI / 8);
-        const st = NOTE_STRETCH;
-        return [
-          [cut, t * st],
-          [w - cut, t * st],
-          [w - t, cut * st],
-          [w - t, h + 1],
-          [t, h + 1],
-          [t, cut * st],
-        ];
-      };
-      polygon(g, outline(0));
-      g.fillStyle = tone(0.3);
-      g.fill();
-      polygon(g, outline(a(2.5)));
-      g.fillStyle = tone(1.45);
-      g.fill();
-      g.save();
-      polygon(g, outline(a(5)));
-      g.clip();
-      stripes(g, w, h, RAIL);
-      g.restore();
-    },
-    tile: 1,
-    endDepth: (9 * NOTE_STRETCH + 6) / 54,
-    width: 0.9,
-  },
   capsule: {
     body: (g, w, h) => stripes(g, w, h, CAPSULE),
     // half a coin: the rod's width round at its end (round on the screen), its rim round it
@@ -2261,193 +1736,7 @@ export const LONG_PAINT: Record<LongStyle, LongPaint> = {
     endDepth: 0.5 * NOTE_STRETCH * 0.8,
     width: 0.9,
   },
-  ray: {
-    // sparkles down its middle, one every tile
-    body: (g, w, h) => {
-      stripes(g, w, h, RAY);
-      const a = across(w);
-      g.save();
-      g.translate(w / 2, h / 2);
-      g.scale(1, NOTE_STRETCH);
-      const r = a(13);
-      polygon(g, [
-        [0, -r],
-        [r * 0.22, -r * 0.22],
-        [r, 0],
-        [r * 0.22, r * 0.22],
-        [0, r],
-        [-r * 0.22, r * 0.22],
-        [-r, 0],
-        [-r * 0.22, -r * 0.22],
-      ]);
-      g.fillStyle = ink(1, 0.85);
-      g.fill();
-      g.restore();
-    },
-    // its end narrows to one point, as a star's point does
-    end: (g, w, h) => {
-      const a = across(w);
-      polygon(g, [
-        [w / 2, 0],
-        [w, h],
-        [0, h],
-      ]);
-      g.fillStyle = tone(0.3);
-      g.fill();
-      const inner: [number, number][] = [
-        [w / 2, a(2.5) * NOTE_STRETCH * 2.2],
-        [w - a(2.5), h],
-        [a(2.5), h],
-      ];
-      g.save();
-      polygon(g, inner);
-      g.clip();
-      stripes(g, w, h, RAY);
-      g.restore();
-    },
-    plain: { idle: (g, w, h) => stripes(g, w, h, RAY), held: (g, w, h) => stripes(g, w, h, RAY) },
-    tile: 3,
-    endDepth: 0.5 * NOTE_STRETCH,
-    width: 0.9,
-  },
-  ...materialLongs(),
 };
-
-/** The materials' long notes: their finish down a bar as wide as FLAT's (canvas top = farther, across = the lane), each with the relief and the ends of its taps. */
-function materialLongs(): Record<(typeof MATERIAL_NOTES)[number], LongPaint> {
-  const finish = (body: Paint, rim: string, t: number, corner: Corner, look: Relief, r = 8) => barLong(() => body, { rim, rimHeld: rim, t, corner, r, relief: look, width: 0.82 });
-  return {
-    // bevels down both edges, the left lit, the right in half shade; the mirror between, a bright line down it
-    chrome: finish(
-      (g, w, h) => {
-        const a = across(w);
-        g.fillStyle = tone(0.3);
-        g.fillRect(0, 0, w, h);
-        g.fillStyle = ink(1, 0.6);
-        g.fillRect(a(2), 0, a(8), h);
-        g.fillStyle = tone(0.5);
-        g.fillRect(w - a(10), 0, a(8), h);
-        const mirror = g.createLinearGradient(a(10), 0, w - a(10), 0);
-        mirror.addColorStop(0, ink(1, 0.42));
-        mirror.addColorStop(0.42, ink(1, 0.14));
-        mirror.addColorStop(0.47, ink(1, 0.9));
-        mirror.addColorStop(0.53, tone(0.38));
-        mirror.addColorStop(1, tone(0.76));
-        g.fillStyle = mirror;
-        g.fillRect(a(10), 0, w - a(20), h);
-      },
-      ink(1, 0.85),
-      5,
-      'cut',
-      { sheen: 0, bevel: 2 },
-      10,
-    ),
-    // hairlines down its length, the light across them a band down its left third
-    hairline: finish(
-      (g, w, h) => {
-        g.fillStyle = tone(0.8);
-        g.fillRect(0, 0, w, h);
-        const rand = seeded(23);
-        for (let x = 0; x < w; x += 1) {
-          const [light, a] = [rand() < 0.5, 0.06 + rand() * 0.2];
-          g.fillStyle = light ? ink(1, 0.55, a) : tone(0.5, a);
-          g.fillRect(x, 0, 1, h);
-        }
-        const sheen = g.createLinearGradient(0, 0, w, 0);
-        sheen.addColorStop(0.1, ink(1, 0.5, 0));
-        sheen.addColorStop(0.28, ink(1, 0.5, 0.5));
-        sheen.addColorStop(0.46, ink(1, 0.5, 0));
-        sheen.addColorStop(0.85, tone(0.5, 0));
-        sheen.addColorStop(1, tone(0.5, 0.6));
-        g.fillStyle = sheen;
-        g.fillRect(0, 0, w, h);
-      },
-      ink(1, 0.85, 0.9),
-      4,
-      'square',
-      { sheen: 0, bevel: 3 },
-    ),
-    // the track showing through it, bright down its edges where they catch the light
-    glass: finish(
-      (g, w, h) => {
-        const a = across(w);
-        g.fillStyle = ink(0.95, 0.1, 0.32);
-        g.fillRect(0, 0, w, h);
-        g.fillStyle = ink(1, 0.75, 0.9);
-        g.fillRect(0, 0, a(3.5), h);
-        g.fillRect(w - a(3.5), 0, a(3.5), h);
-        g.fillStyle = ink(1, 0.6, 0.3);
-        g.fillRect(a(7), 0, a(1.5), h);
-        g.fillRect(w - a(8.5), 0, a(1.5), h);
-        g.fillStyle = ink(1, 0.8, 0.22);
-        g.fillRect(a(15), 0, a(5), h);
-      },
-      ink(1, 0.8, 0.95),
-      4,
-      'round',
-      { alpha: 0.6, sheen: 0.35, lit: 0.9 },
-      5,
-    ),
-    // a glossy rod: deep colour, a crisp highlight down its left third, darker toward its right; round ends as its pills
-    enamel: finish(
-      (g, w, h) => {
-        const rod = g.createLinearGradient(0, 0, w, 0);
-        rod.addColorStop(0, tone(0.55));
-        rod.addColorStop(0.12, tone(0.95));
-        rod.addColorStop(0.2, ink(1, 0.88));
-        rod.addColorStop(0.3, ink(1, 0.7));
-        rod.addColorStop(0.34, tone(1));
-        rod.addColorStop(0.75, tone(0.82));
-        rod.addColorStop(1, tone(0.45));
-        g.fillStyle = rod;
-        g.fillRect(0, 0, w, h);
-      },
-      ink(1, 0.7),
-      4,
-      'round',
-      { sheen: 0, bevel: 3 },
-      26,
-    ),
-    // satin: pale, a soft sheen down its left half
-    pearl: finish(
-      (g, w, h) => {
-        const satin = g.createLinearGradient(0, 0, w, 0);
-        satin.addColorStop(0, ink(0.9, 0.32));
-        satin.addColorStop(0.3, ink(1, 0.8));
-        satin.addColorStop(0.6, ink(1, 0.5));
-        satin.addColorStop(1, ink(0.88, 0.28));
-        g.fillStyle = satin;
-        g.fillRect(0, 0, w, h);
-      },
-      ink(1, 0.85),
-      4,
-      'round',
-      { sheen: 0.2, lit: 0.85, shade: 0.6 },
-      12,
-    ),
-    // the weave down its length (eight tows across a tile), the lane's colour down its edges and its middle
-    carbon: finish(
-      (g, w, h) => {
-        const a = across(w);
-        carbonWeave(g, w, h, w / 8);
-        g.fillStyle = tone(1);
-        g.fillRect(0, 0, a(5), h);
-        g.fillRect(w - a(5), 0, a(5), h);
-        g.fillRect(w / 2 - a(1.5), 0, a(3), h);
-        const gloss = g.createLinearGradient(0, 0, w, 0);
-        gloss.addColorStop(0.1, ink(1, 0.6, 0));
-        gloss.addColorStop(0.25, ink(1, 0.6, 0.3));
-        gloss.addColorStop(0.4, ink(1, 0.6, 0));
-        g.fillStyle = gloss;
-        g.fillRect(0, 0, w, h);
-      },
-      tone(1.3),
-      4,
-      'square',
-      { sheen: 0, bevel: 3 },
-    ),
-  };
-}
 
 // ---------- side notes laid over half the keys (반쪽 덮기) ----------
 

@@ -4,7 +4,7 @@ import { disposeSkinArt, flipbookBlend, flipbookOffset, hitFrame, loadSkinArt, p
 import type { ArtImage } from './styleArt';
 import { BASE_SKIN } from './skins';
 
-const NOTE = { file: 'styles/mecha/notes.png', bundle: 'notes', size: [1024, 1024] };
+const NOTE = { file: 'styles/club/notes.png', bundle: 'notes', size: [1024, 1024] };
 const BOOK = { cols: 4, rows: 4, frames: 16, fps: 60, loop: false };
 
 function fakeTexture(width: number, height: number): THREE.Texture & { disposed: boolean } {
@@ -41,8 +41,8 @@ describe('media manifest', () => {
   });
 
   it('drops malformed entries and fills in the effect defaults', () => {
-    const m = parseManifest({ version: 1, textures: { 'mecha/notes': NOTE, 'mecha/bad': { ...NOTE, file: '../x.png' } } });
-    expect(Object.keys(m?.textures ?? {})).toEqual(['mecha/notes']);
+    const m = parseManifest({ version: 1, textures: { 'club/notes': NOTE, 'club/bad': { ...NOTE, file: '../x.png' } } });
+    expect(Object.keys(m?.textures ?? {})).toEqual(['club/notes']);
     expect(m?.effects).toEqual({ reducedFlashOpacity: 0.45, reducedFlashScale: 0.8 });
     expect(parseManifest({ textures: {}, effects: { reducedFlashOpacity: 0.3, reducedFlashScale: 'big' } })?.effects).toEqual({
       reducedFlashOpacity: 0.3,
@@ -144,12 +144,17 @@ describe('loading the parts’ pictures and the hit’s flipbooks', () => {
 
   it('loads the pictures and flipbooks of the style’s parts drawn from art, leaving out what is missing or the wrong size', async () => {
     const entry = (file: string, size: [number, number], extra = {}) => parseMediaTexture({ file, bundle: 'notes', size, ...extra })!;
-    const mecha: MediaManifest = {
+    // a company's mark on the piano with the mecha hit: the coin's record and capsule (its long note), the mark's
+    // material, the gear's two pictures and the hit's two flipbooks
+    const media: MediaManifest = {
       ...manifest,
       textures: {
-        'mecha/notes': entry('styles/mecha/notes.png', [1024, 1024]),
-        'mecha/long': entry('styles/mecha/long.png', [512, 256]),
-        'mecha/side': entry('styles/mecha/side.png', [1024, 512]),
+        'club/notes': entry('styles/club/notes.png', [1024, 1024]),
+        'club/long': entry('styles/club/long.png', [512, 256]),
+        'notes/gpt': entry('notes/gpt.png', [512, 512]),
+        // pictures no part of this style draws from: never asked for
+        'notes/flat': entry('notes/flat.png', [1024, 512]),
+        'longs/solid': entry('longs/solid.png', [512, 256]),
         'piano/deck': entry('gears/piano/deck.webp', [2048, 541]),
         'piano/medallion': entry('gears/piano/medallion.png', [256, 265]),
         'mecha/hitBurst': entry('styles/mecha/hit_burst.png', [1024, 1024], { flipbook: BOOK, anchorY: 0.7 }),
@@ -158,25 +163,29 @@ describe('loading the parts’ pictures and the hit’s flipbooks', () => {
     };
     const asked: string[] = [];
     const sources = {
-      manifest: async () => mecha,
+      manifest: async () => media,
       texture: async () => fakeTexture(1024, 1024),
       image: async (url: string): Promise<ArtImage> => {
-        asked.push(url.slice(url.search(/(styles|gears)\//)));
+        asked.push(url.slice(url.search(/(styles|gears|notes|longs)\//)));
         if (url.endsWith('long.png')) throw new Error('404');
-        // the side notes' picture comes back at the wrong size
-        const [width, height] = url.endsWith('side.png') ? [512, 512] : Object.values(mecha.textures).find((t) => url.endsWith(t.file))!.size;
+        // the mark's material comes back at the wrong size
+        const [width, height] = url.endsWith('gpt.png') ? [256, 256] : Object.values(media.textures).find((t) => url.endsWith(t.file))!.size;
         return { width, height } as unknown as ArtImage;
       },
     };
-    const mechaSkin = { ...BASE_SKIN, style: { ...BASE_SKIN.style, note: 'chamfer' as const, side: 'bar' as const, deck: 'piano' as const, hit: 'mecha' as const } };
-    const art = await loadSkinArt(mechaSkin, sources);
-    expect(asked.sort()).toEqual(['gears/piano/deck.webp', 'gears/piano/medallion.png', 'styles/mecha/long.png', 'styles/mecha/notes.png', 'styles/mecha/side.png']);
-    expect(Object.keys(art?.images ?? {}).sort()).toEqual(['mecha/notes', 'piano/deck', 'piano/medallion']);
+    const skin = { ...BASE_SKIN, style: { ...BASE_SKIN.style, note: 'gpt' as const, side: 'bar' as const, deck: 'piano' as const, hit: 'mecha' as const } };
+    const art = await loadSkinArt(skin, sources);
+    expect(asked.sort()).toEqual(['gears/piano/deck.webp', 'gears/piano/medallion.png', 'notes/gpt.png', 'styles/club/long.png', 'styles/club/notes.png']);
+    expect(Object.keys(art?.images ?? {}).sort()).toEqual(['club/notes', 'piano/deck', 'piano/medallion']);
     expect(Object.keys(art?.slots ?? {}).sort()).toEqual(['hitBurst', 'hitHold']);
     expect(art?.slots.hitBurst?.spec.anchorY).toBe(0.7);
+    // the side notes are drawn in code: nothing more is asked for them, as bars or as dots
+    asked.length = 0;
+    disposeSkinArt(await loadSkinArt({ ...skin, style: { ...skin.style, side: 'dots' as const } }, sources));
+    expect(asked).toHaveLength(5);
     // no pictures without a way to decode them, and nothing for parts the manifest has none of
-    expect(Object.keys((await loadSkinArt(mechaSkin, { ...sources, image: undefined }))?.images ?? {})).toEqual([]);
-    expect(await loadSkinArt(BASE_SKIN, sources)).toBeNull();
+    expect(Object.keys((await loadSkinArt(skin, { ...sources, image: undefined }))?.images ?? {})).toEqual([]);
+    expect(await loadSkinArt(BASE_SKIN, { ...sources, manifest: async () => manifest })).toBeNull();
     disposeSkinArt(art);
   });
 });

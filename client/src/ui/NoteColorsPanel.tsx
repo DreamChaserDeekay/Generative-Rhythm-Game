@@ -197,7 +197,7 @@ export function NoteColorsPanel({
     <>
       <Choice
         onHelp={onHelp}
-        label="프리셋"
+        label="노트 색상"
         testId="opt-color-preset"
         value={settings.noteColors}
         options={presetChoices}

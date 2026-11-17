@@ -23,7 +23,7 @@ import { activeTrail, setActiveTrail, Trail } from './trail';
 import { disposeSkinArt, flipbookBlend, flipbookOffset, hitFrame, type Flipbook, type MediaEffects, type SkinArt } from './skinArt';
 import { hex, laneColorsFor, type Skin, type SkinStyle } from './skins';
 import { beatClock, DECK_PICTURE_PX, GEAR_LIGHTS, GearLightLayer, type BeatClock } from './gearLights';
-import { artPartsOf, borderLookOf, gearArtOf, HIT_SLOTS, isArtHit, longPaintOf, notePaintOf, noteShapeOf, noteWidthOf, platePaintOf, sideTapPaintOf, type StyleImages } from './styleArt';
+import { artPartsOf, borderLookOf, gearArtOf, HIT_SLOTS, isArtHit, longPaintOf, NOTE_WIDTH, notePaintOf, platePaintOf, type StyleImages } from './styleArt';
 import {
   DOTS_ACROSS,
   DOTS_LONG,
@@ -46,6 +46,7 @@ import {
   sideDotsBody,
   sideDotsEnd,
   sideDotsTap,
+  sideTap,
   tintMaterial,
   type EffectSheet,
   type FrameBlend,
@@ -2057,7 +2058,7 @@ export class TrackRenderer {
     const mesh = this.notePool.next();
     mesh.material = this.noteMaterial(color, kind);
     const { near, far } = noteSpan(z, depth, z, null, this.extent);
-    mesh.scale.set(laneWidth * noteWidthOf(this.style.note), height, near - far);
+    mesh.scale.set(laneWidth * NOTE_WIDTH, height, near - far);
     mesh.position.set(x, height / 2, (near + far) / 2);
   }
 
@@ -2178,7 +2179,7 @@ export class TrackRenderer {
       const paint = dots
         ? { tap: sideDotsTap(SIDE_EDGE / this.sideNoteDepth, cols), body: sideDotsBody(cols), end: sideDotsEnd(cols) }[part as Exclude<SidePart, 'flash'>]
         : part === 'tap'
-          ? sideTapPaintOf(this.style.note, this.images, SIDE_EDGE / this.sideNoteDepth)
+          ? sideTap(SIDE_EDGE / this.sideNoteDepth)
           : SIDE_PICTURES[part];
       texture = this.own(paintTexture(w, h, paint));
       if (part === 'body') texture.wrapT = THREE.RepeatWrapping;
@@ -2991,12 +2992,12 @@ export class TrackRenderer {
   }
 
   /**
-   * The coin and the stars as deep as keeps their shape at the judge line for this camera and screen
+   * The notes that are no bar (the companies' marks) as deep as keeps their shape at the judge line for this camera and screen
    * (see noteDepthOf), in steps, so a window being resized paints their pictures again only now and
    * then: a new depth drops the pictures made for the old one.
    */
   private fitNoteDepth(): void {
-    const depth = noteDepthOf(this.style.note, this.barDepth, this.keyLane.width * noteWidthOf(this.style.note), 1 / this.trackAspect(this.judgeZ), noteShapeOf(this.style.note, this.images));
+    const depth = noteDepthOf(this.style.note, this.barDepth, this.keyLane.width * NOTE_WIDTH, 1 / this.trackAspect(this.judgeZ));
     const stepped = Math.round(depth / NOTE_DEPTH_STEP) * NOTE_DEPTH_STEP;
     if (Math.abs(stepped - this.noteDepth) < 1e-9) return;
     this.noteDepth = stepped;
@@ -3119,7 +3120,7 @@ export class TrackRenderer {
     if (!texture) {
       const lane = this.geometry.lanes.find((l) => noteKindOf(l) === kind) ?? this.geometry.lanes[0];
       const h = NOTE_PICTURE_PX;
-      const w = Math.round(Math.min(512, Math.max(32, (h * lane.width * noteWidthOf(this.style.note)) / this.laneDepths[lane.index])));
+      const w = Math.round(Math.min(512, Math.max(32, (h * lane.width * NOTE_WIDTH) / this.laneDepths[lane.index])));
       const paint = this.notePaint;
       texture = this.own(paintTexture(w, h, kind === 'side' && this.sideDots ? dotsNote : (g, pw, ph) => paint(g, pw, ph, kind)));
       this.noteTextures.set(kind, texture);

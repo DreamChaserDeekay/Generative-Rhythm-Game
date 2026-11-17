@@ -3049,3 +3049,23 @@
 - 설명: warm handmade matte clay: an even light grey with a fine organic grain and the faintest brush texture, softly lit from the top-left
 - claude-1: 2026-11-16 13:02:06 +0000 · 7,109,415바이트 · sha256 앞 16자리 `d2d5530fde3e4a32` · 고름
 - 저장한 JPEG: 916,195바이트 · sha256 앞 16자리 `c9abeb9d661668fe`
+
+## 없앤 노트: 크롬 베벨 · 헤어라인 · 유리 · 에나멜 · 펄 · 카본 · 메카 챔퍼 · 원형 · 별 (4각) · 별 (5각) (2026-11-17)
+
+사용자가 설정 화면을 보고 "기어는 있고 노트만 있는 설정들은 삭제"라고 해서(2026-11-17; 기어 없이 노트만 있는 노트로 읽음), 스킨의 노트가 아닌 노트 열을 게임에서 뺐습니다: 질감만 다른 막대 여섯(크롬 베벨 · 헤어라인 · 유리 · 에나멜 · 펄 · 카본)과 컨셉 세트의 노트 넷(메카 챔퍼 · 원형 · 별 4각 · 별 5각), 그 롱노트와 세트마다의 사이드 막대까지입니다. 타격 효과(메카 섬광 · 클럽 링 · 크리스털 파편 · 네온 아크 · 피아노 음표 등)와 피아노 기어는 그대로입니다. 생성 기록은 위의 [메카 세트](#메카-세트-stylesmecha-2026-11) · [클럽 세트](#클럽-세트-stylesclub-2026-11) · [크리스털 세트](#크리스털-세트-stylescrystal-2026-11) · [네온 세트](#네온-세트-stylesneon-2026-11) 절과 [코드로 그리던 단노트 · 롱노트를 그림으로](#코드로-그리던-단노트--롱노트를-그림으로-styleslongs-2026-11-16) 절에 그대로 있고, 거기 적힌 장수와 비용 합계도 만든 때 그대로입니다.
+
+| 지운 파일 | 무엇 |
+|---|---|
+| `assets-src/styles/mecha/notes.jpg` · `long.jpg` · `side.jpg` | 메카 세트의 노트(메카 챔퍼) · 레일 · 사이드 막대 원본. 타격 효과 원본 `fx.jpg`는 남김 |
+| `assets-src/styles/crystal/notes.jpg` · `long.jpg` · `side.jpg` | 크리스털 세트의 노트(별 4각) · 롱노트 · 사이드 막대 원본. `fx.jpg`는 남김 |
+| `assets-src/styles/neon/notes.jpg` · `long.jpg` · `side.jpg` | 네온 세트의 노트(별 5각) · 롱노트 · 사이드 막대 원본. `fx.jpg`는 남김 |
+| `assets-src/styles/club/side.jpg` | 클럽 세트의 사이드 막대 원본. 레코드 `notes.jpg`와 캡슐 `long.jpg`, `fx.jpg`는 남김(아래) |
+| `assets-src/styles/longs/chrome.jpg` · `hairline.jpg` · `glass.jpg` · `enamel.jpg` · `pearl.jpg` · `carbon.jpg` | 질감 막대 여섯의 단노트 · 롱노트 원본(2026-11-16에 그림으로 다시 그린 것) |
+| `assets-src/styles/longs/refs/chrome.jpg` · `hairline.jpg` · `glass.jpg` · `enamel.jpg` · `pearl.jpg` · `carbon.jpg` | 그 여섯을 만들 때 모델에 보낸, 코드 그림의 기준 장면 |
+| `client/public/media/styles/mecha/` · `crystal/` · `neon/`의 `notes.png` · `long.png` · `side.png`, `client/public/media/styles/club/side.png` | 위 원본에서 만든 게임용 그림 10장. 매니페스트의 `<세트>/notes` · `long` · `side`도 뺌 |
+| `client/public/media/notes/` · `client/public/media/longs/`의 `chrome` · `hairline` · `glass` · `enamel` · `pearl` · `carbon`(`.png`) | 질감 막대 여섯의 게임용 단노트 · 롱노트 그림 12장. 매니페스트의 `notes/<이름>` · `longs/<이름>`도 뺌 |
+
+- **남긴 것:** 클럽 세트의 레코드와 캡슐(`assets-src/styles/club/notes.jpg` · `long.jpg` → `client/public/media/styles/club/notes.png` · `long.png`). GPT · Gemini · Grok · Claude 노트의 롱노트가 이 캡슐에 레코드 모양 끝을 씁니다. 원형 노트로 고를 수는 없습니다.
+- `scripts/assets/build_styles.py`에서 세트의 노트 · 롱노트 · 사이드 단계(메카의 `mecha_notes` · `mecha_long` · `mecha_side`, 나머지 세트의 사이드와 크리스털의 네 갈래 별 `gem_star`)를 뺐습니다. 고친 스크립트를 저장소 밖 사본(지운 원본 없이)에서 돌려 남은 파일 20개(타격 효과 18장과 레코드 · 캡슐)가 저장소의 것과 바이트까지 같고, 매니페스트에서 빠지는 것이 위 10개뿐임을 확인했습니다. `build_long_notes.py` · `make_long_notes.py`의 목록에서도 여섯을 뺐습니다.
+- 저장된 설정이 지운 노트를 가리키면 기본 노트로 열립니다.
+- 피아노 세트의 노트 · 롱노트 · 사이드 원본(`assets-src/styles/piano/`)은 2026-11-05에 노트를 뺄 때 남겨 둔 그대로입니다(이번 요청의 범위 밖).
