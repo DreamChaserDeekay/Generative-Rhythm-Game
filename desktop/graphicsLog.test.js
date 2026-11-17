@@ -624,6 +624,17 @@ test('a play’s frames that stood still: what the page measured, then the frame
   await w.advance(0);
   assert.equal(w.asked, 2);
   assert.equal(w.events().filter((line) => line.startsWith('page-frames')).length, 2);
+  // a frame that worked long says which of its parts did (the longest first): the line as the page sends it
+  const own = world();
+  own.watch.page({
+    type: 'page-stall',
+    canvas: 'play-canvas',
+    about: { gapMs: '2210', lateMs: '0', workMs: '2204', slow: 'frame:track=2201 track:draw=2196', timerMs: '2209', ticks: '0', longTask: 'n=1 max=2203', state: 'running', songMs: '41200' },
+  });
+  assert.equal(
+    own.events()[0],
+    'page-stall  canvas=play-canvas gapMs=2210 lateMs=0 workMs=2204 slow="frame:track=2201 track:draw=2196" timerMs=2209 ticks=0 longTask="n=1 max=2203" state=running songMs=41200',
+  );
 });
 
 test('the page’s errors: its message and where it was thrown from as they come, long as they are; a run writes so many', () => {

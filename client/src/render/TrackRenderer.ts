@@ -19,7 +19,7 @@ import {
   type TrackGeometry,
 } from './layout';
 import { FEVER_COLORS } from './palette';
-import { FrameWatch, reportError, type PlayPhase } from './frameWatch';
+import { FrameWatch, notePart, reportError, type PlayPhase } from './frameWatch';
 import { activeTrail, setActiveTrail, Trail } from './trail';
 import { disposeSkinArt, flipbookBlend, flipbookOffset, hitFrame, type Flipbook, type MediaEffects, type SkinArt } from './skinArt';
 import { hex, laneColorsFor, type Skin, type SkinStyle } from './skins';
@@ -952,6 +952,8 @@ export class TrackRenderer {
   private readonly watch = new FrameWatch(this.trail);
   /** The song's time the last frame drew (ms). */
   private drawnMs = 0;
+  /** Whether a note on a lane the track does not have has been told (strayNote). */
+  private strayTold = false;
   private cssWidth = 1;
   private cssHeight = 1;
   /**
@@ -1382,6 +1384,7 @@ export class TrackRenderer {
   /** A hit on the judge line of a lane, in `color`. */
   hitEffect(lane: number, color: number, perfNow: number): void {
     if (this.hit === 'none') return;
+    if (!this.geometry.lanes[lane]) return this.strayNote(lane);
     this.trail.tally('hits', perfNow);
     // a side lane laid over the keys: the band of light across its half, and a burst as wide as the half in the middle of it
     if (this.geometry.lanes[lane].over) this.sideFlash(lane, color, perfNow);
@@ -1434,7 +1437,8 @@ export class TrackRenderer {
   /**
    * The parts of a frame, drawn one after the other. Each on its own: one that throws is told (frameWatch.ts:
    * a page-error line in the desktop app's log, once, then counted) and the others are drawn all the same,
-   * so that a part gone wrong does not hold the whole track still while the song goes on.
+   * so that a part gone wrong does not hold the whole track still while the song goes on. How long each
+   * worked is kept for the line of a stall that follows the frame ("slow=track:draw=805": notePart).
    */
   private readonly steps: readonly (readonly [string, (frame: TrackFrame, perfNow: number, dt: number) => void])[] = [
     [
@@ -1496,6 +1500,9 @@ export class TrackRenderer {
     ],
   ];
 
+  /** The parts' names as they are told ("track:notes"). */
+  private readonly stepNames = this.steps.map(([name]) => `track:${name}`);
+
   render(frame: TrackFrame, perfNow: number): void {
     this.trail.frame(perfNow);
     this.renderer.info.reset();
@@ -1504,18 +1511,22 @@ export class TrackRenderer {
     this.lastFrameMs = perfNow;
     this.drawnMs = frame.timeMs;
     if (first) {
+      const from = performance.now();
       try {
         this.warm();
       } catch (error) {
         reportError('track:warm', error);
       }
+      notePart('track:warm', performance.now() - from);
     }
-    for (const [name, run] of this.steps) {
+    for (let i = 0; i < this.steps.length; i++) {
+      const from = performance.now();
       try {
-        run(frame, perfNow, dt);
+        this.steps[i][1](frame, perfNow, dt);
       } catch (error) {
-        reportError(`track:${name}`, error);
+        reportError(this.stepNames[i], error);
       }
+      notePart(this.stepNames[i], performance.now() - from);
     }
   }
 
@@ -2073,6 +2084,16 @@ export class TrackRenderer {
     this.renderer.dispose();
   }
 
+  /**
+   * A note on a lane the track does not have (a chart whose lanes are not its key mode's) is not drawn, nor
+   * its hits: said once for the desktop app's log (frameWatch.ts), not thrown at every frame it is in view.
+   */
+  private strayNote(lane: number): void {
+    if (this.strayTold) return;
+    this.strayTold = true;
+    reportError('track:notes', new Error(`a note on lane ${lane}: the track has ${this.geometry.lanes.length} lanes`));
+  }
+
   private drawNotes(frame: TrackFrame): void {
     const { notes, timeMs, scroll } = frame;
     const L = this.geometry.length;
@@ -2092,6 +2113,10 @@ export class TrackRenderer {
       // a lane that has dropped away takes its notes with it
       if (this.gone && this.gone[n.lane] > 0) continue;
       const lane = this.geometry.lanes[n.lane];
+      if (!lane) {
+        this.strayNote(n.lane);
+        continue;
+      }
       const color = this.laneColors[n.lane];
       const height = lane.kind === 'side' ? SIDE_NOTE_HEIGHT : NOTE_HEIGHT;
       const kind = noteKindOf(lane);

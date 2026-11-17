@@ -6,10 +6,11 @@
  *   more after the one before, while the picture should move, is a stall: told to the app once the frames go
  *   on, with how long it was, how late the frame before it began and how long it worked, whether the page's
  *   own timers went on meanwhile, the long tasks of that time, and what the track did in the seconds before
- *   (trail.ts). They tell the causes apart: a frame that worked long was held up in the game's own drawing;
- *   one that began late, or timers that stood still with the frames, mean the page's thread was busy with
- *   something else; timers that went on mean the page was free and its picture was held up on the way to
- *   the screen (the graphics card busy).
+ *   (trail.ts). They tell the causes apart: a frame that worked long was held up in the game's own drawing
+ *   (which of its parts worked long is told with it: a part that only hands the picture to the graphics
+ *   process waits there when that process does not take it); one that began late, or timers that stood still
+ *   with the frames, mean the page's thread was busy with something else; timers that went on mean the page
+ *   was free and its picture was held up on the way to the screen (the graphics card busy).
  * - Every half second, and when the play's state changes, the app is sent a pulse. The app's main process
  *   writes down a page whose pulse stops while a play runs: a picture that does not come back, which the
  *   page cannot tell of itself.
@@ -208,16 +209,44 @@ export function reportError(where: string, error: unknown, at?: string): void {
   to?.tell({ type: 'page-error', about: { id: String(id), count: '1', where, message, ...(at ? { at } : {}), ...(stack ? { stack } : {}) } });
 }
 
+// ---------- how long the parts of a frame worked ----------
+
+/** A part of a frame that worked this long is kept for the line of a stall that follows the frame (ms). */
+const PART_MS = 20;
+const PARTS_KEPT = 16;
+const PARTS_TOLD = 4;
+let parts: { where: string; ms: number }[] = [];
+
+/** A part of the frame being worked on took `ms` ("track:draw"); only the long ones are kept. */
+export function notePart(where: string, ms: number): void {
+  if (ms >= PART_MS && parts.length < PARTS_KEPT) parts.push({ where, ms });
+}
+
+/** The long parts of the frame that has just ended, the longest first ("frame:track=812 track:draw=805"), and none kept any more. */
+function takeParts(): string {
+  if (parts.length === 0) return '';
+  const told = parts
+    .sort((a, b) => b.ms - a.ms)
+    .slice(0, PARTS_TOLD)
+    .map((p) => `${p.where}=${Math.round(p.ms)}`)
+    .join(' ');
+  parts = [];
+  return told;
+}
+
 /**
  * Runs a part of a frame: should it throw, the error is told (reportError) and the frame goes on with its
- * other parts, so that one part gone wrong does not hold the whole picture still.
+ * other parts, so that one part gone wrong does not hold the whole picture still. How long it worked is
+ * kept for a stall's line (notePart).
  */
 export function guard(where: string, run: () => void): void {
+  const from = performance.now();
   try {
     run();
   } catch (error) {
     reportError(where, error);
   }
+  notePart(where, performance.now() - from);
 }
 
 if (typeof window !== 'undefined') {
@@ -250,11 +279,16 @@ export class FrameWatch {
   private held = { n: 0, ms: 0, longest: 0 };
   private stallToldAt = -Infinity;
   private frames = 0;
+  /** The long parts of the frame before (takeParts). */
+  private lastParts = '';
 
   constructor(
     private readonly trail: Trail,
     private readonly io: WatchIo | null = desktopIo(),
-  ) {}
+  ) {
+    // (what another track's frames left: a preview's, which no play's frame followed)
+    takeParts();
+  }
 
   /**
    * A frame of the play has run to its end: `frameAt` its timestamp (the frame's time), `state` the play's,
@@ -264,6 +298,7 @@ export class FrameWatch {
    */
   done(frameAt: number, state: PlayPhase, songMs: number, about?: () => Record<string, string>, startedAt = frameAt): void {
     const io = this.io;
+    const worked = takeParts();
     if (!io) return;
     const now = io.now();
     this.frames += 1;
@@ -290,6 +325,7 @@ export class FrameWatch {
     this.lastStart = Math.max(frameAt, Math.min(startedAt, now));
     this.lastEnd = now;
     this.lastState = state;
+    this.lastParts = worked;
     this.tickAt = now;
     this.tickGap = 0;
     this.ticks = 0;
@@ -331,6 +367,8 @@ export class FrameWatch {
         // long it worked (long, and the stall was in the game's own drawing)
         lateMs: ms(this.lastStart - this.lastAt),
         workMs: ms(this.lastEnd - this.lastStart),
+        // and which of its parts worked long (20 ms or more), the longest first
+        ...(this.lastParts ? { slow: this.lastParts } : {}),
         // the longest wait of the page's own timer in the stall, and how often it ran: about TICK_MS and many, and the page was free
         timerMs: ms(Math.max(this.tickGap, frameAt - this.tickAt)),
         ticks: String(this.ticks),

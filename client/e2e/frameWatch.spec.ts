@@ -28,12 +28,12 @@ async function asDesktop(page: Page) {
 
 const told = (page: Page) => page.evaluate(() => (window as unknown as { grgTold: Told }).grgTold);
 
-async function play(page: Page) {
+async function play(page: Page, alter?: Parameters<typeof serveChart>[3]) {
   await page.addInitScript(() => {
     if (!localStorage.getItem('grg.settings.v1')) localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '4K', hiSpeed: 4 }));
   });
   // notes from the second bar on: the play is running and its picture moves
-  await serveChart(page, 4, 30);
+  await serveChart(page, 4, 30, alter);
   await pickDemoSong(page);
   await expect(page.getByTestId('chart-level')).toBeVisible({ timeout: 30_000 });
   await autoplay(page);
@@ -68,6 +68,8 @@ test('a play whose frames stood still tells of it once they go on: how long, and
   // (well into the play: its first frames may be a stall of their own where the graphics are slow, and stalls
   // within two seconds of one told are counted with the next)
   await expect.poll(async () => (await told(page)).pulses.filter((p) => p.state === 'running').length, { timeout: 20_000 }).toBeGreaterThan(6);
+  const before = (await told(page)).lines.length;
+  const stalls = async () => (await told(page)).lines.slice(before).filter((l) => l.type === 'page-stall' && Number(l.about.gapMs) >= 600);
   // the page's thread held for 0.7 s by something that is not the game's frame
   await page.evaluate(
     () =>
@@ -79,9 +81,8 @@ test('a play whose frames stood still tells of it once they go on: how long, and
         }, 0);
       }),
   );
-  await expect.poll(async () => (await told(page)).lines.filter((l) => l.type === 'page-stall' && Number(l.about.gapMs) >= 600).length, { timeout: 10_000 }).toBeGreaterThan(0);
-  const stall = (await told(page)).lines.find((l) => l.type === 'page-stall' && Number(l.about.gapMs) >= 600)!;
-  expect(stall, JSON.stringify((await told(page)).lines.map((l) => l.about))).toBeTruthy();
+  await expect.poll(async () => (await stalls()).length, { timeout: 10_000 }).toBeGreaterThan(0);
+  const stall = (await stalls())[0];
   expect(stall.canvas).toBe('play-canvas');
   expect(stall.about.state).toBe('running');
   // the frame before it worked no longer than usual; the page's thread was busy: its timer did not run in the
@@ -147,4 +148,60 @@ test('a part of a frame that throws is told and counted, and the rest of the fra
   expect((await told(page)).pulses.at(-1)!.state).toBe('running');
   // told once, however often it is thrown (its count comes at the tenth)
   expect((await told(page)).lines.filter((l) => l.type === 'page-error' && l.about.where === 'frame:hud' && l.about.count === '1')).toHaveLength(1);
+});
+
+test('a note on a lane the track does not have is left out and told once, and the notes of its own lanes are drawn', async ({ page }) => {
+  await asDesktop(page);
+  // a chart that says it has six lanes in a mode of four, every third note on its fifth
+  await play(page, (chart) => {
+    chart.meta.lanes = ['1', '2', '3', '4', '5', '6'];
+    chart.notes.forEach((n, i) => {
+      if (i % 3 === 0) n.lane = 4;
+    });
+  });
+  const strays = async () => (await told(page)).lines.filter((l) => l.type === 'page-error' && /a note on lane 4/.test(l.about.message ?? ''));
+  await expect.poll(async () => (await strays()).length, { timeout: 15_000 }).toBeGreaterThan(0);
+  expect((await strays())[0].about).toMatchObject({ count: '1', where: 'track:notes', message: 'Error: a note on lane 4: the track has 4 lanes' });
+  // the track is drawn on through the notes it cannot place, and its hits on the lanes it has are shown
+  const canvas = page.locator('canvas[data-song-ms]').first();
+  const drawn = Number(await canvas.getAttribute('data-song-ms'));
+  await expect.poll(async () => Number(await canvas.getAttribute('data-song-ms')), { timeout: 10_000 }).toBeGreaterThan(drawn + 2500);
+  expect((await told(page)).pulses.at(-1)!.state).toBe('running');
+  // said once: not at every frame the note is in view, nor at its hit
+  expect(await strays()).toHaveLength(1);
+  // and nothing else of the frame threw over it
+  expect((await told(page)).lines.filter((l) => l.type === 'page-error').map((l) => `${l.about.where}: ${l.about.message}`)).toEqual(['track:notes: Error: a note on lane 4: the track has 4 lanes']);
+});
+
+test('a stall says which parts of the frame before it worked long', async ({ page }) => {
+  await asDesktop(page);
+  await play(page);
+  await expect.poll(async () => (await told(page)).pulses.filter((p) => p.state === 'running').length, { timeout: 20_000 }).toBeGreaterThan(6);
+  // the HUD's part of one frame takes 0.6 s (its score is asked for while it is drawn)
+  await page.evaluate(() => {
+    const score = document.querySelector('.hud-num.hud-score')!;
+    const own = Object.getOwnPropertyDescriptor(Node.prototype, 'textContent')!;
+    let held = false;
+    Object.defineProperty(score, 'textContent', {
+      configurable: true,
+      get() {
+        return own.get!.call(this);
+      },
+      set(value: string) {
+        if (!held) {
+          held = true;
+          const until = performance.now() + 600;
+          while (performance.now() < until);
+        }
+        own.set!.call(this, value);
+      },
+    });
+  });
+  const slow = async () => (await told(page)).lines.filter((l) => l.type === 'page-stall' && /frame:hud=/.test(l.about.slow ?? ''));
+  await expect.poll(async () => (await slow()).length, { timeout: 15_000 }).toBeGreaterThan(0);
+  const stall = (await slow())[0].about;
+  expect(Number(stall.workMs)).toBeGreaterThanOrEqual(550);
+  expect(Number(/frame:hud=(\d+)/.exec(stall.slow)![1])).toBeGreaterThanOrEqual(550);
+  // the longest part first
+  expect(stall.slow.startsWith('frame:hud=')).toBe(true);
 });

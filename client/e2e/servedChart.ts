@@ -25,9 +25,9 @@ export async function pickDemoSong(page: Page): Promise<string> {
  * Answers every request for a song's chart with a chart of the test's own, so that a play can be
  * started where no chart can be made (the generator needs a GPU): 4K at the demo song's tempo, a
  * quarter note a beat walking over the lanes from `fromBeat` up to (not with) `toBeat`. Set up
- * before the song select is opened.
+ * before the song select is opened. `alter` changes the chart before it is served (a chart gone wrong).
  */
-export async function serveChart(page: Page, fromBeat: number, toBeat: number) {
+export async function serveChart(page: Page, fromBeat: number, toBeat: number, alter?: (chart: { meta: { lanes: string[] }; notes: { lane: number }[] }) => void) {
   const ms = (beat: number) => (beat * 60_000) / DEMO_BPM;
   await page.route(
     (url) => /^\/api\/songs\/[^/]+\/charts$/.test(url.pathname),
@@ -56,6 +56,7 @@ export async function serveChart(page: Page, fromBeat: number, toBeat: number) {
         generator: { seed: 7, version: 'now', analyzer: 'now', params: {} },
       };
       const timing = { offsetMs: 0, tempoMap: [{ beat: 0, bpm: DEMO_BPM }], meter: [{ measure: 0, beatsPerMeasure: 4 }] };
+      alter?.({ meta, notes });
       return route.fulfill({ json: body.brief ? { meta, cached: true } : { chart: { formatVersion: 1, meta, timing, notes, sections: [] }, cached: true } });
     },
   );

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { compactStack, FrameWatch, guard, PULSE_MS, reportError, setErrorSink, STALL_MS, STALL_TOLD_EVERY_MS, type GraphicsRecord, type WatchIo } from './frameWatch';
+import { compactStack, FrameWatch, guard, notePart, PULSE_MS, reportError, setErrorSink, STALL_MS, STALL_TOLD_EVERY_MS, type GraphicsRecord, type WatchIo } from './frameWatch';
 import { Trail } from './trail';
 
 /** A world for the watch: a clock moved by hand, what was told and the pulses sent, the page's timer run by hand. */
@@ -140,6 +140,63 @@ describe('a play’s frames watched for the desktop app’s log', () => {
     c.long = { n: 1, max: 898 };
     run(c, wc, tc, 1);
     expect(c.told[0].about).toMatchObject({ gapMs: '907', lateMs: '900', workMs: '2', timerMs: '5', ticks: '0', longTask: 'n=1 max=898' });
+  });
+
+  it('tells which parts of the frame before a stall worked long, the longest first; a short part and another frame’s parts are not told', () => {
+    const w = world();
+    const trail = new Trail();
+    // (what a track before this play left is forgotten)
+    notePart('track:draw', 400);
+    const watch = new FrameWatch(trail, w.io);
+    run(w, watch, trail, 10);
+    // a frame whose drawing was handed over for 0.8 s: its parts as the play and the track time them
+    const at = w.t;
+    trail.frame(at);
+    notePart('frame:logic', 1.2);
+    notePart('track:notes', 21.4);
+    notePart('track:draw', 805.3);
+    notePart('frame:track', 829);
+    notePart('frame:hud', 19.9);
+    w.t += 850;
+    watch.done(at, 'running', 1, undefined, at);
+    expect(w.told).toEqual([]);
+    // the frame after it: its own parts are its own
+    const next = w.t + 4;
+    w.t = next;
+    trail.frame(next);
+    notePart('frame:hud', 60);
+    w.t += 61;
+    watch.done(next, 'running', 2, undefined, next);
+    expect(w.told).toHaveLength(1);
+    expect(w.told[0].about).toMatchObject({ gapMs: '854', workMs: '850', slow: 'frame:track=829 track:draw=805 track:notes=21' });
+    // and are told with the stall that follows that one (not within two seconds of the one told: counted with the next line)
+    w.t += STALL_TOLD_EVERY_MS;
+    run(w, watch, trail, 1);
+    const later = w.told.at(-1)!.about;
+    expect(later.slow).toBe('frame:hud=60');
+    // a frame none of whose parts was long says nothing of them
+    w.t += STALL_TOLD_EVERY_MS + 400;
+    run(w, watch, trail, 1);
+    expect(w.told.at(-1)!.about.slow).toBeUndefined();
+  });
+
+  it('a part run under guard is timed: kept when it was long', () => {
+    const w = world();
+    const trail = new Trail();
+    const watch = new FrameWatch(trail, w.io);
+    run(w, watch, trail, 3);
+    let clock = 5000;
+    const now = vi.spyOn(performance, 'now').mockImplementation(() => clock);
+    const at = w.t;
+    trail.frame(at);
+    guard('frame:logic', () => void (clock += 3));
+    guard('frame:track', () => void (clock += 300));
+    now.mockRestore();
+    w.t += 303;
+    watch.done(at, 'running', 1, undefined, at);
+    w.t += 2;
+    run(w, watch, trail, 1);
+    expect(w.told[0].about).toMatchObject({ workMs: '303', slow: 'frame:track=300' });
   });
 
   it('counts only where the picture should move, and from STALL_MS on', () => {
