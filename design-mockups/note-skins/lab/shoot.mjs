@@ -10,7 +10,7 @@ const what = process.argv[3] ?? 'all';
 const only = process.argv[4]?.split(',');
 mkdirSync(out, { recursive: true });
 
-const STYLES = ['flat', 'prism', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', 'aqua', 'steel', 'noir', 'wire', 'astral', 'chrome', 'hairline', 'glass', 'enamel', 'pearl', 'carbon', 'chamfer', 'round', 'star4', 'star5'];
+const STYLES = ['flat', 'prism', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', 'aqua', 'steel', 'noir', 'wire', 'astral'];
 const SKIN_DECK = { flat: 'standard', prism: 'prism', sky: 'sky', fire: 'fire', gpt: 'gpt', gemini: 'gemini', grok: 'grok', claude: 'claude', aqua: 'aqua', steel: 'steel', noir: 'noir', wire: 'wire', astral: 'astral' };
 
 const T = 10000;

@@ -59,14 +59,6 @@ export const GRAPHICS_MODE_NAMES: Record<GraphicsMode, string> = {
   'gpu-raster': 'GPU 래스터',
 };
 
-const ABOUT: Record<GraphicsMode, string> = {
-  default: '기본은 트랙과 노트를 Direct3D 11로 그려 DirectComposition으로 화면에 올리고, 글자와 버튼 같은 나머지 화면은 CPU로 그립니다.',
-  'no-dcomp': 'DirectComposition 끄기는 기본처럼 그리되, 화면에 올릴 때 DirectComposition과 오버레이를 쓰지 않습니다.',
-  gl: 'OpenGL은 그래픽 카드의 OpenGL 드라이버로 그립니다.',
-  d3d11on12: 'Direct3D 11on12는 Direct3D 12 드라이버 위에서 그립니다.',
-  'gpu-raster': 'GPU 래스터는 글자와 버튼 같은 화면까지 그래픽 카드로 그립니다(2026-11-16까지의 기본). 이 방식에서 플레이 중 화면이 깜빡이며 기어가 사라진 PC가 있습니다.',
-};
-
 /** Why the app gave a mode up (its own words, desktop/main.js and graphicsMode.js), for the player. */
 function revertedReason(why: string): string {
   if (/no WebGL/.test(why)) return '게임이 그래픽을 받지 못했습니다';
@@ -76,16 +68,18 @@ function revertedReason(why: string): string {
   return '이 PC에서 동작하지 않았습니다';
 }
 
-/** The row's help: what the modes are for, the one picked, and where things stand (a restart owed, a mode given up). */
+/**
+ * The row's help: what the row is for, and where things stand (the mode running, a restart owed, a mode given
+ * up). What each mode does is not told here (the user's, 2026-11-17: a row's help says what the row is, not
+ * what each of its values is); it is in docs/GEAR_NOTE_FX.md.
+ */
 export function graphicsModeHelp(info: GraphicsModeInfo): string {
   const parts = [
     '플레이 중 화면 전체가 깜빡이며 기어가 잠깐 사라지는 PC에서, 앱이 화면을 그리는 방식을 바꿔 봅니다. 그런 일이 없으면 기본을 쓰세요.',
-    ABOUT[info.mode],
     info.mode === info.running
       ? `지금 '${GRAPHICS_MODE_NAMES[info.running]}' 모드로 실행 중입니다.`
       : `지금은 '${GRAPHICS_MODE_NAMES[info.running]}' 모드로 실행 중이고, 앱을 다시 시작하면 '${GRAPHICS_MODE_NAMES[info.mode]}' 모드로 열립니다.`,
   ];
   if (info.reverted) parts.push(`'${GRAPHICS_MODE_NAMES[info.reverted.from]}' 모드는 ${revertedReason(info.reverted.why)}: 앱이 기본으로 되돌렸습니다.`);
-  parts.push('이 PC에서 동작하지 않는 모드는 앱이 스스로 기본으로 되돌립니다.');
   return parts.join(' ');
 }

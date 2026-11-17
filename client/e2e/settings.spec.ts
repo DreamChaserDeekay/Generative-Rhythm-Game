@@ -62,73 +62,54 @@ test('three columns: the tabs, the rows over the help of the row under the curso
   expect(errors).toEqual([]);
 });
 
-test('the help names the picked gear only, and the default of a row whose value is another', async ({ page }) => {
+test('a row’s help says what the row is, not what each of its values is, and names the default of a row whose value is another', async ({ page }) => {
   const errors = trackErrors(page);
   await openSettings(page);
   await settingsTab(page, 'gear');
   const help = page.getByTestId('settings-help');
-  const picked = help.locator('.help-picked');
   const was = help.locator('.help-default');
   const gear = page.getByTestId('opt-deck-style');
-  // the gear's help goes through every gear: what stands before the list, the picked gear's words, what follows
+  // the gear tab starts with the gear: no row picks a gear, its notes and its hit together any more
+  await expect(page.locator('.settings-rows .opt-name').first()).toHaveText('기어');
+  await expect(page.getByTestId('opt-skin-set')).toHaveCount(0);
+  // the gear's help is the same two sentences whichever gear is picked (it went through every gear before)
+  const GEAR = '트랙을 담는 기어입니다. 판정선 아래 받침, 트랙 양옆 테두리, 게이지·점수판의 모양과 숫자 글꼴이 함께 바뀝니다.';
   await gear.focus();
-  await expect(help).toContainText('트랙을 담는 기어입니다.');
-  await expect(picked).toHaveText('기본 그래파이트에 레인마다 낮은 키캡(누르면 하늘색 불), 그 아래 아무 꾸밈 없는 무광 판과 앞쪽의 하늘색 불빛 띠 한 줄');
-  await expect(picked.locator('b')).toHaveText('기본');
-  await expect(help).toContainText('받침은 그보다 조금 아래에서 시작합니다.');
-  await expect(help).not.toContainText('피아노');
+  await expect(help.locator('p')).toHaveText(GEAR);
+  await expect(help.locator('.help-picked')).toHaveCount(0);
   await expect(was).toHaveCount(0);
-  // another gear: its words, and the default named under the help (the crystal skin's gear comes after the default one)
-  await page.keyboard.press('ArrowRight');
-  await expect(gear).toHaveAttribute('data-value', 'prism');
-  await expect(picked).toHaveText('크리스털 레인마다 젖빛 크리스털 키캡(누르면 얼음빛), 통째로 깎은 수정 덩어리 받침, 레인을 따라 맑은 유리 테두리');
-  await expect(help).not.toContainText('그래파이트');
-  await expect(was).toHaveText('기본값 기본');
-  // the sky skin's gear after it: its name is the start of a colour's (하늘색) in other gears' words, and only its own are shown
-  await page.keyboard.press('ArrowRight');
-  await expect(gear).toHaveAttribute('data-value', 'sky');
-  await expect(picked).toHaveText('하늘 레인마다 가는 표시선(누르면 청록빛 불), 유리 너머로 뭉게구름과 흰 바람 궤적이 보이는 받침, 옅은 하늘빛 유리 테두리, 레인에 아주 옅게 깔린 같은 하늘과 양 가장자리의 눈금');
-  await expect(help).not.toContainText('그래파이트');
-  // the Firestarter skin's gear after it
-  await page.keyboard.press('ArrowRight');
-  await expect(gear).toHaveAttribute('data-value', 'fire');
-  await expect(picked).toHaveText('파이어스타터 레인마다 크롬 키캡(누르면 주황빛으로 달아오름)과 그 위의 멤버 문장, 분홍 조명의 무대에 네 멤버의 실루엣과 FIRESTARTER 글자가 선 받침, 붉은 줄이 난 크롬 테두리, 기어 양옆에는 멤버들의 일러스트');
-  // the four AI companies' gears after it
-  for (const [id, words] of [
-    ['gpt', 'GPT 레인마다 흰 타일(누르면 검은 바탕에 흰 점), 유백색 받침 가운데의 검은 입체 로고'],
-    ['gemini', 'Gemini 레인마다 파랑·빨강·노랑·초록이 은은한 알약(누르면 그 색으로 켜짐)'],
-    ['grok', 'Grok 레인마다 흰 선으로 그린 네모 칸(누르면 흰색으로 참)'],
-    ['claude', 'Claude 레인마다 따뜻한 회색 둥근 네모(누르면 테라코타에 크림 점)'],
-  ] as const) {
+  // another gear: the same words, and the default named under them
+  for (const id of ['prism', 'sky', 'fire', 'gpt']) {
     await page.keyboard.press('ArrowRight');
     await expect(gear).toHaveAttribute('data-value', id);
-    await expect(picked).toContainText(words);
-    await expect(picked).toContainText(`하단 양옆에는 ${words.split(' ')[0]} 콘 둘`);
-    await expect(help).not.toContainText('그래파이트');
+    await expect(help.locator('p')).toHaveText(GEAR);
+    await expect(was).toHaveText('기본값 기본');
   }
-  // the gears of the skins after the reference panels
-  for (const [id, words] of [['aqua', '아쿠아 흰 테 안의 유광 키캡(파란 레인은 청록, 누르면 청록빛)'], ['steel', '스틸 더하기·엑스가 찍힌 무광 슬레이트 키캡(누르면 강철빛 파랑)'], ['noir', '레드라인 가는 육각 칸(누르면 빨갛게 참)'], ['wire', '화이트 라인 흰 선으로 그린 쟁반 모양 칸(누르면 흰빛으로 참)'], ['astral', '별밤 금색 네 갈래 별이 박힌 모따기 남색 키캡(누르면 금빛)']] as const) {
-    await page.keyboard.press('ArrowRight');
-    await expect(gear).toHaveAttribute('data-value', id);
-    await expect(picked).toContainText(words);
-    await expect(help).not.toContainText('그래파이트');
-  }
-  await page.keyboard.press('ArrowRight');
-  // the piano after the skins' gears, the last of the list
-  await expect(gear).toHaveAttribute('data-value', 'piano');
-  await expect(picked).toHaveText('피아노 흑단 래커에 레인마다 상아색 흰 건반과 그 사이 검은 건반, 스크래치 아래 높은음자리표 황동 메달');
-  await expect(help).not.toContainText('그래파이트');
-  await expect(was).toHaveText('기본값 기본');
-  // the judgement and combo type's help is cut to the gear picked too (the row's own default is 기어)
+  // the judgement and combo type's help too (the row's own default is 기어)
   await page.keyboard.press('ArrowDown');
   await expect(page.getByTestId('opt-hud-type')).toBeFocused();
-  await expect(picked).toHaveText('피아노 악보의 셈여림 글씨 같은 굵은 이탤릭 세리프');
-  await expect(help).toContainText('기본은 기어와 상관없이');
+  await expect(help.locator('p')).toHaveText('판정과 콤보를 쓰는 글꼴과 색입니다. 기어의 것을 따를지, 기어와 상관없이 기본 글꼴로 쓸지 고릅니다.');
   await expect(was).toHaveCount(0);
   await page.keyboard.press('ArrowRight');
   await expect(was).toHaveText('기본값 기어');
   await page.keyboard.press('ArrowRight');
   await expect(was).toHaveCount(0);
+  // the hit effect's, the note's, the side notes' and the hit effect size's: a sentence or two each, no list of their values
+  await page.keyboard.press('ArrowDown');
+  await expect(page.getByTestId('opt-hit-style')).toBeFocused();
+  await expect(help.locator('p')).toHaveText('노트를 치거나 롱노트를 누르고 있을 때의 효과 모양입니다. 크기는 연출·배경 탭의 타격 효과 크기에서 정합니다.');
+  await settingsTab(page, 'notes');
+  await page.getByTestId('opt-note-style').focus();
+  await expect(help.locator('p')).toHaveText('노트 모양입니다. 롱노트도 고른 노트에 맞는 모양으로 함께 바뀝니다.');
+  await page.getByTestId('opt-side-style').focus();
+  await expect(help.locator('p')).toHaveText('4K+FX·6K+FX 사이드 노트의 모양입니다. 사이드 노트는 건반 레인의 왼쪽·오른쪽 절반을 덮습니다.');
+  // (the row of the note colours is named for what it picks: it was 프리셋)
+  await expect(page.locator('.settings-rows .opt-name').nth(2)).toHaveText('노트 색상');
+  await expect(page.getByTestId('opt-color-preset').locator('.opt-name')).toHaveText('노트 색상');
+  await settingsTab(page, 'fx');
+  await page.getByTestId('opt-hit-effect').focus();
+  await expect(help.locator('p')).toHaveText('노트를 치거나 롱노트를 누르고 있을 때 판정선에 번지는 빛의 크기입니다.');
+  await settingsTab(page, 'gear');
   // a number and a switch name theirs as they show it; a row back on its default names none
   await page.getByTestId('opt-lane-width').focus();
   await expect(help).toHaveText('트랙의 폭입니다.');
@@ -337,26 +318,74 @@ test('a reset can be undone after leaving the settings, until its time is up', a
   expect(errors).toEqual([]);
 });
 
-test('the key settings: ↑↓ from a key to its second key and through the buttons to the next mode in the same lane, ←→ along the lanes, and hints that say so', async ({ page }) => {
+test('the key settings: the key modes as tabs with one mode’s keys under them; ←→ on the tabs pick the mode and along the lanes the lane, ↑↓ go from the tabs to a key, its second key and the buttons, and hints that say so', async ({ page }) => {
   const errors = trackErrors(page);
   await openSettings(page);
   await settingsTab(page, 'keys');
   const hints = page.locator('.hintbar');
-  await expect(hints).toContainText('모드');
-  await expect(hints).toContainText('레인');
+  await expect(hints).toContainText('항목');
+  await expect(hints).toContainText('모드 · 레인');
   await expect(hints).toContainText('바꾸기');
-  await page.getByTestId('key-4K-1').focus();
+  // a tab per key mode, the one last played picked: its keys alone are on the screen
+  const tabs = page.getByTestId('keys-modes').getByRole('tab');
+  await expect(tabs).toHaveText(['4K', '4K+FX', '5K', '6K', '6K+FX', '7K+1S', '8K']);
+  await expect(page.getByTestId('keys-mode-4K')).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByTestId('keys-4K')).toBeVisible();
+  await expect(page.locator('[data-testid^="keys-"].opt-block')).toHaveCount(1);
+  await expect(page.getByTestId('key-4K+FX-0')).toHaveCount(0);
+  // the tab opens with the cursor on the picked mode's tab; ←→ there pick the mode next to it (none past the ends)
+  await page.keyboard.press('KeyE');
+  await page.keyboard.press('KeyQ');
+  await expect(page.getByTestId('keys-mode-4K')).toBeFocused();
+  await expect(page.getByTestId('settings-help')).toContainText('키를 지정할 키 모드입니다.');
+  await page.keyboard.press('ArrowLeft');
+  await expect(page.getByTestId('keys-mode-4K')).toBeFocused();
+  await page.keyboard.press('ArrowRight');
+  await expect(page.getByTestId('keys-mode-4K+FX')).toBeFocused();
+  await expect(page.getByTestId('keys-mode-4K+FX')).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByTestId('keys-4K+FX')).toBeVisible();
+  await expect(page.getByTestId('keys-4K')).toHaveCount(0);
+  await expect(page.getByTestId('key-4K+FX-0')).toHaveText('L-Shift');
+  // a click picks any; the play keys under the modes stay whichever is picked
+  await page.getByTestId('keys-mode-7K+1S').click();
+  await expect(page.getByTestId('keys-7K+1S')).toBeVisible();
+  await expect(page.locator('[data-testid^="keys-"].opt-block')).toHaveCount(1);
+  await expect(page.getByTestId('play-keys')).toBeVisible();
+  // the mode picked here is the one the 게임패드 tab shows too
+  await settingsTab(page, 'pad');
+  await expect(page.getByTestId('pad-mode-7K+1S')).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByTestId('pad-7K+1S')).toBeVisible();
+  await expect(page.locator('[data-testid^="pad-"].opt-block')).toHaveCount(1);
+  await page.getByTestId('pad-mode-4K').click();
+  await expect(page.getByTestId('pad-4K-0')).toBeVisible();
+  await expect(page.getByTestId('pad-7K+1S-0')).toHaveCount(0);
+  await settingsTab(page, 'keys');
+  await expect(page.getByTestId('keys-mode-4K')).toHaveAttribute('aria-selected', 'true');
+  // ↓ from the tabs to the keys, ←→ along the lanes, ↓ to the second key and the buttons, then the play keys
+  await page.getByTestId('keys-mode-4K').focus();
+  await page.keyboard.press('ArrowDown');
+  await expect(page.getByTestId('key-4K-0')).toBeFocused();
+  await page.keyboard.press('ArrowRight');
   await page.keyboard.press('ArrowRight');
   await expect(page.getByTestId('key-4K-2')).toBeFocused();
   await page.keyboard.press('ArrowDown');
   await expect(page.getByTestId('key2-4K-2')).toBeFocused();
   await page.keyboard.press('ArrowDown');
   await expect(page.getByTestId('keys-run-4K')).toBeFocused();
-  await page.keyboard.press('ArrowDown');
-  await expect(page.getByTestId('key-4K+FX-2')).toBeFocused();
-  await page.keyboard.press('ArrowUp');
   await page.keyboard.press('ArrowUp');
   await expect(page.getByTestId('key2-4K-2')).toBeFocused();
+  // ↑ past the keys is the picked mode's tab again, and ↓ from it the lane the cursor was on
+  await page.keyboard.press('ArrowUp');
+  await page.keyboard.press('ArrowUp');
+  await expect(page.getByTestId('keys-mode-4K')).toBeFocused();
+  await page.keyboard.press('ArrowDown');
+  await expect(page.getByTestId('key-4K-2')).toBeFocused();
+  // under the mode's buttons are the play keys, whichever mode is picked
+  await page.getByTestId('keys-run-4K').focus();
+  await page.keyboard.press('ArrowDown');
+  await expect(page.locator('[data-testid^="play-key-"]:focus')).toHaveCount(1);
+  await page.getByTestId('key-4K-2').focus();
+  await page.keyboard.press('ArrowDown');
   // Enter binds the key: the hints say what the next key does, Esc stops it and stays in the settings
   await page.keyboard.press('ArrowUp');
   await page.keyboard.press('Enter');

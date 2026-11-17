@@ -2,7 +2,7 @@
 import sys
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
-STYLES = ['flat', 'prism', 'sky', 'fire', 'aqua', 'steel', 'noir', 'wire', 'astral', 'chrome', 'hairline', 'glass', 'enamel', 'pearl', 'carbon', 'chamfer', 'gpt', 'gemini', 'grok', 'claude', 'round', 'star4', 'star5']
+STYLES = ['flat', 'prism', 'sky', 'fire', 'aqua', 'steel', 'noir', 'wire', 'astral', 'gpt', 'gemini', 'grok', 'claude']
 src, dst = Path(sys.argv[1]), sys.argv[2]
 ims = [(s, Image.open(src / f'taps-{s}.png')) for s in STYLES if (src / f'taps-{s}.png').exists()]
 w, h = ims[0][1].size

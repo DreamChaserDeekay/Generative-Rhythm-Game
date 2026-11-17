@@ -1,11 +1,13 @@
 import { expect, test, type Page } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { autoplay, chooseSetting, settingsTab, songInfo, tool } from './songSelect';
 
 // Screenshots for the README and docs/TESTING.md, saved to docs/screenshots. Not part of the normal
 // E2E run:  GRG_SCREENSHOTS=1 npx playwright test e2e/screenshots.spec.ts
-// Everything on them is synthesized here (songs, keysounds, background video).
+// Everything on them is synthesized here (songs, keysounds, background video). The charts are the server's
+// (Mapperatorinator: an NVIDIA GPU and its runtime); where it can make none, the shots that call serveShowcase
+// play a chart of the tests' own instead, and the others cannot be taken.
 test.skip(!process.env.GRG_SCREENSHOTS, 'set GRG_SCREENSHOTS=1 to capture the screenshots');
 test.describe.configure({ mode: 'serial' });
 
@@ -99,6 +101,13 @@ async function selectShowcase(page: Page, keyMode: string, difficulty: string): 
   await expect(page.getByTestId('chart-level')).toBeVisible({ timeout: 30_000 });
 }
 
+/** The showcase song is there (made when a test runs on its own) and its analysis is done: a play of it can be started. */
+async function showcaseReady(page: Page): Promise<void> {
+  const find = async () => ((await (await page.request.get('/api/songs')).json()).songs as { title: string; status: string }[]).find((s) => s.title === SHOWCASE);
+  if (!(await find())) expect((await page.request.post('/api/songs/demo', { data: { bpm: 150, bars: 24, seed: 21 } })).ok()).toBe(true);
+  await expect.poll(async () => (await find())?.status, { timeout: 90_000 }).toBe('ready');
+}
+
 /** Every difficulty's level is known (the song select asks for them as the cursor rests on the song). */
 async function levelsKnown(page: Page): Promise<void> {
   await expect(page.getByText('계산 중')).toHaveCount(0, { timeout: 60_000 });
@@ -111,12 +120,112 @@ async function autoplayFor(page: Page, ms: number): Promise<void> {
   await page.waitForTimeout(ms);
 }
 
-/** The chart the song select plays for a tier of the showcase (its default pattern). */
+/** The showcase's tempo and length (the demo song these tests make). */
+const SHOWCASE_BPM = 150;
+const SHOWCASE_BARS = 24;
+/** The pages that are served the tests' own chart for the showcase (serveShowcase). */
+const served = new WeakSet<Page>();
+
+/** A key mode's lanes as a chart names them (config/keymodes.json). */
+function laneIds(keyMode: string): string[] {
+  const modes = (JSON.parse(readFileSync('../config/keymodes.json', 'utf8')) as { modes: Record<string, { lanes: { id: string }[] }> }).modes;
+  return modes[keyMode].lanes.map((l) => l.id);
+}
+
+/**
+ * A chart of the tests' own for the showcase, in a key mode: from the third bar on, a long note of two beats at the
+ * head of every bar, a few lanes on with each bar (so the scratch and the side lanes get theirs), and a tap on every
+ * half beat in a lane the long note is not in, stepping up the lanes in one bar and down in the next.
+ */
+function showcaseNotes(keyMode: string): (ChartNoteLite & { beat: number; endBeat?: number })[] {
+  const lanes = laneIds(keyMode).length;
+  const ms = (beat: number) => (beat * 60_000) / SHOWCASE_BPM;
+  // (a stride that goes through every lane)
+  const stride = lanes % 3 === 0 ? 5 : 3;
+  const notes: (ChartNoteLite & { beat: number; endBeat?: number })[] = [];
+  for (let bar = 2; bar < SHOWCASE_BARS - 1; bar++) {
+    const head = bar * 4;
+    const held = (bar * stride) % lanes;
+    notes.push({ beat: head, t: ms(head), lane: held, type: 'hold', endBeat: head + 2, endT: ms(head + 2) });
+    for (let k = 0; k < 8; k++) {
+      const step = bar % 2 === 0 ? k : 7 * (lanes - 1) - k;
+      notes.push({ beat: head + k / 2, t: ms(head + k / 2), lane: (held + 1 + (step % (lanes - 1))) % lanes, type: 'tap' });
+    }
+  }
+  return notes.sort((a, b) => a.t - b.t || a.lane - b.lane);
+}
+
+/**
+ * Where the server can make no chart (Mapperatorinator is its only generator: without an NVIDIA GPU and its runtime
+ * a play cannot be started), the page is given a chart of the tests' own for the showcase (showcaseNotes), so a play
+ * can still be shot; where the server can, nothing is done and the shot shows its chart. Call it before the song
+ * select is opened, in the shots that only need a play on the screen: such a chart has no record kept and cannot be
+ * opened in the editor, and it has no camera effects.
+ */
+async function serveShowcase(page: Page): Promise<void> {
+  const state = ((await (await page.request.get('/api/mapper')).json()) as { state?: string }).state;
+  if (state === 'ready' || served.has(page)) return;
+  served.add(page);
+  const levels: Record<string, number> = { NORMAL: 2, HARD: 6, EXPERT: 10, ELITE: 14, MASTER: 18 };
+  await page.route(
+    (url) => /^\/api\/songs\/[^/]+\/charts$/.test(url.pathname),
+    async (route) => {
+      const songId = new URL(route.request().url()).pathname.split('/')[3];
+      const songs = (await (await page.request.get('/api/songs')).json()).songs as { id: string; title: string; artist?: string }[];
+      const song = songs.find((s) => s.id === songId);
+      // (another song's charts are the server's to make or to refuse)
+      if (song?.title !== SHOWCASE) return route.fallback();
+      if (route.request().method() !== 'POST') return route.fulfill({ json: { charts: [] } });
+      const body = JSON.parse(route.request().postData() ?? '{}') as { keyMode?: string; difficulty?: string; brief?: boolean };
+      const keyMode = body.keyMode ?? '7K+1S';
+      const difficulty = body.difficulty ?? 'NORMAL';
+      const notes = showcaseNotes(keyMode);
+      const durationMs = Math.round((SHOWCASE_BARS * 4 * 60_000) / SHOWCASE_BPM);
+      const perSecond = Array.from({ length: Math.ceil(durationMs / 1000) }, (_, i) => notes.filter((n) => Math.floor(n.t / 1000) === i).length);
+      const avg = Math.round((notes.length / (durationMs / 1000)) * 10) / 10;
+      const level = levels[difficulty] ?? 10;
+      const meta = {
+        chartId: `shot${songId.slice(-4)}${keyMode.replace(/\W/g, '').toLowerCase()}${difficulty.slice(0, 2).toLowerCase()}`,
+        songId,
+        audioHash: 'e2e',
+        title: song.title,
+        artist: song.artist ?? '',
+        keyMode,
+        lanes: laneIds(keyMode),
+        difficulty,
+        level,
+        durationMs,
+        noteCount: notes.length,
+        nps: { avg, peak: Math.max(...perSecond), graph: perSecond, binMs: 1000 },
+        rating: level,
+        effectiveNps: avg,
+        densityLimited: false,
+        generator: { seed: 21, version: 'now', analyzer: 'now', params: {} },
+      };
+      const timing = { offsetMs: 0, tempoMap: [{ beat: 0, bpm: SHOWCASE_BPM }], meter: [{ measure: 0, beatsPerMeasure: 4 }] };
+      return route.fulfill({ json: body.brief ? { meta, cached: true } : { chart: { formatVersion: 1, meta, timing, notes, sections: [] }, cached: true } });
+    },
+  );
+}
+
+/** The chart the song select plays for a tier of the showcase (its default pattern; the tests' own where the page is served it). */
 async function showcaseChart(page: Page, keyMode: string, difficulty: string): Promise<ChartNoteLite[]> {
+  if (served.has(page)) return showcaseNotes(keyMode);
   const songs = (await (await page.request.get('/api/songs')).json()).songs as { id: string; title: string }[];
   const song = songs.find((s) => s.title === SHOWCASE)!;
   const res = await page.request.post(`/api/songs/${song.id}/charts`, { data: { keyMode, difficulty } });
   return (await res.json()).chart.notes;
+}
+
+/**
+ * A moment of the showcase's chart at which a hit and a hold both show: just after a tap is hit while a long note
+ * is held in another lane (ms into the song; 14.2 s in where the chart has no such place).
+ */
+async function hitMoment(page: Page, keyMode: string, difficulty: string): Promise<number> {
+  const notes = await showcaseChart(page, keyMode, difficulty);
+  const held = notes.find((n) => n.type === 'hold' && n.t > 8000 && (n.endT ?? 0) - n.t >= 600);
+  const tap = held && notes.find((n) => n.type === 'tap' && n.lane !== held.lane && n.t > held.t + 150 && n.t < (held.endT ?? 0) - 150);
+  return held ? (tap?.t ?? held.t + 250) + 40 : 14_200;
 }
 
 /** Where every buffer source starts on its context's clock: the song's start is its time 0. */
@@ -300,9 +409,12 @@ test('play: background video and camera effects', async ({ page }) => {
  * their own are no longer offered), at the same moment: a side long note held, the next ones coming.
  */
 async function sideNotesShot(page: Page, side: 'bar' | 'dots', name: string): Promise<void> {
+  // (also runs on its own, -g "6K\+FX side notes": makes the showcase song when it is missing)
+  await showcaseReady(page);
   await watchSources(page);
+  await serveShowcase(page);
   // an earlier version's saved 별도 레인 is drawn over half the keys too
-  await settings(page, { lastKeyMode: '6K+FX', cameraPreset: 'FLAT', sudden: 0.18, hiSpeed: 3.2, sideNotes: 'lanes', parts: { note: 'round', side, deck: 'piano', hit: 'club' } });
+  await settings(page, { lastKeyMode: '6K+FX', cameraPreset: 'FLAT', sudden: 0.18, hiSpeed: 3.2, sideNotes: 'lanes', parts: { note: 'flat', side, deck: 'piano', hit: 'club' } });
   await selectShowcase(page, '6K+FX', 'EXPERT');
   const notes = await showcaseChart(page, '6K+FX', 'EXPERT');
   const held = notes.find((n) => (n.lane === 0 || n.lane === 7) && n.type === 'hold' && n.t > 8000 && (n.endT ?? 0) - n.t >= 700)!;
@@ -326,23 +438,25 @@ test('play: the flat PLANE camera, with the judge counter and a pacemaker', asyn
   await shot(page, '20-play-plane');
 });
 
-test('play: the four sets, and the piano hit', async ({ page }) => {
-  // also runs on its own (-g "the four sets"): makes the showcase song when it is missing
-  await page.goto('/');
-  const songs = (await (await page.request.get('/api/songs')).json()).songs as { title: string }[];
-  if (!songs.some((s) => s.title === SHOWCASE)) await page.request.post('/api/songs/demo', { data: { bpm: 150, bars: 24, seed: 21 } });
-  // each set's notes and hit, on a gear that suits them (FEVER off: its tint would cover the lanes' colours)
+test('play: the hits of the four old sets and of the piano, with the plain notes', async ({ page }) => {
+  // also runs on its own (-g "hits of the four old sets"): makes the showcase song when it is missing
+  test.setTimeout(300_000);
+  await showcaseReady(page);
+  await watchSources(page);
+  await serveShowcase(page);
+  // the sets' notes are gone (the piano's before them): each hit with the plain notes, on a gear that suits it
+  // (FEVER off: its tint would cover the lanes' colours)
   for (const [parts, name] of [
-    [{ note: 'chamfer', side: 'bar', deck: 'standard', hit: 'mecha' }, '28-set-mecha'],
-    [{ note: 'round', side: 'bar', deck: 'piano', hit: 'club' }, '29-set-club'],
-    [{ note: 'star4', side: 'bar', deck: 'standard', hit: 'crystal' }, '30-set-crystal'],
-    [{ note: 'star5', side: 'bar', deck: 'standard', hit: 'neon' }, '31-set-neon'],
-    // the piano set's notes are gone: its hit with the plain notes, on the piano
+    [{ note: 'flat', side: 'bar', deck: 'standard', hit: 'mecha' }, '28-hit-mecha'],
+    [{ note: 'flat', side: 'bar', deck: 'piano', hit: 'club' }, '29-hit-club'],
+    [{ note: 'flat', side: 'bar', deck: 'standard', hit: 'crystal' }, '30-hit-crystal'],
+    [{ note: 'flat', side: 'bar', deck: 'standard', hit: 'neon' }, '31-hit-neon'],
     [{ note: 'flat', side: 'bar', deck: 'piano', hit: 'piano' }, '32-hit-piano'],
   ] as const) {
     await settings(page, { lastKeyMode: '7K+1S', parts, cameraPreset: 'SDVX', hiSpeed: 3, fever: 'OFF' });
     await selectShowcase(page, '7K+1S', 'EXPERT');
-    await autoplayFor(page, 14_200);
+    // just after a note is hit while a long note is held in another lane: the hit and the hold both show
+    await autoplayAt(page, await hitMoment(page, '7K+1S', 'EXPERT'));
     await shot(page, name);
   }
 });
@@ -489,42 +603,22 @@ test('play: the skins after the reference panels', async ({ page }) => {
   }
 });
 
-test('play: the bar in its finishes', async ({ page }) => {
-  // also runs on its own (-g "the bar in its finishes"): makes the showcase song when it is missing
-  await page.goto('/');
-  const songs = (await (await page.request.get('/api/songs')).json()).songs as { title: string }[];
-  if (!songs.some((s) => s.title === SHOWCASE)) await page.request.post('/api/songs/demo', { data: { bpm: 150, bars: 24, seed: 21 } });
-  // two of the finishes, on the default gear
-  for (const [parts, name] of [
-    [{ note: 'chrome', side: 'bar', deck: 'standard', hit: 'flash' }, '42-note-chrome'],
-    [{ note: 'carbon', side: 'bar', deck: 'standard', hit: 'flash' }, '43-note-carbon'],
-  ] as const) {
-    await settings(page, { lastKeyMode: '7K+1S', parts, cameraPreset: 'SDVX', hiSpeed: 3, fever: 'OFF' });
-    await selectShowcase(page, '7K+1S', 'ELITE');
-    await autoplayFor(page, 14_200);
-    await shot(page, name);
-  }
-});
-
-test('play: the four hits of no set, each with notes, side notes and a gear picked', async ({ page }) => {
+test('play: the four hits of no set, each with side notes and a gear picked', async ({ page }) => {
   // also runs on its own (-g "four hits of no set"): makes the showcase song when it is missing
-  await page.goto('/');
-  const songs = (await (await page.request.get('/api/songs')).json()).songs as { title: string }[];
-  if (!songs.some((s) => s.title === SHOWCASE)) await page.request.post('/api/songs/demo', { data: { bpm: 150, bars: 24, seed: 21 } });
+  test.setTimeout(300_000);
+  await showcaseReady(page);
   for (const [parts, keyMode, name] of [
-    [{ note: 'chamfer', side: 'bar', deck: 'standard', hit: 'flash' }, '7K+1S', '22-hit-flash'],
-    [{ note: 'round', side: 'bar', deck: 'piano', hit: 'flare' }, '8K', '23-hit-flare'],
-    [{ note: 'star4', side: 'dots', deck: 'standard', hit: 'bubbles' }, '6K+FX', '24-hit-bubbles'],
-    [{ note: 'star5', side: 'dots', deck: 'piano', hit: 'grid' }, '6K+FX', '25-hit-grid'],
+    [{ note: 'flat', side: 'bar', deck: 'standard', hit: 'flash' }, '7K+1S', '22-hit-flash'],
+    [{ note: 'flat', side: 'bar', deck: 'piano', hit: 'flare' }, '8K', '23-hit-flare'],
+    [{ note: 'flat', side: 'dots', deck: 'standard', hit: 'bubbles' }, '6K+FX', '24-hit-bubbles'],
+    [{ note: 'flat', side: 'dots', deck: 'piano', hit: 'grid' }, '6K+FX', '25-hit-grid'],
   ] as const) {
     await watchSources(page);
+    await serveShowcase(page);
     await settings(page, { lastKeyMode: keyMode, parts, hiSpeed: 3, fever: 'OFF' });
     await selectShowcase(page, keyMode, 'EXPERT');
     // just after a note is hit while a long note is held in another lane: the hit and the hold both show
-    const notes = await showcaseChart(page, keyMode, 'EXPERT');
-    const held = notes.find((n) => n.type === 'hold' && n.t > 8000 && (n.endT ?? 0) - n.t >= 600);
-    const tap = held && notes.find((n) => n.type === 'tap' && n.lane !== held.lane && n.t > held.t + 150 && n.t < (held.endT ?? 0) - 150);
-    await autoplayAt(page, held ? (tap?.t ?? held.t + 250) + 40 : 14_200);
+    await autoplayAt(page, await hitMoment(page, keyMode, 'EXPERT'));
     await shot(page, name);
   }
 });
@@ -615,7 +709,7 @@ test('settings and calibration', async ({ page }) => {
   await shot(page, '11-settings-gear');
   // the 노트 tab: the note and side note rows over the note colours
   await settingsTab(page, 'notes');
-  await chooseSetting(page, 'opt-note-style', 'round');
+  await chooseSetting(page, 'opt-note-style', 'prism');
   await page.getByTestId('opt-note-style').focus();
   await page.waitForTimeout(1500);
   await shot(page, '26-settings-notes');

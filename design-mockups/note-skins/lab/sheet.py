@@ -2,7 +2,7 @@
 import sys
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
-STYLES = ['flat', 'prism', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', 'aqua', 'steel', 'noir', 'wire', 'astral', 'chrome', 'hairline', 'glass', 'enamel', 'pearl', 'carbon', 'chamfer', 'round', 'star4', 'star5']
+STYLES = ['flat', 'prism', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', 'aqua', 'steel', 'noir', 'wire', 'astral']
 src, dst = Path(sys.argv[1]), sys.argv[2]
 scale = float(sys.argv[3]) if len(sys.argv) > 3 else 0.6
 ims = [(s, Image.open(src / f'sheet-{s}-SDVX.png')) for s in STYLES if (src / f'sheet-{s}-SDVX.png').exists()]

@@ -14,23 +14,21 @@ import {
   gearArtOf,
   isArtHit,
   longPaintOf,
+  NOTE_WIDTH,
   notePaintOf,
-  noteShapeOf,
-  noteWidthOf,
   platePaintOf,
-  sideTapPaintOf,
   styleImageIds,
   styleTextures,
   type ArtImage,
 } from './styleArt';
-import { HIT_STYLES, LONG_OF, LONG_PAINT, NOTE_PAINT, NOTE_STRETCH, noteDepthOf, type HitStyle } from './tintArt';
+import { HIT_STYLES, isBarNote, LOGO_NOTES, LONG_OF, LONG_PAINT, LONG_STYLES, NOTE_PAINT, NOTE_STRETCH, NOTE_STYLES, type HitStyle } from './tintArt';
 
 const MEDIA = fileURLToPath(new URL('../../public/media/', import.meta.url));
 /** A style's pictures but its notes' and long notes' own (the bars drawn with the image model: ART_NOTES, ART_LONGS). */
 const gearIds = (style: SkinStyle) => styleImageIds(style).filter((id) => !/^(notes|longs)\//.test(id));
 const manifest = parseManifest(JSON.parse(readFileSync(join(MEDIA, 'manifest.json'), 'utf-8')))!;
-// the mecha set's notes and hit on the piano, as the notes and gear tabs pick them
-const mecha = withParts(BASE_SKIN, { note: 'chamfer', side: 'bar', deck: 'piano', hit: 'mecha' }).style;
+// the plain notes with the mecha set's hit on the piano, as the notes and gear tabs pick them
+const mecha = withParts(BASE_SKIN, { note: 'flat', side: 'bar', deck: 'piano', hit: 'mecha' }).style;
 
 /** A picture of the size the manifest gives (drawing on a recording canvas needs nothing more), its id kept to tell it by. */
 const image = (id: string): ArtImage => {
@@ -75,7 +73,7 @@ function recorder() {
   return { g, draws, fills };
 }
 
-describe('the concept sets drawn from art', () => {
+describe('the pictures and flipbooks a style’s parts load', () => {
   it('keeps no gear of the sets in the media: the gears are ones of their own', () => {
     expect(Object.keys(manifest.textures).filter((id) => /\/(gear|keys)$/.test(id))).toEqual([]);
     expect(Object.values(manifest.textures).filter((t) => t.file.startsWith('styles/') && /\/(gear|keys)\.png$/.test(t.file))).toEqual([]);
@@ -83,9 +81,11 @@ describe('the concept sets drawn from art', () => {
 
   it('loads the pictures and flipbooks of the parts a style has, and only those', () => {
     const piano = ['piano/deck', 'piano/medallion'];
-    expect(styleImageIds(mecha)).toEqual(['mecha/notes', 'mecha/long', 'mecha/side', ...piano]);
-    expect(styleImageIds({ ...mecha, side: 'dots' })).toEqual(['mecha/notes', 'mecha/long', ...piano]);
-    expect(gearIds({ ...mecha, note: 'flat' })).toEqual(piano);
+    // the plain bar and its long note (drawn again with the image model), then the gear's
+    expect(styleImageIds(mecha)).toEqual(['notes/flat', 'longs/solid', ...piano]);
+    // the side notes are drawn in code, as bars or as dots: no picture is loaded for them
+    expect(styleImageIds({ ...mecha, side: 'dots' })).toEqual(styleImageIds(mecha));
+    expect(gearIds(mecha)).toEqual(piano);
     // the track as it starts: the default skin, its notes and its row of keys drawn in code (as the PRISM set's are),
     // its deck's lower part a painting (its panel) and its hit a flipbook
     expect(gearIds(BASE_SKIN.style)).toEqual(['standard/panel']);
@@ -102,11 +102,28 @@ describe('the concept sets drawn from art', () => {
     for (const hit of ['flare', 'bubbles', 'grid', 'crystal'] as const) expect(styleTextures({ ...mecha, hit })).toEqual({ hitBurst: `${hit}/hitBurst`, hitHold: `${hit}/hitHold` });
   });
 
+  it('never loads a picture of the notes taken out: of the sets’ notes only the coin’s record and capsule are left in the media, and no bar in another finish', () => {
+    const ids = Object.keys(manifest.textures);
+    expect(ids.filter((id) => /^(mecha|club|crystal|neon|piano)\/(notes|long|side)$/.test(id)).sort()).toEqual(['club/long', 'club/notes']);
+    for (const gone of ['chrome', 'hairline', 'glass', 'enamel', 'pearl', 'carbon']) {
+      expect(manifest.textures[`notes/${gone}`], gone).toBeUndefined();
+      expect(manifest.textures[`longs/${gone}`], gone).toBeUndefined();
+    }
+    // every note's and long note's picture left is one a note style a player can pick draws from
+    const drawn = new Set(NOTE_STYLES.flatMap((note) => styleImageIds(withParts(BASE_SKIN, { note, side: 'bar', deck: 'standard', hit: 'flash' }).style)));
+    for (const id of ids.filter((i) => /^(notes|longs)\//.test(i) || /\/(notes|long|side)$/.test(i))) expect(drawn, id).toContain(id);
+    // the sets' hits are all still there, each picked on its own
+    for (const hit of ['mecha', 'club', 'crystal', 'neon', 'piano'] as const) {
+      for (const id of Object.values(styleTextures({ ...mecha, hit }))) expect(manifest.textures[id], id).toBeDefined();
+    }
+  });
+
   it('has every picture and flipbook in the media, at the size its layout is drawn from', () => {
     const sizes: Record<string, [number, number]> = {
-      'mecha/notes': [1024, 1024],
-      'mecha/long': [512, 256],
-      'mecha/side': [1024, 512],
+      'notes/flat': [1024, 512],
+      'longs/solid': [512, 256],
+      'club/notes': [1024, 1024],
+      'club/long': [512, 256],
     };
     for (const [id, size] of Object.entries(sizes)) expect(manifest.textures[id]?.size, id).toEqual(size);
     for (const style of [BASE_SKIN.style, mecha]) {
@@ -123,75 +140,24 @@ describe('the concept sets drawn from art', () => {
 
   it('keeps every part in code while its pictures are missing', () => {
     const none = {};
-    expect(notePaintOf('chamfer', none)).toBe(NOTE_PAINT.chamfer);
-    expect(longPaintOf('chamfer', none)).toBe(LONG_PAINT.rail);
+    expect(notePaintOf('flat', none)).toBe(NOTE_PAINT.flat);
+    expect(longPaintOf('flat', none)).toBe(LONG_PAINT.solid);
     expect(artPartsOf(mecha, none)).toEqual([]);
     expect(gearArtOf('piano', none)).toEqual({});
     // the gear counts as drawn from art once all of its pictures are: a part without one is drawn in code
     expect(artPartsOf(mecha, { 'piano/medallion': image('piano/medallion') })).toEqual([]);
     expect(gearArtOf('piano', { 'piano/medallion': image('piano/medallion') })).toEqual({ medallion: image('piano/medallion') });
-    expect(artPartsOf(mecha, loaded(mecha))).toEqual(['notes', 'long', 'side', 'gear']);
+    // the notes and the long note each count by their own picture (the side notes have none)
+    expect(artPartsOf(mecha, { 'notes/flat': image('notes/flat') })).toEqual(['notes']);
+    expect(artPartsOf(mecha, { 'longs/solid': image('longs/solid') })).toEqual(['long']);
+    expect(artPartsOf(mecha, loaded(mecha))).toEqual(['notes', 'long', 'gear']);
+    expect(artPartsOf({ ...mecha, side: 'dots' }, loaded(mecha))).toEqual(['notes', 'long', 'gear']);
   });
 
-  it('cuts a note into its end caps, its mark and the metal between, meeting at whole px across the picture', () => {
-    const paint = notePaintOf('chamfer', loaded(mecha));
-    for (const [w, h] of [
-      [384, 96],
-      [180, 96],
-      [512, 96],
-    ]) {
-      const { g, draws } = recorder();
-      paint(g, w, h, 'gold');
-      expect(draws).toHaveLength(5);
-      // the gold key's row, all of the note's height
-      for (const d of draws) expect([d.sy, d.sh, d.dy, d.dh]).toEqual([2 * 256 + 23, 210, 0, h]);
-      expect(draws[0].dx).toBe(0);
-      expect(draws[4].dx + draws[4].dw).toBe(w);
-      for (let i = 1; i < 5; i++) expect(draws[i].dx).toBe(draws[i - 1].dx + draws[i - 1].dw);
-      for (const d of draws) expect(Number.isInteger(d.dx) && Number.isInteger(d.dw)).toBe(true);
-      // the caps alike; on the screen (NOTE_STRETCH flatter) as the picture draws them, in a wide enough lane
-      expect(Math.abs(draws[0].dw - draws[4].dw)).toBeLessThanOrEqual(1);
-      if (w >= 384) expect(draws[0].dw).toBeCloseTo((156 * h) / 210 / NOTE_STRETCH, -0.5);
-    }
-    // the side lane's own note is the grille plate, its slots repeated
-    const { g, draws } = recorder();
-    paint(g, 400, 96, 'side');
-    expect(draws.every((d) => d.sy === 240 && d.sh === 265)).toBe(true);
-    expect(draws.length).toBeGreaterThan(3);
-    expect(draws[draws.length - 1].dx + draws[draws.length - 1].dw).toBe(400);
-  });
-
-  it('draws the rail and its held light from art, as long on the screen as in the picture', () => {
-    const long = longPaintOf('chamfer', loaded(mecha));
-    expect(long.held).toBeDefined();
-    expect(long.px).toBe(128);
-    expect(long.tile).toBeCloseTo(2 * NOTE_STRETCH, 9);
-    expect(long.endDepth).toBeCloseTo((48 / 128) * NOTE_STRETCH, 9);
-    const { g, draws } = recorder();
-    long.held!.body(g, 128, 435);
-    expect(draws[0]).toMatchObject({ sx: 128, sy: 0, sw: 128, sh: 256, dw: 128, dh: 435 });
-  });
-
-  it('lays the bar over the keys with its end blocks whole and its grille stretched', () => {
-    const { g, draws } = recorder();
-    sideTapPaintOf('chamfer', loaded(mecha), 0.3)(g, 512, 90);
-    expect(draws).toHaveLength(3);
-    expect(draws[0].dw).toBe(draws[2].dw);
-    expect(draws[2].dx + draws[2].dw).toBe(512);
+  it('spans every note 0.9 of its lane: none reaches the lane’s edges', () => {
+    expect(NOTE_WIDTH).toBe(0.9);
   });
 });
-
-/** CLUB, CRYSTAL and NEON: their note family and hit (PIANO's notes are gone, its hit is the hits' above). */
-const SETS = [
-  { set: 'club', id: 'club', note: 'round', hit: 'club', end: 78, bar: 211 },
-  { set: 'crystal', id: 'crystal', note: 'star4', hit: 'crystal', end: 70, bar: 206 },
-  { set: 'neon', id: 'neon', note: 'star5', hit: 'neon', end: 59, bar: 248 },
-] as const;
-type SetCase = (typeof SETS)[number];
-/** The set's parts as the gear tab picks them, on the standard gear. */
-// on the default gear, whose one picture is its panel (the rest of it is drawn in code)
-const setStyle = (c: SetCase) => withParts(BASE_SKIN, { note: c.note, side: 'bar', deck: 'standard', hit: c.hit }).style;
-const STANDARD: string[] = ['standard/panel'];
 
 /** A deck as the renderer paints it: the whole track's width (8 track units of 73.65 px), a scratch and seven keys. */
 function deckSpec(room: number, stretch = 1.3): DeckSpec {
@@ -253,116 +219,6 @@ describe('the hits drawn from art', () => {
       expect(manifest.textures[hitHold!].flipbook).toMatchObject({ fps: 24, loop: true });
     }
     expect(isArtHit('none')).toBe(false);
-  });
-});
-
-describe.each(SETS)('the $set set drawn from art', (c) => {
-  const style = setStyle(c);
-  const images = loaded(style);
-
-  it('loads its pictures, and its hit as flipbooks', () => {
-    expect(styleImageIds(style)).toEqual([`${c.id}/notes`, `${c.id}/long`, `${c.id}/side`, ...STANDARD]);
-    expect(styleImageIds({ ...style, side: 'dots' })).not.toContain(`${c.id}/side`);
-    expect(styleTextures(style)).toEqual({ hitBurst: `${c.id}/hitBurst`, hitHold: `${c.id}/hitHold` });
-    expect(isArtHit(c.hit)).toBe(true);
-    expect(artPartsOf(style, images)).toEqual(['notes', 'long', 'side', 'gear']);
-  });
-
-  it('has every picture and flipbook in the media, at the size its layout is drawn from', () => {
-    const sizes: Record<string, [number, number]> = {
-      [`${c.id}/notes`]: [1024, 1024],
-      [`${c.id}/long`]: [512, 256],
-      [`${c.id}/side`]: [1024, 512],
-    };
-    for (const [id, size] of Object.entries(sizes)) expect(manifest.textures[id]?.size, id).toEqual(size);
-    for (const id of [`${c.id}/hitBurst`, `${c.id}/hitHold`]) {
-      expect(manifest.textures[id].flipbook, id).toMatchObject({ cols: 4, rows: 4, frames: 16 });
-      expect(manifest.textures[id].anchorY, id).toBe(0.5);
-      expect(manifest.textures[id].span, id).toBeGreaterThan(1);
-    }
-    expect(manifest.textures[`${c.id}/hitHold`].flipbook?.loop).toBe(true);
-  });
-
-  it('keeps every part in code while its pictures are missing', () => {
-    expect(notePaintOf(c.note, {})).toBe(NOTE_PAINT[c.note]);
-    // the code's long note, its ends cut in the code tap's outline
-    const code = LONG_PAINT[LONG_OF[c.note]];
-    const long = longPaintOf(c.note, {});
-    expect([long.body, long.width, long.tile]).toEqual([code.body, code.width, code.tile]);
-    expect(long.end).not.toBe(code.end);
-    expect(noteShapeOf(c.note, {})).toBeUndefined();
-    // (the default gear's panel is missing too: no part is drawn from a picture)
-    expect(artPartsOf(style, {})).toEqual([]);
-  });
-
-  it('draws each key’s note from its own picture, filling the note, and a side lane’s as the side plate', () => {
-    const paint = notePaintOf(c.note, images);
-    const marks = ['white', 'blue', 'gold', 'scratch'] as const;
-    marks.forEach((mark, i) => {
-      const { g, draws } = recorder();
-      paint(g, 120, 96, mark);
-      const d = draws[0];
-      // all of the note, from the mark's cell: the record and the five-pointed star 500 wide, the
-      // four-pointed star narrower than it is deep, in the middle of its cell
-      expect([d.dx, d.dw, d.dy, d.dh]).toEqual([0, 120, 0, 96]);
-      const cell = { club: [6, 6, 500, 500], neon: [6, 12, 500, 488], crystal: [38, 6, 435, 500] }[c.set]!;
-      expect([d.sx, d.sy, d.sw, d.sh]).toEqual([(i % 2) * 512 + cell[0], Math.floor(i / 2) * 512 + cell[1], cell[2], cell[3]]);
-    });
-    const { g, draws } = recorder();
-    paint(g, 60, 40, 'side');
-    expect(draws).toHaveLength(3);
-    for (const d of draws) expect(d.sy).toBe(256);
-    expect(draws[2].dx + draws[2].dw).toBe(60);
-    expect(draws[0].dy).toBeCloseTo((40 - draws[0].dh) / 2, 9);
-  });
-
-  it('keeps the record round and the stars as drawn at the judge line', () => {
-    const shape = noteShapeOf(c.note, images);
-    expect(shape).toBe({ club: 1, crystal: 500 / 435, neon: 488 / 500 }[c.set]);
-    const depth = noteDepthOf(c.note, 0.7, 0.9, 1.7, shape);
-    expect(depth).toBeCloseTo(0.9 * shape! * 1.7, 9);
-  });
-
-  if (c.set === 'crystal')
-    it('draws the four-pointed star over the whole note and nothing under it (no band across the lane to read as a bar note)', () => {
-      const { g, draws, fills } = recorder();
-      notePaintOf(c.note, images)(g, 120, 200, 'white');
-      expect([draws[0].dx, draws[0].dy, draws[0].dw, draws[0].dh]).toEqual([0, 0, 120, 200]);
-      expect(fills).toHaveLength(0);
-      // it reaches the lane's edges; every other note leaves a gap between lanes
-      expect(noteWidthOf('star4')).toBeGreaterThan(0.95);
-      for (const note of ['flat', 'chamfer', 'round', 'star5'] as const) expect(noteWidthOf(note)).toBe(0.9);
-    });
-
-  it('draws its long note’s body from art, lit while held, and cuts its ends in the tap’s outline: the tap as drawn beyond its widest row, the body running into it', () => {
-    const long = longPaintOf(c.note, images);
-    expect(long.held).toBeDefined();
-    expect(long.px).toBe(128);
-    expect(long.width).toBe(LONG_PAINT[LONG_OF[c.note]].width);
-    // as wide as the tap, half as deep as it looks at the judge line
-    const endWidth = noteWidthOf(c.note) / long.width;
-    expect(long.endWidth).toBeCloseTo(endWidth, 9);
-    // as deep as the tap's part beyond its widest row: its middle, the five-pointed star's arms
-    const widest = c.note === 'star5' ? 0.36 : 0.5;
-    expect(long.endDepth).toBeCloseTo(widest * NOTE_STRETCH * noteShapeOf(c.note, images)! * endWidth, 9);
-    const { g, draws } = recorder();
-    long.end(g, 128, 100);
-    // the tap's picture its widest row on the end's inner edge (its outer part shows), then the body's (the long picture's body, not its end)
-    expect([draws[0].dx, draws[0].dy, draws[0].dw]).toEqual([0, 0, 128]);
-    expect(draws[0].dh).toBeCloseTo(100 / widest, 9);
-    expect(draws.slice(1).every((d) => d.sx === 0 && d.sh === 256)).toBe(true);
-    const held = recorder();
-    long.held!.end(held.g, 128, 100);
-    expect(held.draws.slice(1).every((d) => d.sx === 128)).toBe(true);
-  });
-
-  it('lays its bar over the keys with its ends whole and its middle stretched', () => {
-    const { g, draws } = recorder();
-    sideTapPaintOf(c.note, images, 0.3)(g, 512, 90);
-    expect(draws).toHaveLength(3);
-    for (const d of draws) expect([d.sy, d.sh]).toEqual([0, c.bar]);
-    expect(draws[0].dw).toBe(draws[2].dw);
-    expect(draws[2].dx + draws[2].dw).toBe(512);
   });
 });
 
@@ -602,28 +458,100 @@ describe.each(GEAR_STYLES.filter((gear) => !['prism', 'sky', 'fire', 'gpt', 'gem
   });
 });
 
-describe('the AI companies’ long notes', () => {
-  it('are the coin’s, drawn from the record’s pictures as the coin’s are, which their skins load for it', () => {
-    const club = { 'club/notes': { id: 'club/notes', width: 1024, height: 1024 }, 'club/long': { id: 'club/long', width: 512, height: 256 } } as never;
-    for (const note of ['gpt', 'gemini', 'grok', 'claude'] as const) {
+describe('the AI companies’ long notes: the coin’s (the record and its capsule)', () => {
+  const coin = { 'club/notes': image('club/notes'), 'club/long': image('club/long') };
+
+  it('load the record and the capsule with their skins, beside the mark’s material and the gear’s panel', () => {
+    expect(manifest.textures['club/notes']).toMatchObject({ file: 'styles/club/notes.png', size: [1024, 1024] });
+    expect(manifest.textures['club/long']).toMatchObject({ file: 'styles/club/long.png', size: [512, 256] });
+    for (const note of LOGO_NOTES) {
       const style = withParts(BASE_SKIN, { note, side: 'bar', deck: note, hit: note }).style;
-      expect(styleImageIds(style), note).toEqual(expect.arrayContaining(['club/notes', 'club/long']));
-      expect(styleImageIds(style), note).not.toContain('club/side');
-      const [mine, coin] = [longPaintOf(note, club), longPaintOf('round', club)];
-      expect([mine.width, mine.tile, mine.endDepth, mine.endWidth, mine.px], note).toEqual([coin.width, coin.tile, coin.endDepth, coin.endWidth, coin.px]);
-      // without the pictures, the coin's long note in code
-      expect(longPaintOf(note, {}).body, note).toBe(longPaintOf('round', {}).body);
+      expect(styleImageIds(style), note).toEqual(['club/notes', 'club/long', `notes/${note}`, `${note}/panel`]);
+      expect(styleImageIds({ ...style, side: 'dots' }), note).toEqual(styleImageIds(style));
+      // the long note counts as drawn from art by the capsule's picture, the notes by the mark's material
+      expect(artPartsOf(style, loaded(style)), note).toEqual(['notes', 'long', 'gear']);
+      expect(artPartsOf(style, { 'club/long': image('club/long') }), note).toEqual(['long']);
+      expect(artPartsOf(style, { 'club/notes': image('club/notes') }), note).toEqual([]);
+    }
+  });
+
+  it('draw the body from the capsule’s picture, lit while held, and cut the ends in the record’s outline: the record as drawn beyond its widest row, the body running into it', () => {
+    for (const note of LOGO_NOTES) {
+      const long = longPaintOf(note, coin);
+      expect(long.held, note).toBeDefined();
+      expect(long.px, note).toBe(128);
+      expect(long.width, note).toBe(LONG_PAINT.capsule.width);
+      // as long on the screen as in the picture
+      expect(long.tile, note).toBeCloseTo(2 * NOTE_STRETCH, 9);
+      // an end as wide as the tap, and as deep as half the record looks at the judge line (it is round there)
+      expect(long.endWidth, note).toBeCloseTo(NOTE_WIDTH / long.width, 9);
+      expect(long.endDepth, note).toBeCloseTo(0.5 * NOTE_STRETCH * long.endWidth!, 9);
+      const body = recorder();
+      long.body(body.g, 128, 435);
+      long.held!.body(body.g, 128, 435);
+      expect(body.draws.map((d) => [d.id, d.sx, d.sy, d.sw, d.sh, d.dw, d.dh]), note).toEqual([
+        ['club/long', 0, 0, 128, 256, 128, 435],
+        ['club/long', 128, 0, 128, 256, 128, 435],
+      ]);
+      const { g, draws } = recorder();
+      long.end(g, 128, 100);
+      // the record's picture (a key's: its first cell, all of it) with its widest row on the end's inner edge (its
+      // outer half shows), then the body's (the capsule's body, not its end) run into it
+      expect(draws[0], note).toMatchObject({ id: 'club/notes', sx: 6, sy: 6, sw: 500, sh: 500, dx: 0, dy: 0, dw: 128 });
+      expect(draws[0].dh, note).toBeCloseTo(100 / 0.5, 9);
+      expect(draws.length, note).toBeGreaterThan(1);
+      expect(draws.slice(1).every((d) => d.id === 'club/long' && d.sx === 0 && d.sh === 256), note).toBe(true);
+      const held = recorder();
+      long.held!.end(held.g, 128, 100);
+      expect(held.draws[0], note).toMatchObject({ id: 'club/notes', sx: 6, sy: 6 });
+      expect(held.draws.slice(1).every((d) => d.id === 'club/long' && d.sx === 128), note).toBe(true);
+    }
+    // the same long note for each of the four
+    const [first, ...rest] = LOGO_NOTES.map((note) => longPaintOf(note, coin));
+    for (const other of rest) expect([other.width, other.tile, other.endDepth, other.endWidth, other.px]).toEqual([first.width, first.tile, first.endDepth, first.endWidth, first.px]);
+  });
+
+  it('play the coin’s long note in code while its pictures are missing: the capsule, its ends cut in the coin’s outline', () => {
+    const code = LONG_PAINT.capsule;
+    for (const note of LOGO_NOTES) {
+      expect(LONG_OF[note], note).toBe('capsule');
+      const long = longPaintOf(note, {});
+      expect([long.body, long.width, long.tile], note).toEqual([code.body, code.width, code.tile]);
+      // its ends are the coin's outer half, not the capsule's own round end; nothing of them is a picture
+      expect(long.end, note).not.toBe(code.end);
+      expect(long.held!.body, note).toBe(code.body);
+      expect([long.endWidth, long.endDepth], note).toEqual([NOTE_WIDTH / code.width, 0.5 * NOTE_STRETCH * (NOTE_WIDTH / code.width)]);
+      const none = recorder();
+      long.end(none.g, 128, 100);
+      long.held!.end(none.g, 128, 100);
+      expect(none.draws, note).toEqual([]);
+      // the record alone loaded: the ends are cut in its picture, the capsule still in code
+      const record = longPaintOf(note, { 'club/notes': image('club/notes') });
+      expect(record.body, note).toBe(code.body);
+      const ends = recorder();
+      record.end(ends.g, 128, 100);
+      expect(ends.draws.map((d) => d.id), note).toEqual(['club/notes']);
+      // the capsule alone loaded: its body a picture, its ends the coin drawn in code with that body run into it
+      const capsule = longPaintOf(note, { 'club/long': image('club/long') });
+      expect(capsule.px, note).toBe(128);
+      const run = recorder();
+      capsule.end(run.g, 128, 100);
+      expect(run.draws.length, note).toBeGreaterThan(0);
+      expect(run.draws.every((d) => d.id === 'club/long' && d.sx === 0), note).toBe(true);
     }
   });
 });
 
 describe('the long notes drawn in code, drawn again with the image model', () => {
 
-  it('are in the media as the sets’ long notes are (512 × 256), for code long notes only', () => {
+  it('are in the media as the coin’s capsule is (512 × 256), one for every long note but the capsule', () => {
+    expect(Object.keys(ART_LONGS).sort()).toEqual(LONG_STYLES.filter((long) => long !== 'capsule').sort());
     for (const long of Object.keys(ART_LONGS) as (keyof typeof ART_LONGS)[]) {
       expect(manifest.textures[`longs/${long}`]?.size, long).toEqual([512, 256]);
-      expect(['rail', 'capsule', 'ray'], long).not.toContain(long);
+      expect(manifest.textures[`longs/${long}`]?.file, long).toBe(`longs/${long}.png`);
     }
+    // no picture in the media for a long note that is not in the list
+    expect(Object.keys(manifest.textures).filter((id) => id.startsWith('longs/')).sort()).toEqual(Object.keys(ART_LONGS).map((long) => `longs/${long}`).sort());
   });
 
   it('draw a long note from its picture where it loaded, from code where it did not (so taking one out of the list brings its code drawing back)', () => {
@@ -642,16 +570,54 @@ describe('the long notes drawn in code, drawn again with the image model', () =>
         [256, ART_LONGS[long]!.end],
         [384, ART_LONGS[long]!.end],
       ]);
+      // its body a tile of the picture, the held one beside it, drawn as long as the renderer asks
+      const body = recorder();
+      art.body(body.g, 128, 435);
+      art.held!.body(body.g, 128, 435);
+      expect(body.draws.map((d) => [d.sx, d.sy, d.sw, d.sh, d.dw, d.dh]), long).toEqual([
+        [0, 0, 128, 256, 128, 435],
+        [128, 0, 128, 256, 128, 435],
+      ]);
       expect(styleImageIds(withParts(BASE_SKIN, { note, side: 'bar', deck: 'standard', hit: 'flash' }).style)).toContain(`longs/${long}`);
     }
   });
 });
 
 describe('the bars drawn in code, drawn again with the image model with their long notes', () => {
-  it('are in the media (a row a tap: the keys’ and the scratch’s), only for bars drawn in code', () => {
+  it('are in the media (a row a tap: the keys’ and the scratch’s), one for every bar and none for a company’s mark', () => {
+    expect([...ART_NOTES]).toEqual(NOTE_STYLES.filter(isBarNote));
     for (const note of ART_NOTES) {
       expect(manifest.textures[`notes/${note}`]?.size, note).toEqual([1024, 512]);
-      expect(['chamfer', 'round', 'star4', 'star5', 'gpt', 'gemini', 'grok', 'claude'], note).not.toContain(note);
+      expect(manifest.textures[`notes/${note}`]?.file, note).toBe(`notes/${note}.png`);
+      expect(LOGO_NOTES as readonly string[], note).not.toContain(note);
+    }
+    // no picture in the media for a note that is neither a bar nor a mark's material
+    expect(Object.keys(manifest.textures).filter((id) => id.startsWith('notes/')).sort()).toEqual([...ART_NOTES, ...ART_MATERIALS].map((note) => `notes/${note}`).sort());
+  });
+
+  it('cut a bar’s picture into its end caps, its middle and what lies between, meeting at whole px across the note', () => {
+    const paint = notePaintOf('flat', { 'notes/flat': image('notes/flat') });
+    for (const [w, h] of [
+      [384, 96],
+      [180, 96],
+      [512, 96],
+    ]) {
+      const { g, draws } = recorder();
+      paint(g, w, h, 'gold');
+      expect(draws).toHaveLength(5);
+      // a key's row (the first), all of the note's height
+      for (const d of draws) expect([d.id, d.sy, d.sh, d.dy, d.dh]).toEqual(['notes/flat', 16, 224, 0, h]);
+      // the picture's columns in order, none left out
+      expect(draws.map((d) => [d.sx, d.sx + d.sw])).toEqual([[0, 212], [212, 332], [332, 692], [692, 812], [812, 1024]]);
+      expect(draws[0].dx).toBe(0);
+      expect(draws[4].dx + draws[4].dw).toBe(w);
+      for (let i = 1; i < 5; i++) expect(draws[i].dx).toBe(draws[i - 1].dx + draws[i - 1].dw);
+      for (const d of draws) expect(Number.isInteger(d.dx) && Number.isInteger(d.dw)).toBe(true);
+      // the caps alike; on the screen (NOTE_STRETCH flatter) as the picture draws them, in a wide enough lane
+      expect(Math.abs(draws[0].dw - draws[4].dw)).toBeLessThanOrEqual(1);
+      if (w >= 384) expect(draws[0].dw).toBeCloseTo((212 * h) / 224 / NOTE_STRETCH, -0.5);
+      // a narrow lane: its caps narrower, so what lies between them keeps some length
+      else expect(draws[0].dw).toBeLessThan((212 * h) / 224 / NOTE_STRETCH - 2);
     }
   });
 

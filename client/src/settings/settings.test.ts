@@ -96,9 +96,9 @@ describe('settings', () => {
   });
 
   it('drops the track skin, the user skin and the colour palette earlier versions saved: the track has one look and one set of colours', () => {
-    const old = sanitizeSettings({ skin: 'neon', customSkin: { label: '내 스킨' }, palette: 'colorblind', parts: { note: 'round' } } as never);
+    const old = sanitizeSettings({ skin: 'neon', customSkin: { label: '내 스킨' }, palette: 'colorblind', parts: { note: 'prism' } } as never);
     for (const gone of ['skin', 'customSkin', 'palette']) expect(old).not.toHaveProperty(gone);
-    expect(old.parts.note).toBe('round');
+    expect(old.parts.note).toBe('prism');
     expect(skinOf(old).colors).toBe(BASE_SKIN.colors);
     expect(laneColorsOf(old, '4K')).toEqual(laneColorsFor(BASE_SKIN, keyModes['4K']));
   });
@@ -121,9 +121,9 @@ describe('settings', () => {
 
   it('keeps the parts picked and draws the track with them', () => {
     expect(DEFAULT_SETTINGS.parts).toEqual({ note: 'flat', side: 'bar', deck: 'standard', hit: 'flash' });
-    const s = sanitizeSettings({ parts: { note: 'star5', side: 'dots', deck: 'piano', hit: 'nope' as never, side2: 1 } as never });
-    expect(s.parts).toEqual({ note: 'star5', side: 'dots', deck: 'piano', hit: 'flash' });
-    expect(skinOf(s).style).toMatchObject({ note: 'star5', side: 'dots', deck: 'piano', hit: 'flash' });
+    const s = sanitizeSettings({ parts: { note: 'gpt', side: 'dots', deck: 'piano', hit: 'nope' as never, side2: 1 } as never });
+    expect(s.parts).toEqual({ note: 'gpt', side: 'dots', deck: 'piano', hit: 'flash' });
+    expect(skinOf(s).style).toMatchObject({ note: 'gpt', side: 'dots', deck: 'piano', hit: 'flash' });
     // the track keeps its colours
     expect(skinOf(s).colors).toBe(BASE_SKIN.colors);
     // the piano note taken out: the default notes, the piano hit kept
@@ -144,29 +144,58 @@ describe('settings', () => {
     try {
       for (const gone of ['cabinet', 'receiver', 'najeon', 'keyboard', 'racing', 'orbital', 'rawglass']) {
         // as the version that had the gear saved it: picked part by part with notes and a hit of other sets, the lettering the gear's
-        saveSettings({ ...DEFAULT_SETTINGS, hiSpeed: 2.5, lastKeyMode: '7K+1S', hudType: 'gear', parts: { note: 'round', side: 'dots', deck: gone, hit: 'club' } as never });
-        expect(JSON.parse([...items.values()][0]).parts, gone).toEqual({ note: 'round', side: 'dots', deck: gone, hit: 'club' });
+        saveSettings({ ...DEFAULT_SETTINGS, hiSpeed: 2.5, lastKeyMode: '7K+1S', hudType: 'gear', parts: { note: 'steel', side: 'dots', deck: gone, hit: 'club' } as never });
+        expect(JSON.parse([...items.values()][0]).parts, gone).toEqual({ note: 'steel', side: 'dots', deck: gone, hit: 'club' });
         const s = loadSettings();
         // the gear alone is the default one: the notes, the side notes and the hit as picked
-        expect(s.parts, gone).toEqual({ note: 'round', side: 'dots', deck: 'standard', hit: 'club' });
-        expect(skinOf(s).style, gone).toEqual({ note: 'round', side: 'dots', deck: DEFAULT_SETTINGS.parts.deck, hit: 'club' });
+        expect(s.parts, gone).toEqual({ note: 'steel', side: 'dots', deck: 'standard', hit: 'club' });
+        expect(skinOf(s).style, gone).toEqual({ note: 'steel', side: 'dots', deck: DEFAULT_SETTINGS.parts.deck, hit: 'club' });
         expect([s.hiSpeed, s.lastKeyMode, s.hudType], gone).toEqual([2.5, '7K+1S', 'gear']);
         // saved again, it is the default gear that is kept
         saveSettings(s);
         expect(JSON.parse([...items.values()][0]).parts.deck, gone).toBe('standard');
-        // the gear picked with nothing else changed: the default skin
+        // the gear picked with nothing else changed: the parts a player starts with
         expect(sanitizeSettings({ parts: { deck: gone } as never }).parts, gone).toEqual(DEFAULT_SETTINGS.parts);
       }
       expect(items.size).toBe(1);
       // the piano, the old gear that stays, opens as saved
-      saveSettings({ ...DEFAULT_SETTINGS, parts: { note: 'round', side: 'dots', deck: 'piano', hit: 'club' } });
-      expect(loadSettings().parts).toEqual({ note: 'round', side: 'dots', deck: 'piano', hit: 'club' });
+      saveSettings({ ...DEFAULT_SETTINGS, parts: { note: 'steel', side: 'dots', deck: 'piano', hit: 'club' } });
+      expect(loadSettings().parts).toEqual({ note: 'steel', side: 'dots', deck: 'piano', hit: 'club' });
     } finally {
       vi.unstubAllGlobals();
     }
   });
 
-  it('starts a player whose saved settings have a skin that was taken out (rainbow, magenta) on the default skin, the rest of the settings as saved', () => {
+  it('starts a player whose saved settings have a note that was taken out (the ten with no gear of their own: the bars in other finishes, the plate, the coin and the stars) on the default note, the rest of the settings as saved', () => {
+    // the browser's storage, as a map
+    const items = new Map<string, string>();
+    vi.stubGlobal('localStorage', { getItem: (k: string) => items.get(k) ?? null, setItem: (k: string, v: string) => void items.set(k, v) });
+    try {
+      for (const gone of ['chrome', 'hairline', 'glass', 'enamel', 'pearl', 'carbon', 'chamfer', 'round', 'star4', 'star5']) {
+        // as the version that had the note saved it: picked on the piano with the dots and a set's hit, colours of the player's own
+        saveSettings({ ...DEFAULT_SETTINGS, hiSpeed: 2.5, lastKeyMode: '7K+1S', hudType: 'skin', noteColors: 'aurora', parts: { note: gone, side: 'dots', deck: 'piano', hit: 'club' } as never });
+        expect(JSON.parse([...items.values()][0]).parts, gone).toEqual({ note: gone, side: 'dots', deck: 'piano', hit: 'club' });
+        const s = loadSettings();
+        // the note alone is the default one (the plain bar): the side notes, the gear and the hit as picked
+        expect(s.parts, gone).toEqual({ note: 'flat', side: 'dots', deck: 'piano', hit: 'club' });
+        expect(skinOf(s).style, gone).toEqual({ note: DEFAULT_SETTINGS.parts.note, side: 'dots', deck: 'piano', hit: 'club' });
+        expect([s.hiSpeed, s.lastKeyMode, s.hudType, s.noteColors], gone).toEqual([2.5, '7K+1S', 'skin', 'aurora']);
+        // saved again, it is the default note that is kept
+        saveSettings(s);
+        expect(JSON.parse([...items.values()][0]).parts.note, gone).toBe('flat');
+        // the note picked with nothing else changed: the parts a player starts with
+        expect(sanitizeSettings({ parts: { note: gone } as never }).parts, gone).toEqual(DEFAULT_SETTINGS.parts);
+      }
+      expect(items.size).toBe(1);
+      // a note that stays opens as saved, with a hit of a set whose notes are gone
+      saveSettings({ ...DEFAULT_SETTINGS, parts: { note: 'claude', side: 'dots', deck: 'piano', hit: 'neon' } });
+      expect(loadSettings().parts).toEqual({ note: 'claude', side: 'dots', deck: 'piano', hit: 'neon' });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('starts a player whose saved settings have a skin that was taken out (rainbow, magenta) on the default notes, gear and hit, the rest of the settings as saved', () => {
     // the browser's storage, as a map
     const items = new Map<string, string>();
     vi.stubGlobal('localStorage', { getItem: (k: string) => items.get(k) ?? null, setItem: (k: string, v: string) => void items.set(k, v) });
@@ -176,12 +205,12 @@ describe('settings', () => {
         saveSettings({ ...DEFAULT_SETTINGS, hiSpeed: 2.5, lastKeyMode: '7K+1S', hudType: 'gear', parts: { note: gone, side: 'dots', deck: gone, hit: gone } as never });
         expect(JSON.parse([...items.values()][0]).parts, gone).toEqual({ note: gone, side: 'dots', deck: gone, hit: gone });
         const s = loadSettings();
-        // each part the default one (the side notes are none of a skin's parts: as picked)
+        // each of its three parts the default one (the side notes were none of a skin's parts: as picked)
         expect(s.parts, gone).toEqual({ ...DEFAULT_SETTINGS.parts, side: 'dots' });
         expect(skinOf(s).style, gone).toEqual({ note: 'flat', side: 'dots', deck: 'standard', hit: 'flash' });
         expect([s.hiSpeed, s.lastKeyMode, s.hudType], gone).toEqual([2.5, '7K+1S', 'gear']);
         // one of its parts picked among others: that part alone is the default one
-        expect(sanitizeSettings({ parts: { note: 'star4', side: 'bar', deck: gone, hit: 'grid' } as never }).parts, gone).toEqual({ note: 'star4', side: 'bar', deck: 'standard', hit: 'grid' });
+        expect(sanitizeSettings({ parts: { note: 'gemini', side: 'bar', deck: gone, hit: 'grid' } as never }).parts, gone).toEqual({ note: 'gemini', side: 'bar', deck: 'standard', hit: 'grid' });
       }
       expect(items.size).toBe(1);
     } finally {

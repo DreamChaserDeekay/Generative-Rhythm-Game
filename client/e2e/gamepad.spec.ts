@@ -150,6 +150,8 @@ test('입력 확인 under a key mode lights its lanes, names any button, counts 
   await page.goto('/');
   await page.getByTestId('open-settings').click();
   await page.getByTestId('settings-tab-pad').click();
+  // (the key modes are tabs: the mode's controls and its input check are under its own)
+  await page.getByTestId('pad-mode-7K+1S').click();
   const open = page.getByTestId('pad-test-7K+1S');
   await open.click();
   await expect(open).toHaveText('입력 확인 닫기');
