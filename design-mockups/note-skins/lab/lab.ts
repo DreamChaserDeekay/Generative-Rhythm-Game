@@ -13,7 +13,7 @@ import type { HitStyle, NoteStyle } from '../../../client/src/render/tintArt';
 interface LabNote { lane: number; t: number; endT?: number; state?: 'idle' | 'held' | 'missed' }
 interface LabJob {
   note: NoteStyle; deck: GearStyle; hit: HitStyle; mode: KeyModeId; camera: string; width: number; height: number;
-  notes: LabNote[]; timeMs: number; visibleMs?: number; sideNotes?: 'lanes' | 'half'; fit?: number; laneWidth?: number;
+  notes: LabNote[]; timeMs: number; visibleMs?: number; sideNotes?: 'lanes' | 'half'; side?: 'bar' | 'dots'; fit?: number; laneWidth?: number;
 }
 
 const TIMING: ChartTiming = { offsetMs: 0, tempoMap: [{ beat: 0, bpm: 150 }], meter: [{ measure: 0, beatsPerMeasure: 4 }] };
@@ -28,7 +28,7 @@ let current: TrackRenderer | null = null;
   const box = document.getElementById('box')!;
   box.style.width = `${job.width}px`;
   box.style.height = `${job.height}px`;
-  const skin = withParts(BASE_SKIN, { note: job.note, deck: job.deck, hit: job.hit, side: 'bar' });
+  const skin = withParts(BASE_SKIN, { note: job.note, deck: job.deck, hit: job.hit, side: job.side ?? 'bar' });
   const art = await loadSkinArt(skin).catch(() => null);
   const r = new TrackRenderer(el, {
     mode: keyModes[job.mode],
@@ -41,7 +41,7 @@ let current: TrackRenderer | null = null;
     art,
     barLines: true,
     hitEffectSize: 'off',
-    sideNotes: job.sideNotes ?? 'lanes',
+    sideNotes: job.sideNotes ?? 'half',
     ...(job.fit ? { fitWidth: job.fit } : {}),
   });
   current = r;
@@ -136,3 +136,55 @@ function asWhite(src: HTMLCanvasElement): HTMLCanvasElement {
   return canvas.toDataURL('image/png');
 };
 void LONG_OF;
+
+// ---------- the side notes' references (scripts/assets/make_side_notes.py) ----------
+import { SIDE_PICTURES, sideTap } from '../../../client/src/render/tintArt';
+
+/**
+ * The side notes as the code draws them, for a light grey lane, on black, as they look on the screen (their pictures
+ * are drawn to the track's proportions, which the camera shows about 1.6 times shorter along): 'bar' its tap laid over
+ * half the keys (top) and a stretch of its long note closed by its end bands (under it); 'dots' an LED panel's dots,
+ * a row lit (top) and a row dim (under it), large.
+ */
+(window as unknown as { labSideRef: (side: 'bar' | 'dots') => string }).labSideRef = (side) => {
+  const S = 1024;
+  const canvas = document.createElement('canvas');
+  [canvas.width, canvas.height] = [S, S];
+  const g = canvas.getContext('2d')!;
+  g.fillStyle = '#000';
+  g.fillRect(0, 0, S, S);
+  const piece = (w: number, h: number, p: (c: CanvasRenderingContext2D, w: number, h: number) => void) => {
+    const c = document.createElement('canvas');
+    [c.width, c.height] = [w, h];
+    p(c.getContext('2d')!, w, h);
+    return asWhite(c);
+  };
+  if (side === 'bar') {
+    const W = 900;
+    // the tap: 1.06 track units deep for 3.84 across (4K+FX's half), its bands 0.18 of a unit
+    const tapH = Math.round((W * 1.06) / 3.84);
+    g.drawImage(piece(W, tapH, sideTap(0.18 / 1.06)), 62, 120, W, Math.round(tapH / 1.6));
+    const endH = Math.round((W * 0.16) / 3.84);
+    const top = 420;
+    const bodyH = 380;
+    g.drawImage(piece(W, endH, SIDE_PICTURES.end), 62, top, W, Math.round(endH / 1.6));
+    g.drawImage(piece(W, 8, SIDE_PICTURES.body), 62, top + Math.round(endH / 1.6), W, bodyH);
+    g.drawImage(piece(W, endH, SIDE_PICTURES.end), 62, top + Math.round(endH / 1.6) + bodyH, W, Math.round(endH / 1.6));
+  } else {
+    const r = 46;
+    const dot = (x: number, y: number, fill: string) => {
+      const c = piece(2 * r + 8, 2 * r + 8, (cg) => {
+        cg.fillStyle = fill;
+        cg.beginPath();
+        cg.arc(r + 4, r + 4, r, 0, Math.PI * 2);
+        cg.fill();
+      });
+      g.drawImage(c, x - r - 4, y - r - 4);
+    };
+    for (let i = 0; i < 6; i++) {
+      dot(152 + i * 144, 340, 'rgba(255,115,0,1)');
+      dot(152 + i * 144, 680, 'rgba(255,0,0,0.42)');
+    }
+  }
+  return canvas.toDataURL('image/png');
+};

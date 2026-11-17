@@ -47,7 +47,7 @@ async function readoutsInPlace(page: Page): Promise<void> {
 }
 
 /**
- * The widest run of FXL's colour (the default palette's purple) along a row of the play's track
+ * The widest run of FXL's colour (the default palette's hot pink) along a row of the play's track
  * above the judge line, and its middle, as shares of the screen's width: a side note in a lane of
  * its own is a narrow one at the track's edge; laid over the keys, a bar across their left half.
  */
@@ -68,7 +68,7 @@ async function sideBar(page: Page): Promise<{ width: number; middle: number }> {
       for (let x = 0; x < width; x++) {
         const i = (y * width + x) * 4;
         const [r, gr, b] = [px[i], px[i + 1], px[i + 2]];
-        run = b > 120 && b - r > 25 && r - gr > 15 ? run + 1 : 0;
+        run = r > 150 && r - gr > 70 && b - gr > 30 ? run + 1 : 0;
         if (run / width > widest.width) Object.assign(widest, { width: run / width, middle: (x - run / 2) / width });
       }
     }

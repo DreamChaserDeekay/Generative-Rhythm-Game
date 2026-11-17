@@ -991,6 +991,22 @@
         869
       ]
     },
+    "side/bar": {
+      "file": "side/bar.png",
+      "bundle": "notes",
+      "size": [
+        1024,
+        512
+      ]
+    },
+    "side/dots": {
+      "file": "side/dots.png",
+      "bundle": "notes",
+      "size": [
+        256,
+        128
+      ]
+    },
     "sky/feather": {
       "file": "gears/sky/feather.png",
       "bundle": "gear",

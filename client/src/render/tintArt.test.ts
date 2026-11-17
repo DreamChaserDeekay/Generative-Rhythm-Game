@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { coinNote, emblemBox, isBarNote, isLogoNote, laneDepthOf, LOGO_NOTES, LONG_OF, LONG_PAINT, LONG_STYLES, NOTE_PAINT, NOTE_STYLES, noteDepthOf, noteEmblemOf, noteThicknessOf, shapedEnd } from './tintArt';
+import { coinNote, emblemBox, isBarNote, isLogoNote, laneDepthOf, LOGO_NOTES, LONG_OF, LONG_PAINT, LONG_STYLES, NOTE_PAINT, NOTE_STYLES, noteDepthOf, noteEmblemOf, noteThicknessOf, shapedEnd, sideDotsBody, sideDotsEnd } from './tintArt';
 
 describe('the notes’ depth along the track', () => {
   const bar = 0.7;
@@ -260,5 +260,33 @@ describe('the notes told apart by their build', () => {
     )(g, 100, 36);
     expect(ops.length).toBeGreaterThan(0);
     expect(new Set(ops)).toEqual(new Set(['source-atop']));
+  });
+});
+
+describe('the LED side notes drawn from a picture', () => {
+  it('lay the same rows of dots as the code’s, each the lit or dim LED’s picture (lit on the bright rows), round on the screen', () => {
+    const draws: number[][] = [];
+    const fills: number[] = [];
+    const g = new Proxy({} as Record<string | symbol, unknown>, {
+      get: (_, k) => (k === 'drawImage' ? (...a: number[]) => draws.push(a.slice(1)) : k === 'fill' ? () => fills.push(1) : () => undefined),
+      set: () => true,
+    }) as unknown as CanvasRenderingContext2D;
+    const led = { image: {} as CanvasImageSource, size: 128, lens: 0.75 };
+    sideDotsEnd(10, led)(g, 500, 40);
+    expect(draws).toHaveLength(10);
+    // the lit one (sx 0), each picture 1.7 times deeper than wide
+    for (const [sx, , , , , , dw, dh] of draws) {
+      expect(sx).toBe(0);
+      expect(dh / dw).toBeCloseTo(1.7, 6);
+    }
+    draws.length = 0;
+    sideDotsBody(10, led)(g, 500, 500);
+    expect(draws.length % 10).toBe(0);
+    for (const [sx] of draws) expect(sx).toBe(128);
+    // without the picture, the code's dots
+    draws.length = 0;
+    sideDotsEnd(10)(g, 500, 40);
+    expect(draws).toHaveLength(0);
+    expect(fills.length).toBeGreaterThan(0);
   });
 });
