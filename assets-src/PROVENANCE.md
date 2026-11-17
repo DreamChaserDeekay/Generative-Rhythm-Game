@@ -1774,11 +1774,40 @@
 사용자 피드백("사각별은 가로 길이를 레인에 맞추고, 세로 뾰족한 부분을 늘리는 방향으로 가시성을 키워줘")으로 크리스털 세트의 `notes.png`를 같은 원본(`assets-src/styles/crystal/notes.jpg`)에서 다시 만들었습니다(새로 생성한 그림은 없음). 길게 깎은 보석 넷(건반마다)을 각각 화면 비율의 네 갈래 별로 폈습니다(`build_styles.py`의 `gem_star`): 보석의 열마다 가운데에 가까울수록 더 깊게 늘려, 팔은 보석 깊이의 2.6배, 가운데 열은 칸 전체 깊이까지(늘림이 반폭 u에 대해 (1 − u/0.2)^3으로 줄어듦), 3차 보간에 알파 가중으로 거른 뒤 435 × 500 칸에 담아 2 × 2 칸(512)으로 배치합니다(원형·별 5각과 같은 배치, 예전의 1024 × 256 줄 배치는 없앰). 가로 꼭짓점은 칸의 양 끝, 세로 꼭짓점은 칸의 위아래 끝에 닿습니다.
 
 
-## 피아노 기어 (`gears/piano`, 2026-11-06)
+## 피아노 기어 (`gears/piano`, 2026-11-06; 받침 그림은 2026-11-17에 8K 줄에 맞춰 다시 그림)
 
-사용자가 고른 시안(아래 "시안": 건반 위에 'GENERATIVE RHYTHM' 이름판이 있던 그림)에서 이름판을 뺀 여덟째 기어입니다. 받침의 코드 그림(`deckArt.ts`의 `pianoPlate`: 래커 턱과 황동 상감선, 레인마다 흰 건반, 옥타브의 검은 건반, 스크래치 레인의 치크 블록과 메달)을 얹은 실제 화면을 기준 이미지로, 다른 기어의 받침 그림과 같은 방법(위 "받침 그림")으로 받침 자리만 다시 칠했습니다. 생성 모델 · 저장 형식 · 눕히기도 위와 같습니다(`gemini-nano-banana-2.1`, 16:9 · 2K → 2752×1536 PNG, JPEG 품질 95, 색 정보 줄이지 않음; `build_gears.py`가 `deck.json`대로 2048×541 판으로 폄). 래커 · 상아 · 테두리는 코드로 칠하고, 판정 · 콤보 · 점수판 글꼴은 OFL 글꼴 Bodoni Moda입니다(`client/src/assets/fonts/README.md`).
+사용자가 고른 시안(아래 "시안": 건반 위에 'GENERATIVE RHYTHM' 이름판이 있던 그림)에서 이름판을 뺀 여덟째 기어입니다. 받침의 코드 그림(`deckArt.ts`의 `pianoPlate`: 래커 턱과 황동 상감선, 레인마다 흰 건반, 옥타브의 검은 건반, 스크래치 레인의 치크 블록과 메달)을 얹은 실제 화면을 기준 이미지로, 다른 기어의 받침 그림과 같은 방법(위 "받침 그림")으로 받침 자리만 다시 칠했습니다. 생성 모델 · 저장 형식 · 눕히기도 위와 같습니다(`gemini-nano-banana-2.1`, 16:9 · 2K → 2752×1536 PNG, JPEG 품질 95, 색 정보 줄이지 않음; `build_gears.py`가 `deck.json`대로 2048×541 판으로 폄). 래커 · 상아 · 테두리는 코드로 칠하고, 판정 · 콤보 · 점수판 글꼴은 OFL 글꼴 Bodoni Moda입니다(`client/src/assets/fonts/README.md`). 2026-11-17에 받침 그림을 8K 줄에 맞춰 다시 그렸고(바로 아래: 2048×827), 스크래치 레인의 치크 블록에 서던 메달은 없앴습니다.
 
-### `gears/piano/deck.jpg`
+### `gears/piano/deck.jpg` (2026-11-17, 8K 줄: 지금 게임에 든 그림)
+
+사용자의 요청("피아노 기어 받침은 8K용으로 다시 그려줘")으로 다시 그렸습니다. 2026-11-17에 7K+1S 모드와 스크래치 레인을 없애면서, 그 줄(스크래치 레인의 치크 블록 + 흰 건반 일곱)에 맞춰 그린 아래의 그림은 맞는 키 모드가 없어 깔리지 않았습니다.
+
+- 용도: 피아노의 받침 전체 → `gears/piano/deck.webp` 2048×827(60,296바이트, WebP 품질 90). 게임은 이 그림을 8K 줄(흰 건반 여덟이 왼쪽 벽에서 오른쪽 벽까지)의 원근 카메라에서만 깔고, 다른 키 모드 · 사이드 레인이 제자리를 갖는 줄 · 평면 카메라에서는 코드로 레인 수만큼 건반을 그립니다(`deckFromPicture`, `PICTURE_ROWS`).
+- 크기 · 기준 이미지: 16:9 · 2K · 피아노 기어(코드 받침)를 얹은 실제 화면(8K, SDVX, 1920×1080, 타격 효과 없음, HUD 숨김)의 아래쪽(x 320–1600, y 360–1080 → 1280×720) 한 장. 예전 그림은 보내지 않았습니다(아래 "쓰지 않은 시도").
+- 만든 곳: Google Cloud Vertex AI의 Gemini 이미지 생성(`gemini-nano-banana-2.1`) · 사용자의 Google Cloud 프로젝트 · 2K 한 장 약 $0.06(받은 안내의 단가로 어림한 값: 응답이 알려 주는 것은 토큰 수뿐이며 이 생성은 4,511토큰)
+- 날짜: 2026-11-17 08:18 UTC(`piano8k-b1`)
+- 생성 결과(PNG, 2752×1536): 4,419,512바이트 · sha256 앞 16자리 `979a3c4c28dd6e18` · 저장한 JPEG(품질 95, 색 정보 줄이지 않음): 793,897바이트
+- 높은음자리표 메달: 넣지 않았습니다. 메달은 스크래치 레인의 치크 블록에 서 있던 것인데, 8K는 흰 건반 여덟이 받침의 폭을 다 채워 치크 블록이 없습니다(프롬프트에도 메달 · 치크 블록이 없다고 적음).
+- 맞추기: 받침 평면이 화면의 어디에 놓이는지는 게임에서 쟀습니다. 점 격자(16 × 17개)를 받침 그림으로 깔아 같은 화면(8K · SDVX · 1920×1080)을 찍고, 화면에서 찾은 점 224개로 그림 px → 화면 px 변환을 구했습니다(오차 평균 0.06px, 최대 0.12px). 생성은 기준 이미지의 틀을 그대로 지켜(기준 이미지의 2.15배, 왼쪽 위 모서리 기준) 따로 맞출 것이 없었고, 흰 건반의 틈이 레인 경계보다 0.9px(생성 px) 왼쪽에 있어 그만큼만 옮겼습니다. 생성이 기준 이미지보다 조금 넓은 비율(2752×1536)이라 화면 맨 아래 5.6px(화면 px)은 생성에 없고, 그림은 생성이 온전히 보여 주는 827줄까지입니다(그 아래는 게임이 그림의 마지막 줄로 이음).
+- 펴기: `assets-src/gears/piano/deck.json`의 `h`(받침 평면 px → 생성 px) · `top` 35.8 · `room` 237.924 · `inset` 0대로 `scripts/assets/build_gears.py`의 `deck_flat`이 폅니다. 다른 받침 그림은 벽 발치를 피해 양옆 1.5px(평면)을 안쪽에서 읽지만(`inset` 기본값), 피아노는 건반의 틈이 레인 경계에 놓여야 해서 벽까지 그대로 폅니다.
+- 잰 것(펴진 2048×827 그림에서): 흰 건반 사이의 틈 일곱이 256px마다의 레인 경계에서 0.8px 안(대부분 0.4px 안) · 황동 상감선 6–20줄 · 흰 건반은 26줄부터 · 검은 건반의 가까운 끝 463줄(`deckArt.ts`의 `PIANO_PICTURE_KEYS`, 상감선 불빛의 자리 `gearLights.ts`의 `pianoLights`).
+- 프롬프트:
+
+  > Image 1 is the lower part of a frame of this rhythm game's play screen. Keep its framing exactly: the same camera, the same zoom, the same crop, every line where it is (the lanes, the red judge line, the side walls, the deck's edges); do not zoom in, crop, widen or recompose. Repaint ONLY the gear's deck: the area under the red judge line and its narrow dark gap, between the inner edges of the two side walls, down to the bottom edge of the image. Keep every other pixel exactly as it is: the lanes, the notes, the red judge line, the side walls, the dark background.
+  >
+  > The framing stays exactly as image 1 has it: the red judge line crosses the image at 58% of its height and stays exactly there, the lanes above it keep their length and every note stays where it is, and the deck fills only the band from just under the judge line to the image's bottom edge (about the bottom two fifths of the image). The keyboard is seen from exactly as far as image 1 shows it: each white key exactly as wide as the lane above it, the dark gap between two white keys exactly under the line between two lanes, every key as large as image 1 draws it. Do not move the camera closer, do not enlarge the keyboard, do not show the keys' front ends.
+  >
+  > The deck is the keyboard end of a concert grand piano in high-gloss polished ebony lacquer, lying flat like a console between the walls and seen exactly from this camera: the same perspective and the same vanishing lines as the track, the camera looking down at it from above and behind at about 50 degrees, its left and right edges running along the walls' inner edges. Keep every part where image 1 has it and give each one its real depth:
+  > - its top edge, right under the judge line's gap, is a narrow bevelled lip of polished black lacquer catching the light, with a thin brass inlay line along its foot; the keys start right under it. There is no fallboard and no name board: nothing between the lip and the keys;
+  > - the keyboard: eight white keys, one under each of the eight lanes, filling the deck's whole width from the left wall to the right wall: real piano keys of warm ivory with a satin finish, separated by fine dark gaps, running toward the viewer exactly as image 1 draws them, cut by the image's bottom edge. There is no block, no panel and no ornament at either side of the keys: the first white key starts at the left wall and the eighth ends at the right wall;
+  > - the five black keys between the white keys in an octave's pattern, exactly where image 1 has them: counted from the left, between the 1st and 2nd white keys, the 2nd and 3rd, the 4th and 5th, the 5th and 6th, and the 6th and 7th; none between the 3rd and 4th and none between the 7th and 8th. Raised glossy ebony keys with tapered sides and a sloped front end catching the light, as long as image 1 draws them, clearly standing above the white keys and throwing soft shadows on them.
+  >
+  > Each raised part throws a soft shadow down and to the right; one soft key light from the top-left; crisp edges and fine material detail, the finish of a commercial console game. No medallion, no emblem, no text, letters, numbers or logos anywhere. Nothing over the lanes.
+
+- 쓰지 않은 시도: `piano8k-a1`(같은 시각, 약 $0.06, 7,042토큰, PNG 4,407,887바이트 · sha256 앞 16자리 `e454be83f7a4f7fe`). 위 프롬프트에 예전 받침 그림의 건반 부분(메달이 없는 오른쪽, 1640×458)을 둘째 그림으로 붙이고 "재질 · 마감 · 빛만 가져오고 틀 · 크기 · 건반 수는 첫째 그림의 것"이라는 문단을 더한 것인데, 판정선을 위로 올리고 건반을 크게(흰 건반 아홉 남짓, 검은 건반 여섯) 그려 화면의 틀을 다시 잡았습니다(맞출 수 없음). 그래서 쓴 그림은 예전 그림을 보지 않고 같은 글로만 그린 것입니다: 광택 래커 턱 · 황동 상감선 · 상아색 흰 건반 · 앞이 비스듬한 광택 검은 건반이라는 구성은 같고, 흰 건반에 예전 그림에 없던 옅은 세로 결(상아의 결)이 있으며 래커 턱이 예전보다 얇습니다.
+- 비용: 쓴 1장 약 $0.06, 쓰지 않은 시도 1장 약 $0.06, 합해 약 $0.12
+
+### `gears/piano/deck.jpg` (2026-11-06, 7K+1S 줄: 2026-11-17에 위 그림으로 바꿈)
 
 - 용도: 피아노의 받침 전체 → `gears/piano/deck.webp` 2048×541(40,282바이트). 건반이 레인을 따르므로 게임은 이 그림을 7K+1S 줄(스크래치 + 흰 건반 일곱)에서만 깔고, 다른 키 모드와 반쪽 덮기에서는 코드로 레인 수만큼 건반을 그립니다(`deckFromPicture`).
 - 크기 · 기준 이미지: 16:9 · 2K · 피아노 기어(코드 받침)를 얹은 실제 화면(7K+1S, SDVX, 1920×1080, 타격 효과 없음)의 아래쪽(x 320–1600, y 360–1080 → 1280×720)
@@ -1799,7 +1828,9 @@
   >
   > Each raised part throws a soft shadow down and to the right; one soft key light from the top-left; crisp edges and fine material detail, the finish of a commercial console game. No text, letters, numbers or logos anywhere. Nothing over the lanes.
 
-### `gears/piano/medallion.png` (생성하지 않음)
+### `gears/piano/medallion.png` (생성하지 않음; 2026-11-17에 없앰)
+
+스크래치 레인의 치크 블록에 서던 메달이라 그 레인과 함께 없앴습니다(그림 파일 · 매니페스트 항목 · `build_gears.py`의 `cut_flat` · 코드 그림과 불빛). 아래는 그때의 기록입니다.
 
 - 용도: 코드로 그리는 받침(평면 카메라, 7K+1S가 아닌 줄은 메달이 없음)의 스크래치 레인 치크 블록에 세우는 높은음자리표 황동 메달 → 256×265(112,981바이트)
 - 만든 곳: `build_gears.py`가 펴진 피아노 받침에서 메달의 상자(x 72–296, y 109–387, 받침 그림 px)를 잘라 받침 그림의 트랙 방향 늘임(1.2)만큼 세로를 줄이고, 상자에 맞는 타원으로 오림(`cut_flat`)

@@ -898,7 +898,7 @@
       "bundle": "gear",
       "size": [
         2048,
-        541
+        827
       ]
     },
     "piano/hitBurst": {
@@ -935,14 +935,6 @@
       },
       "anchorY": 0.5,
       "span": 1.375
-    },
-    "piano/medallion": {
-      "file": "gears/piano/medallion.png",
-      "bundle": "gear",
-      "size": [
-        256,
-        265
-      ]
     },
     "prism/hitBurst": {
       "file": "fx/prism_burst.webp",

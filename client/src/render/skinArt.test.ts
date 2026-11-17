@@ -145,7 +145,7 @@ describe('loading the parts’ pictures and the hit’s flipbooks', () => {
   it('loads the pictures and flipbooks of the style’s parts drawn from art, leaving out what is missing or the wrong size', async () => {
     const entry = (file: string, size: [number, number], extra = {}) => parseMediaTexture({ file, bundle: 'notes', size, ...extra })!;
     // a company's mark on the piano with the mecha hit: the coin's record and capsule (its long note), the mark's
-    // material, the gear's two pictures and the hit's two flipbooks
+    // material, the gear's picture and the hit's two flipbooks
     const media: MediaManifest = {
       ...manifest,
       textures: {
@@ -156,7 +156,6 @@ describe('loading the parts’ pictures and the hit’s flipbooks', () => {
         'notes/flat': entry('notes/flat.png', [1024, 512]),
         'longs/solid': entry('longs/solid.png', [512, 256]),
         'piano/deck': entry('gears/piano/deck.webp', [2048, 541]),
-        'piano/medallion': entry('gears/piano/medallion.png', [256, 265]),
         'mecha/hitBurst': entry('styles/mecha/hit_burst.png', [1024, 1024], { flipbook: BOOK, anchorY: 0.7 }),
         'mecha/hitHold': entry('styles/mecha/hit_hold.png', [1024, 1024], { flipbook: { ...BOOK, loop: true } }),
       },
@@ -175,14 +174,14 @@ describe('loading the parts’ pictures and the hit’s flipbooks', () => {
     };
     const skin = { ...BASE_SKIN, style: { ...BASE_SKIN.style, note: 'gpt' as const, side: 'bar' as const, deck: 'piano' as const, hit: 'mecha' as const } };
     const art = await loadSkinArt(skin, sources);
-    expect(asked.sort()).toEqual(['gears/piano/deck.webp', 'gears/piano/medallion.png', 'notes/gpt.png', 'styles/club/long.png', 'styles/club/notes.png']);
-    expect(Object.keys(art?.images ?? {}).sort()).toEqual(['club/notes', 'piano/deck', 'piano/medallion']);
+    expect(asked.sort()).toEqual(['gears/piano/deck.webp', 'notes/gpt.png', 'styles/club/long.png', 'styles/club/notes.png']);
+    expect(Object.keys(art?.images ?? {}).sort()).toEqual(['club/notes', 'piano/deck']);
     expect(Object.keys(art?.slots ?? {}).sort()).toEqual(['hitBurst', 'hitHold']);
     expect(art?.slots.hitBurst?.spec.anchorY).toBe(0.7);
     // the side notes are drawn in code: nothing more is asked for them, as bars or as dots
     asked.length = 0;
     disposeSkinArt(await loadSkinArt({ ...skin, style: { ...skin.style, side: 'dots' as const } }, sources));
-    expect(asked).toHaveLength(5);
+    expect(asked).toHaveLength(4);
     // no pictures without a way to decode them, and nothing for parts the manifest has none of
     expect(Object.keys((await loadSkinArt(skin, { ...sources, image: undefined }))?.images ?? {})).toEqual([]);
     expect(await loadSkinArt(BASE_SKIN, { ...sources, manifest: async () => manifest })).toBeNull();

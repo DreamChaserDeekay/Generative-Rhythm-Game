@@ -103,7 +103,7 @@ const GEAR_PICTURES: Record<GearStyle, Readonly<Partial<Record<GearPart, string>
   astral: { panel: 'astral/panel' },
   // the default skin's gear, as the skins': its key caps light with the lanes and its panel's display houses the HUD's readouts
   standard: { panel: 'standard/panel' },
-  piano: { deck: 'piano/deck', medallion: 'piano/medallion' },
+  piano: { deck: 'piano/deck' },
 };
 
 /** The pictures (manifest ids) a style's parts draw from. */

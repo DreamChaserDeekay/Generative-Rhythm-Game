@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { GEAR_STYLES, paintDeck, PANEL_MARKS, type DeckMark, type DeckSpec } from './deckArt';
 import { beatClock, DECK_PICTURE_PX, GEAR_LIGHTS, type BeatClock } from './gearLights';
 
-/** The deck pictures' rows (2048 across, the SDVX 16:9 room: build_gears.py). */
+/** The rows every deck's lights lie in (deck picture px, 2048 across: the shallowest deck's picture has as many). */
 const PICTURE_ROWS = 541;
 
 /** A 2D context that takes every call and does nothing (a paint's marks are what is read). */
@@ -11,16 +11,12 @@ const nothing = new Proxy({} as Record<string | symbol, unknown>, { get: () => (
 /** A gear's deck as the renderer paints it in code: the track's width, `room` of it on the screen, flattened `stretch` times. */
 function deckSpec(room: number, stretch: number, marks: DeckMark[]): DeckSpec {
   const width = 8 * 73.65;
-  const lane = (width - 68.5) / 7;
   return {
     width,
     room,
     depth: room + 40,
     stretch,
-    lanes: [
-      { left: 0, width: 68.5, kind: 'scratch' },
-      ...Array.from({ length: 7 }, (_, i) => ({ left: 68.5 + i * lane, width: lane, kind: i % 2 ? ('other' as const) : ('white' as const) })),
-    ],
+    lanes: (['white', 'other', 'white', 'other', 'other', 'white', 'other', 'white'] as const).map((kind, i) => ({ left: (i * width) / 8, width: width / 8, kind })),
     sides: [],
     marks,
   };
