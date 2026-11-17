@@ -80,6 +80,22 @@ describe('the trail of the track’s last seconds', () => {
     expect(text.endsWith('-30 something that happened number 89')).toBe(true);
   });
 
+  it('tells a time gone by: the frames up to it, and what happened before it and after it', () => {
+    const trail = new Trail();
+    for (let at = 0; at <= 1000; at += 10) trail.frame(at);
+    trail.note('deck:paint', 400);
+    // then nothing for three seconds, and the frames go on
+    trail.frame(4000);
+    trail.note('recovered', 4002);
+    trail.frame(4010);
+    // as of the last frame before the stall: its frames only, none of them long
+    expect(trail.frames(1000, 1000)).toBe(`n=100 med=10 max=10 last=${Array(40).fill('10').join(',')} ago=0`);
+    // without the limit the stall itself is among the frames (the frame that ended it came 3 s later)
+    expect(trail.frames(1000)).toMatch(/ max=3000 long=3000:3000 /);
+    // what happened: before that time, and after it with a plus
+    expect(trail.told(1000)).toBe('-600 deck:paint; +3002 recovered');
+  });
+
   it('takes notes from outside the renderer for the track that is up', () => {
     setActiveTrail(null);
     expect(() => noteTrail('hud:lamp')).not.toThrow();
