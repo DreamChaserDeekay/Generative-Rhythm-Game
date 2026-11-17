@@ -8,8 +8,8 @@ are kept):
   game lays them out in rows, as many as the key lanes take).
 
 The pictures are light on black for a lane 0.72 grey (the references were drawn so): each is turned back into a tint
-picture of the lane's colour, its alpha how much shows (a value of 0.72 all of it) and its brighter parts lifted
-toward white. Each part is first brought to the reference's brightness (its median over the same part), so what was
+picture of the lane's colour, its alpha how much shows (a value of 0.72 all of it, times the part's GAIN) and its
+hottest cores lifted a little toward white. Each part is first brought to the reference's brightness (its median over the same part), so what was
 see-through in the code stays as see-through: the key notes under a side note must read.
 
     python scripts/assets/build_side_notes.py [bar|dots ...]
@@ -34,10 +34,20 @@ BAR_TAP, BAR_BODY, BAR_END = (0, 176), (192, 128), (336, 64)
 DOT, DOT_R = 128, 48
 
 
-def tint(v: np.ndarray) -> np.ndarray:
-    """Light on black for a lane LANE grey → a tint picture: the colour at alpha v / LANE, lifted toward white above it."""
-    a = np.clip(v / LANE, 0, 1)
-    g = np.clip((v - LANE) / (1 - LANE), 0, 1)
+#: how much more of the lane's colour each part carries than the code's first drawing did (the user's, 2026-11-17: the
+#: side notes were too pale, "기본 노트 색깔들 처럼 눈에 잘 띄는 색"): the tap's see-through middle about 0.8 of the
+#: colour (was 0.55), the long note's body 0.5 (was 0.26), a dim LED 0.75 (was 0.42); the bright parts the colour
+#: itself, only their hottest cores a little toward white
+GAIN = {"tap": 1.45, "body": 1.9, "end": 1.0, "lit": 1.0, "dim": 1.8}
+#: from what value a part is lifted toward white, and at most how far
+HOT, WHITE = 0.88, 0.35
+
+
+def tint(v: np.ndarray, gain: float = 1.0) -> np.ndarray:
+    """Light on black for a lane LANE grey → a tint picture: the colour at alpha gain × v / LANE, its hottest cores
+    lifted a little toward white."""
+    a = np.clip(gain * v / LANE, 0, 1)
+    g = np.clip((v - HOT) / (1 - HOT), 0, 1) * WHITE
     return np.stack([np.where(a > 0, 1.0, 0.0), g, np.zeros_like(v), a], axis=2).astype(np.float32)
 
 
@@ -65,16 +75,16 @@ def build_bar() -> dict:
     atlas = np.zeros((512, 1024, 4), np.float32)
     # the tap, whole
     tap = matched(v[ty, tx], r[rty, rtx])
-    paste(atlas, tint(resize(tap, 1024, BAR_TAP[1])), 0, BAR_TAP[0])
+    paste(atlas, tint(resize(tap, 1024, BAR_TAP[1]), GAIN["tap"]), 0, BAR_TAP[0])
     # the long note: its end band (its top, as deep as the reference's), and a stretch of its body's middle
     long, ref = v[ly, lx], r[rly, rlx]
     band = max(4, int(np.flatnonzero(ref[:, ref.shape[1] // 2] < ref[2, ref.shape[1] // 2] * 0.7)[0] * long.shape[1] / ref.shape[1]))
-    paste(atlas, tint(resize(long[:band], 1024, BAR_END[1])), 0, BAR_END[0])
+    paste(atlas, tint(resize(long[:band], 1024, BAR_END[1]), GAIN["end"]), 0, BAR_END[0])
     h = long.shape[0]
     body = matched(long[int(h * 0.4): int(h * 0.6)], ref[int(ref.shape[0] * 0.4): int(ref.shape[0] * 0.6)])
     # alike all along: each column its mean down the stretch (the body repeats; a sheen across it would step)
     body = np.repeat(body.mean(axis=0, keepdims=True), 8, axis=0)
-    paste(atlas, tint(resize(body, 1024, BAR_BODY[1])), 0, BAR_BODY[0])
+    paste(atlas, tint(resize(body, 1024, BAR_BODY[1]), GAIN["body"]), 0, BAR_BODY[0])
     save_rgba(atlas, MEDIA / "side" / "bar.png")
     return {"side/bar": {"file": "side/bar.png", "bundle": "notes", "size": [1024, 512]}}
 
@@ -95,7 +105,7 @@ def build_dots() -> dict:
         cell = v[cy - half: cy + half, cx - half: cx + half]
         disk = (np.hypot(*np.mgrid[-half:half, -half:half]) < rad * 0.8)
         cell = cell * (float(r[cy - half: cy + half, cx - half: cx + half][disk].mean()) / max(1e-3, float(cell[disk].mean())))
-        paste(atlas, tint(resize(cell, DOT, DOT)), i * DOT, 0)
+        paste(atlas, tint(resize(cell, DOT, DOT), GAIN["lit" if i == 0 else "dim"]), i * DOT, 0)
     save_rgba(atlas, MEDIA / "side" / "dots.png")
     return {"side/dots": {"file": "side/dots.png", "bundle": "notes", "size": [2 * DOT, DOT]}}
 

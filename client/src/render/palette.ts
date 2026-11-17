@@ -6,8 +6,10 @@ export const LANE_COLORS: Record<LaneColor, number> = {
   blue: 0x4fc3ff,
   gold: 0xffc94f,
   scratch: 0xff5c8a,
-  sideL: 0xb07bff,
-  sideR: 0xff8f4f,
+  // the side lanes' colours vivid, as DJMAX's side tracks are (the user's, 2026-11-17: the lavender and the pale
+  // orange were too faint): a hot pink on the left, a deep orange on the right
+  sideL: 0xff2e9a,
+  sideR: 0xff6a12,
 };
 
 /** Hit-effect colour per grade class (matches the grades' CSS variables). */
