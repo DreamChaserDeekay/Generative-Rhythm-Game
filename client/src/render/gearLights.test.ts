@@ -11,16 +11,12 @@ const nothing = new Proxy({} as Record<string | symbol, unknown>, { get: () => (
 /** A gear's deck as the renderer paints it in code: the track's width, `room` of it on the screen, flattened `stretch` times. */
 function deckSpec(room: number, stretch: number, marks: DeckMark[]): DeckSpec {
   const width = 8 * 73.65;
-  const lane = (width - 68.5) / 7;
   return {
     width,
     room,
     depth: room + 40,
     stretch,
-    lanes: [
-      { left: 0, width: 68.5, kind: 'scratch' },
-      ...Array.from({ length: 7 }, (_, i) => ({ left: 68.5 + i * lane, width: lane, kind: i % 2 ? ('other' as const) : ('white' as const) })),
-    ],
+    lanes: (['white', 'other', 'white', 'other', 'other', 'white', 'other', 'white'] as const).map((kind, i) => ({ left: (i * width) / 8, width: width / 8, kind })),
     sides: [],
     marks,
   };

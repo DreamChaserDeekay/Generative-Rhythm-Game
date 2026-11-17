@@ -14,9 +14,7 @@ Three kinds of picture:
   draws it on the cameras near the one it was painted from (deckArt.ts: deckPicture). Where a gear's
   lights shine from inside a part (the standard gear's speaker through its holes), a mask of where
   they may show is made from the laid-flat deck too (glow.png: the dark of the holes, softened, never
-  past the part). The piano's treble clef medallion is cut from its laid-flat deck too, for the deck
-  drawn in code (the plane camera's, and a row of lanes other than the one its picture was painted
-  over);
+  past the part);
 
 - a material, made here from seeded noise (so it comes out the same on every run, and tiles without a
   seam: the noise is filtered in frequency space, which wraps): the standard gear's brushed graphite;
@@ -134,15 +132,6 @@ def object_box(a: np.ndarray) -> tuple[int, int, int, int]:
 def resize(a: np.ndarray, w: int, h: int) -> np.ndarray:
     im = Image.fromarray(np.clip(a * 255 + 0.5, 0, 255).astype(np.uint8))
     return np.asarray(im.resize((w, h), Image.LANCZOS), dtype=np.float32) / 255
-
-
-def ellipse_alpha(w: int, h: int, inset: float = 0.006) -> np.ndarray:
-    """An ellipse filling a `w` × `h` box, antialiased (4×4 samples a px)."""
-    s = 4
-    y, x = np.mgrid[0:h * s, 0:w * s].astype(np.float32)
-    cx, cy = (w * s - 1) / 2, (h * s - 1) / 2
-    inside = (((x - cx) / (cx * (1 - inset))) ** 2 + ((y - cy) / (cy * (1 - inset))) ** 2 <= 1).astype(np.float32)
-    return inside.reshape(h, s, w, s).mean(axis=(1, 3))
 
 
 def disc_alpha(size: int, inset: float = 0.006) -> np.ndarray:
@@ -273,25 +262,6 @@ def despill(rgba: np.ndarray, reach: int = 12) -> np.ndarray:
     return out
 
 
-# How much longer along the track the deck pictures are laid flat than they look (deckArt.ts:
-# DECK_PICTURE_STRETCH, SDVX's on a 16:9 screen).
-DECK_PICTURE_STRETCH = 1.2
-
-# Where the piano's treble clef medallion lies on its laid-flat deck (deck picture px: x0, y0, x1, y1),
-# on the scratch lane's cheek block.
-PIANO_MEDALLION = (72, 109, 296, 387)
-
-
-def cut_flat(deck: np.ndarray, box: tuple[int, int, int, int], width: int) -> np.ndarray:
-    """A round thing lying on a laid-flat deck, as it looks: its box (deck picture px), its rows
-    shortened by the deck pictures' stretch along the track, `width` px across, trimmed to the box's
-    ellipse."""
-    x0, y0, x1, y1 = box
-    h = round(width * (y1 - y0) / (x1 - x0) / DECK_PICTURE_STRETCH)
-    rgb = resize(deck[y0:y1, x0:x1], width, h)
-    return np.concatenate([rgb, ellipse_alpha(width, h)[..., None]], axis=2)
-
-
 # How much plain sky is added over the sky skin's painting (a share of its height, its top row run
 # on): its clouds then stand as far down the deck as the skin's concept has them.
 SKY_PLATE_PAD = 0.02
@@ -326,7 +296,8 @@ def main() -> None:
             report[f"{gear}/glow"] = [m.shape[1], m.shape[0]]
         return a
 
-    decks = {gear: deck(gear) for gear in ("standard", "piano")}
+    for gear in ("standard", "piano"):
+        deck(gear)
 
     def sprite(gear: str, part: str, a: np.ndarray) -> None:
         a = despill(a)
@@ -366,14 +337,6 @@ def main() -> None:
     crests.save(OUT / "fire" / "crests.png", optimize=True)
     entry(textures, "fire", "crests", "crests.png", crests.size)
     report["fire/crests"] = list(crests.size)
-
-    # PIANO: lacquer and ivory drawn in code; its treble clef medallion, cut from its laid-flat deck (its brass is its own colour: no ground to take out)
-    piano = decks["piano"]
-    if piano is not None:
-        a = cut_flat(piano, PIANO_MEDALLION, 256)
-        save_rgba(a, OUT / "piano" / "medallion.png")
-        entry(textures, "piano", "medallion", "medallion.png", (a.shape[1], a.shape[0]))
-        report["piano/medallion"] = [a.shape[1], a.shape[0]]
 
     print(json.dumps(report, indent=1))
     path = MEDIA / "manifest.json"

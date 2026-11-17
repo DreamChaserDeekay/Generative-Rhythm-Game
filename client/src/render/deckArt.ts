@@ -12,10 +12,9 @@ import deckPanels from './deckPanels.json';
  *   glass jog dial, the game's name over a cyan light strip and a speaker grille;
  * - PIANO (피아노): the keyboard end of a concert grand in polished ebony lacquer, the one gear with a
  *   key per lane: an ivory white key under each key lane from just under the lacquer lip with its
- *   brass inlay, the black keys of an octave between them, and a cheek block with a brass treble
- *   clef medallion under the scratch lane (a plain one under a side lane); a white key goes down
- *   while its lane's key is held; its frame the piano's rim, black lacquer with a brass line along
- *   the lanes.
+ *   brass inlay, the black keys of an octave between them, and a plain cheek block under a side
+ *   lane of its own; a white key goes down while its lane's key is held; its frame the piano's
+ *   rim, black lacquer with a brass line along the lanes.
  * - PRISM (크리스털): the crystal skin's gear, as wide as the track and no wider: a row of frosted
  *   crystal key caps, one to a lane, cut as emeralds are (the held one lit ice blue: deckKeys), over a
  *   deck of broad flat facets in white, pale ice blue and pale lavender; set in it three long hexagons
@@ -71,8 +70,8 @@ import deckPanels from './deckPanels.json';
 export type GearStyle = 'prism' | 'sky' | 'fire' | 'gpt' | 'gemini' | 'grok' | 'claude' | 'aqua' | 'steel' | 'noir' | 'wire' | 'astral' | 'standard' | 'piano';
 /** The gears a player picks: the skins' first (기본, 크리스털, 하늘, 파이어스타터, the four AI companies'), then the piano. */
 export const GEAR_STYLES: GearStyle[] = ['standard', 'prism', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', 'aqua', 'steel', 'noir', 'wire', 'astral', 'piano'];
-/** What a lane over the deck is: the scratch, a white key or another key. */
-export type KeyKind = 'white' | 'other' | 'scratch';
+/** What a lane over the deck is: a white key or another key (the scratch lane went with 7K+1S). */
+export type KeyKind = 'white' | 'other';
 
 export interface DeckLane {
   /** Left edge and width in plane px from the deck's left edge. */
@@ -178,7 +177,7 @@ export type Picture = CanvasImageSource & { readonly width: number; readonly hei
  * A gear's pictures by part (render/styleArt.ts loads them): the materials of its plate and frame,
  * and the things on its deck. A part whose picture is missing is drawn in code.
  */
-export type GearPart = 'deck' | 'panel' | 'plate' | 'frame' | 'jog' | 'medallion' | 'feather' | 'crests';
+export type GearPart = 'deck' | 'panel' | 'plate' | 'frame' | 'jog' | 'feather' | 'crests';
 export type GearArt = Partial<Record<GearPart, Picture>>;
 
 /**
@@ -198,8 +197,7 @@ export const DECK_GAP = 24;
 
 /**
  * The judge line's colours on a gear: GEAR_JUDGE's red, but the skins' own: STANDARD's (a white core in its cyan), SKY's (in sky blue) and PRISM's, a white line edged in ice blue
- * (its scratch is a ruby: a red line would hide the gem's razor as it lands; white to its edges, it
- * would hide the white keys' notes). Its place and size are
+ * (white to its edges, it would hide the white keys' notes). Its place and size are
  * the same on every gear.
  */
 export function judgeOf(style: GearStyle): { line: string; core: string; glow: string; height: number; blur: number; gap: number } {
@@ -228,28 +226,6 @@ export function judgeOf(style: GearStyle): { line: string; core: string; glow: s
   return GEAR_JUDGE;
 }
 
-/** A box `w` across about (cx, cy), `aspect` as deep as wide on the screen (`st` times longer along the track). */
-function boxAt(cx: number, cy: number, w: number, st: number, aspect = 1): Box {
-  const h = w * aspect * st;
-  return { x: cx - w / 2, y: cy - h / 2, w, h };
-}
-
-function picture(g: CanvasRenderingContext2D, pic: Picture, b: Box): void {
-  g.imageSmoothingQuality = 'high';
-  g.drawImage(pic, b.x, b.y, b.w, b.h);
-}
-
-/**
- * A thing on the deck: its picture in its box, or `code` drawing it there; standing `lift` high
- * (a share of its width; none for a thing set flush in the plate), it throws its shadow on the
- * plate first (`round` or square, see dropShadow).
- */
-function thing(g: CanvasRenderingContext2D, pic: Picture | undefined, b: Box, code: (b: Box) => void, lift = 0, round = true): void {
-  if (lift > 0) dropShadow(g, b, lift, round);
-  if (pic) picture(g, pic, b);
-  else code(b);
-}
-
 /**
  * Where a thing's shadow falls on the canvas, for a thing in box `b` standing `lift` high and the
  * canvas's transform `m` (canvas px to a plane px, as getTransform gives it): down and to the
@@ -265,8 +241,8 @@ export function shadowOf(m: { a: number; b: number; c: number; d: number }, b: B
   return { far, blur: b.w * 0.12 * lift * kx, x: far * m.a + b.w * 0.07 * lift * kx, y: far * m.b + b.h * 0.1 * lift * ky };
 }
 
-/** The soft shadow of a thing in box `b` standing `lift` high, `round` or square (see shadowOf). */
-function dropShadow(g: CanvasRenderingContext2D, b: Box, lift: number, round: boolean): void {
+/** The soft shadow of a thing in box `b` standing `lift` high (see shadowOf). */
+function dropShadow(g: CanvasRenderingContext2D, b: Box, lift: number): void {
   const at = shadowOf(g.getTransform(), b, lift);
   if (!at) return;
   g.save();
@@ -275,21 +251,10 @@ function dropShadow(g: CanvasRenderingContext2D, b: Box, lift: number, round: bo
   g.shadowOffsetX = at.x;
   g.shadowOffsetY = at.y;
   g.beginPath();
-  if (round) g.ellipse(b.x - at.far + b.w / 2, b.y + b.h / 2, b.w / 2, b.h / 2, 0, 0, Math.PI * 2);
-  else g.roundRect(b.x - at.far, b.y, b.w, b.h, [{ x: b.w * 0.12, y: b.h * 0.12 }]);
+  g.roundRect(b.x - at.far, b.y, b.w, b.h, [{ x: b.w * 0.12, y: b.h * 0.12 }]);
   g.fillStyle = '#000';
   g.fill();
   g.restore();
-}
-
-/** A disc lit from the top-left: `stops` from its top-left to its bottom-right, as a flat colour where a gradient will not do. */
-function shadedDisc(g: CanvasRenderingContext2D, b: Box, stops: [number, string][]): void {
-  g.beginPath();
-  g.ellipse(b.x + b.w / 2, b.y + b.h / 2, b.w / 2, b.h / 2, 0, 0, Math.PI * 2);
-  const grad = g.createLinearGradient(b.x, b.y, b.x + b.w, b.y + b.h);
-  for (const [at, c] of stops) grad.addColorStop(at, c);
-  g.fillStyle = grad;
-  g.fill();
 }
 
 const CYAN = '#37e2ff';
@@ -648,11 +613,11 @@ interface PianoKeyboard {
   blacks: { after: number; box: Box }[];
 }
 
-/** PIANO's keyboard as its plate draws it: a white key per key lane (not the scratch's, not a side lane's), an octave's black keys between neighbours. */
+/** PIANO's keyboard as its plate draws it: a white key per key lane (not a side lane's), an octave's black keys between neighbours. */
 function pianoKeyboard(s: DeckSpec): PianoKeyboard {
   const top = PIANO_LIP * s.stretch + 1.2;
   const reach = Math.max(0, s.room - top);
-  const whites = s.lanes.flatMap((l, lane) => (l.kind !== 'scratch' && !l.side ? [{ lane, box: { x: l.left + PIANO_KEY_GAP / 2, y: top, w: l.width - PIANO_KEY_GAP, h: s.depth - top } }] : []));
+  const whites = s.lanes.flatMap((l, lane) => (!l.side ? [{ lane, box: { x: l.left + PIANO_KEY_GAP / 2, y: top, w: l.width - PIANO_KEY_GAP, h: s.depth - top } }] : []));
   const blacks: PianoKeyboard['blacks'] = [];
   let n = 0;
   for (let i = 0; i + 1 < whites.length; i++, n++) {
@@ -672,10 +637,11 @@ function pianoKeyboard(s: DeckSpec): PianoKeyboard {
 
 /**
  * PIANO: polished ebony lacquer under a bevelled lip with a brass inlay; an ivory white key under
- * each key lane, the black keys of an octave standing between them, a cheek block under the scratch
- * lane with the brass treble clef medallion standing on it (a plain cheek block under a side lane).
+ * each key lane, the black keys of an octave standing between them, a plain cheek block under a side
+ * lane of its own. (The brass treble clef medallion stood on the scratch lane's cheek block: gone with
+ * that lane.)
  */
-function pianoPlate(g: CanvasRenderingContext2D, s: DeckSpec, art: GearArt): void {
+function pianoPlate(g: CanvasRenderingContext2D, s: DeckSpec): void {
   const st = s.stretch;
   const lacquer = g.createLinearGradient(0, 0, 0, s.room);
   lacquer.addColorStop(0, '#121113');
@@ -717,7 +683,7 @@ function pianoPlate(g: CanvasRenderingContext2D, s: DeckSpec, art: GearArt): voi
   // the black keys standing on them, throwing their shadows down and to the right
   for (const { box: key } of blacks) {
     const w = key.w;
-    dropShadow(g, key, 0.32, false);
+    dropShadow(g, key, 0.32);
     rounded(g, key, w * 0.08, st);
     const body = g.createLinearGradient(key.x, 0, key.x + key.w, 0);
     body.addColorStop(0, '#2e2c31');
@@ -740,10 +706,10 @@ function pianoPlate(g: CanvasRenderingContext2D, s: DeckSpec, art: GearArt): voi
     g.fillStyle = end;
     g.fillRect(face.x, face.y + face.h, face.w, slope * 0.9);
   }
-  // the cheek blocks, a little proud of the keys, the medallion on the scratch lane's
-  for (const l of s.lanes.filter((k) => k.kind === 'scratch' || k.side)) {
+  // the cheek blocks, a little proud of the keys
+  for (const l of s.lanes.filter((k) => k.side)) {
     const block: Box = { x: l.left, y: top, w: l.width, h: s.depth - top };
-    dropShadow(g, { ...block, h: Math.max(1, reach) }, 0.06, false);
+    dropShadow(g, { ...block, h: Math.max(1, reach) }, 0.06);
     const face = g.createLinearGradient(block.x, block.y, block.x + block.w, block.y + reach);
     face.addColorStop(0, '#1e1d21');
     face.addColorStop(0.55, '#0b0a0c');
@@ -752,28 +718,6 @@ function pianoPlate(g: CanvasRenderingContext2D, s: DeckSpec, art: GearArt): voi
     g.fillRect(block.x, block.y, block.w, block.h);
     g.fillStyle = white(0.1);
     g.fillRect(block.x + block.w - 0.8, block.y, 0.8, block.h);
-    if (l.kind !== 'scratch' || reach < 12 * st) continue;
-    const aspect = art.medallion ? art.medallion.height / art.medallion.width : 1;
-    const size = Math.min(l.width * 0.58, (reach * 0.62) / (st * aspect));
-    const medallion = boxAt(l.left + l.width / 2, top + reach * 0.48, size, st, aspect);
-    thing(
-      g,
-      art.medallion,
-      medallion,
-      (b) => {
-        shadedDisc(g, b, [
-          [0, '#f0d79a'],
-          [0.5, BRASS],
-          [1, '#5e4318'],
-        ]);
-        disc(g, b.x + b.w / 2, b.y + b.h / 2, b.w * 0.36, st);
-        g.lineWidth = 1;
-        g.strokeStyle = black(0.45);
-        g.stroke();
-      },
-      0.14,
-    );
-    mark(s, 'medallion', medallion);
   }
 }
 
@@ -1940,7 +1884,7 @@ const chamfered = (b: Box, cut: number, st: number, inset = 0): [number, number]
 /**
  * AQUA (아쿠아): the console of a clean white machine with aqua and hot-pink accents, as wide as the
  * track and no wider. Under the judge line a row of gloss key caps in a white frame, one to a lane:
- * white, the blue lanes' aqua, the scratch's with a pink line (the held lane's cap fills with aqua
+ * white, the blue lanes' aqua (the held lane's cap fills with aqua
  * light: deckKeys). Under it a white collar and, at the far corners, white shoulders cut at 45°, a
  * pink line along their edges, over a deck of dark teal glass. The score is in a white plate with cut
  * corners round a dark window, five slanting aqua stripes at each side of it, as vents. In the lower
@@ -1986,10 +1930,6 @@ function aquaPlate(g: CanvasRenderingContext2D, s: DeckSpec): void {
     rounded(g, { x: cap.x + cap.w * 0.07, y: cap.y + 1.4 * st, w: cap.w * 0.86, h: cap.h * 0.4 }, 2, st);
     g.fillStyle = white(blue ? 0.3 : 0.6);
     g.fill();
-    if (lane.kind === 'scratch') {
-      g.fillStyle = AQUA_PINK;
-      g.fillRect(cap.x + cap.w * 0.2, cap.y + cap.h - 3.6 * st, cap.w * 0.6, 1.5 * st);
-    }
   }
   // the collar under the row
   g.fillStyle = armour(g, kh - 3 * st, top);
@@ -3302,8 +3242,8 @@ export const DECK_PICTURE_FLATTEST = 2;
  * keys): its picture is laid only on a deck whose lanes are those, any other row drawn in code.
  */
 const PICTURE_ROWS: Partial<Record<GearStyle, (s: Pick<DeckSpec, 'lanes' | 'sides'>) => boolean>> = {
-  // 7K+1S: the scratch lane's cheek block, then seven white keys
-  piano: (s) => s.sides.length === 0 && s.lanes.length === 8 && s.lanes[0].kind === 'scratch' && s.lanes.slice(1).every((l) => l.kind !== 'scratch' && !l.side),
+  // its picture was painted over 7K+1S's row (the scratch lane's cheek block, then seven white keys), a row no key mode has
+  piano: () => false,
 };
 
 /** Whether a gear's deck is laid from its picture: one loaded, a camera near the picture's angle, and a row of lanes it was painted for. */

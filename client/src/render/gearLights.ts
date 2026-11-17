@@ -4,7 +4,7 @@ import { context2d, paintCanvas, type PaintTexture } from './paintCanvas';
 
 /**
  * The gears' lights that move with the music: glows laid over a gear's deck where its parts light (a
- * light strip, the light under a row of keys, an emblem, a brass inlay and its medallion), each lit by
+ * light strip, the light under a row of keys, an emblem, a brass inlay), each lit by
  * a pattern of the bar and the beat (beatClock). The deck is painted once; these are a few quads over
  * it, added to it, whose opacity is set each frame, so they cost next to nothing in the play.
  *
@@ -107,15 +107,15 @@ function standardLights(): GearLightSet {
 }
 
 /**
- * PIANO: a glint running along the brass inlay once a bar, the inlay glowing warm in FEVER, the
- * treble clef medallion catching the light on the bar's first beat; no light on the keys, which lie
- * under the lanes and go down while their lane's key is held instead (deckArt.deckKeys).
+ * PIANO: a glint running along the brass inlay once a bar, the inlay glowing warm in FEVER; no light
+ * on the keys, which lie under the lanes and go down while their lane's key is held instead
+ * (deckArt.deckKeys). (Its treble clef medallion, which caught the light on a bar's first beat, went
+ * with the scratch lane it stood under.)
  */
 function pianoLights(): GearLightSet {
   // the inlay along the deck's top edge (the glint runs between the walls, its quad clear of them)
   const inlay = { y: 12, h: 24 };
   const run = { x0: 75, x1: 2048 - 75 };
-  const medallion = { x: 184, y: 248, w: 224, h: 278 };
   return {
     lights: [
       {
@@ -138,28 +138,6 @@ function pianoLights(): GearLightSet {
         colour: 0xfff0cc,
         level: (c, calm) => (calm ? 0 : 0.85 * Math.sin(Math.PI * frac(c.bar)) ** 2),
         at: (c) => [run.x0 + (run.x1 - run.x0) * frac(c.bar), inlay.y],
-      },
-      {
-        shape: 'glow',
-        x: medallion.x,
-        y: medallion.y,
-        w: medallion.w * 1.3,
-        h: medallion.h * 1.3,
-        colour: 0xffd27a,
-        level: (c, calm) => (calm ? 0.1 + 0.12 * swell(c.beat, 4) : 0.06 + 0.3 * fade(frac(c.beat), 3)),
-        mark: 'medallion',
-        grow: 1.3,
-      },
-      {
-        shape: 'glint',
-        x: medallion.x - medallion.w * 0.18,
-        y: medallion.y - medallion.h * 0.2,
-        w: 120,
-        h: 120,
-        colour: 0xfff4d6,
-        level: (c, calm) => (calm || frac(c.bar) >= 0.25 ? 0 : Math.sin(Math.PI * frac(c.bar) * 4) ** 2),
-        mark: 'medallion',
-        grow: 0.55,
       },
     ],
   };

@@ -153,7 +153,7 @@ describe('the decks of the gears a player picks', () => {
         const s: DeckSpec = { ...spec(room, stretch, mode), lanes: deckLanes(mode, sideNotes), marks: [] };
         const { g, calls } = callRecorder();
         paintDeck('piano', g, s);
-        const keys = s.lanes.filter((l) => l.kind !== 'scratch' && !l.side);
+        const keys = s.lanes.filter((l) => !l.side);
         // a white key filled under each key lane, a little narrower (the gaps between them)
         const rects = calls.filter((c) => c[0] === 'fillRect') as [string, number, number, number, number][];
         for (const l of keys) expect(rects.some(([, x, , w]) => Math.abs(x - l.left - 0.55) < 1e-3 && Math.abs(w - l.width + 1.1) < 1e-3), `${mode} key at ${l.left}`).toBe(true);
