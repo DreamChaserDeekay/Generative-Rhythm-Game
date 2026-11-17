@@ -83,6 +83,24 @@ if (what === 'heads') {
     await shot({ note, deck: 'standard', hit: 'flash', mode: '4K', camera: 'SDVX', width: 1920, height: 1080, notes, timeMs: T, visibleMs: 1000 }, `heads-${note}`, { x: 420, y: 330, width: 1080, height: 480 });
   }
 }
+if (what === 'side') {
+  // the side notes laid over half the keys, both styles, close to the judge line and in play: a tap and a long note
+  // of each side over key notes, idle, held and missed
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  const sideNotes = (lanes) => [
+    { lane: 0, t: T + 120 }, { lane: 1, t: T + 120 }, { lane: 2, t: T + 330 }, { lane: 0, t: T + 520, endT: T + 900 },
+    { lane: lanes - 1, t: T - 300, endT: T + 420, state: 'held' }, { lane: lanes - 2, t: T + 200 }, { lane: lanes - 3, t: T + 60 },
+    { lane: lanes - 1, t: T + 600, endT: T + 1000, state: 'missed' }, { lane: 1, t: T + 700 }, { lane: lanes - 2, t: T + 820 },
+  ];
+  for (const side of (only ?? ['bar', 'dots'])) {
+    for (const [mode, lanes] of [['4K+FX', 6], ['6K+FX', 8]]) {
+      for (const camera of ['SDVX', 'LOW', 'PLANE']) {
+        await shot({ note: 'flat', deck: 'standard', hit: 'flash', side, mode, camera, width: 1920, height: 1080, notes: sideNotes(lanes), timeMs: T, visibleMs: 1100 }, `side-${side}-${mode}-${camera}`);
+      }
+    }
+    await shot({ note: 'flat', deck: 'standard', hit: 'flash', side, mode: '4K+FX', camera: 'SDVX', width: 1920, height: 1080, notes: sideNotes(6), timeMs: T, visibleMs: 1100 }, `sidezoom-${side}`, { x: 480, y: 420, width: 960, height: 420 });
+  }
+}
 if (what === 'play' || what === 'all') {
   const plays = [
     ['default', 'flat', '7K+1S', 'SDVX'], ['fire', 'fire', '7K+1S', 'SDVX'], ['gemini', 'gemini', '6K', 'LOW'], ['claude', 'claude', '4K', 'PLANE'],
