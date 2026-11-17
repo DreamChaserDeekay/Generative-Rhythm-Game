@@ -113,7 +113,7 @@ jobs:
           exe=server/dist/rhythm-server/rhythm-server.exe
           "$exe" mapper status
           ok=0
-          "$exe" mapper setup && "$exe" mapper generate --seconds 20 --mode 7K+1S --difficulty HARD && ok=1
+          "$exe" mapper setup && "$exe" mapper generate --seconds 20 --mode 8K --difficulty HARD && ok=1
           mkdir -p "$RUNNER_TEMP/grg-smoke"
           cp "$GRG_MAPPER_HOME/setup.log" "$GRG_MAPPER_HOME/worker.log" "$RUNNER_TEMP/grg-smoke/" 2>/dev/null || true
           if [ "$ok" != 1 ]; then tail -n 80 "$GRG_MAPPER_HOME/setup.log" "$GRG_MAPPER_HOME/worker.log" 2>/dev/null; exit 1; fi

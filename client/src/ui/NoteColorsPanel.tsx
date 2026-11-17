@@ -23,17 +23,15 @@ import { laneColorsOf, skinOf, type Settings } from '../settings/settings';
 import { Choice, NumberOption, OptionRow } from './optionRows';
 import { useTwoPress } from './twoPress';
 
-/** A lane's short name on its swatch: S for the scratch, L / R for the side lanes, the keys by number. */
+/** A lane's short name on its swatch: L / R for the side lanes, the keys by number. */
 function laneLabel(lanes: LaneConfig[], i: number): string {
   const lane = lanes[i];
-  if (lane.kind === 'scratch') return 'S';
   if (lane.kind === 'side') return lane.color === 'sideL' ? 'L' : 'R';
   return String(lanes.slice(0, i + 1).filter((l) => l.kind === 'key').length);
 }
 
 function laneName(lanes: LaneConfig[], i: number): string {
   const lane = lanes[i];
-  if (lane.kind === 'scratch') return '스크래치';
   if (lane.kind === 'side') return lane.color === 'sideL' ? '왼쪽 사이드' : '오른쪽 사이드';
   return `${laneLabel(lanes, i)}번 레인`;
 }

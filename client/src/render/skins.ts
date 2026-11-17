@@ -125,7 +125,7 @@ export const BASE_SKIN: Skin = {
     bar: over('#ffffff', 0.35, NEAR),
     cover: over('#000000', 0.3, FAR),
     coverEdge: '#37e2ff',
-    lanes: { white: '#eaf6ff', blue: '#4fc3ff', gold: '#ffc94f', scratch: '#ff5c8a' },
+    lanes: { white: '#eaf6ff', blue: '#4fc3ff', gold: '#ffc94f' },
   },
   style: { ...DEFAULT_PARTS },
 };

@@ -50,7 +50,7 @@ function shuffle<T>(items: T[], rand: () => number): T[] {
 }
 
 /**
- * Rearranges key lanes (IIDX/BMS style options). The scratch lane never moves; the two side
+ * Rearranges key lanes (IIDX/BMS style options). The two side
  * lanes swap under MIRROR and swap as a pair at random under the RANDOM family.
  */
 export function applyPlacement(chart: Chart, id: PlacementId, seed: number): PlacementResult {

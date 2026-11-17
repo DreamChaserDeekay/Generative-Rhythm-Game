@@ -10,7 +10,7 @@ export interface EditorViewState {
   snap: number;
   selection: ReadonlySet<number>;
   laneColors: string[];
-  /** Scratch and side lanes: their floor takes a little of their colour. */
+  /** Side lanes: their floor takes a little of their colour. */
   specialLanes: ReadonlySet<number>;
   waveform: { frameMs: number; peaks: number[] } | null;
   durationMs: number;
@@ -80,7 +80,7 @@ export class EditorView {
 
   /**
    * Recompute sizes (call on resize and when the lane setup changes); `laneUnits` are the lanes'
-   * widths in key lanes (the scratch is wider, as in the play).
+   * widths in key lanes (as in the play).
    */
   layout(laneUnits: readonly number[]): EditorLayout {
     this.laneUnits = laneUnits;
@@ -102,7 +102,7 @@ export class EditorView {
       laneX.push(x);
       x += w;
     }
-    // the waveform narrower on a narrow canvas (the window's least width with 7K+1S), so it stays on it
+    // the waveform narrower on a narrow canvas (the window's least width with 8 lanes), so it stays on it
     const waveW = Math.max(0, Math.min(WAVE_W, width - x - WAVE_GAP - 4));
     this.layoutValue = { width, height, laneX, laneW: widths, waveX: x + WAVE_GAP, waveW, cursorY: Math.round(height * CURSOR_AT) };
     return this.layoutValue;
@@ -173,7 +173,7 @@ export class EditorView {
       ctx.fillStyle = i % 2 ? COLORS.laneAlt : COLORS.lane;
       ctx.fillRect(x, 0, laneW[i], height);
       if (s.specialLanes.has(i)) {
-        // the scratch and the side lanes in a little of their colour
+        // the side lanes in a little of their colour
         ctx.globalAlpha = 0.12;
         ctx.fillStyle = s.laneColors[i] ?? COLORS.text;
         ctx.fillRect(x, 0, laneW[i], height);

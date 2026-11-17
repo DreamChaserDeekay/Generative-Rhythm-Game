@@ -4,12 +4,12 @@ import { OFFSET_MAX } from '../settings/settings';
 import { clickChords, keyPairText, offsetStep, syncKeyOf, syncTestKeys } from './visualSync';
 
 describe('the display step of the calibration', () => {
-  it('puts a chord on every key lane at each click, and none on the scratch', () => {
-    const mode = keyModes['7K+1S'];
+  it('puts a chord on every key lane at each click, and none on the side lanes', () => {
+    const mode = keyModes['6K+FX'];
     const notes = clickChords(mode, [1500, 2000]);
-    expect(notes).toHaveLength(14);
-    expect(new Set(notes.map((n) => n.lane))).toEqual(new Set([1, 2, 3, 4, 5, 6, 7]));
-    expect(notes.filter((n) => n.t === 2000)).toHaveLength(7);
+    expect(notes).toHaveLength(12);
+    expect(new Set(notes.map((n) => n.lane))).toEqual(new Set([1, 2, 3, 4, 5, 6]));
+    expect(notes.filter((n) => n.t === 2000)).toHaveLength(6);
     // the renderer reads them by index, in time order
     expect(notes.map((n) => n.index)).toEqual(notes.map((_, i) => i));
     expect(notes.every((n, i) => i === 0 || n.t >= notes[i - 1].t)).toBe(true);
@@ -42,8 +42,8 @@ describe('the sync test keys', () => {
     expect(syncKeyOf(press('ArrowLeft', true), auto)).toBeNull();
   });
 
-  it('leaves Shift to a lane on it (the scratch, the side lanes): the judgement offset goes to [ ], a held Shift lane keeps ←→', () => {
-    for (const mode of ['7K+1S', '6K+FX', '4K+FX'] as const) {
+  it('leaves Shift to a lane on it (the side lanes): the judgement offset goes to [ ], a held Shift lane keeps ←→', () => {
+    for (const mode of ['6K+FX', '4K+FX'] as const) {
       const keys = syncTestKeys(keyModes[mode].bindings.default, true);
       expect(keys.visual).toEqual(['ArrowLeft', 'ArrowRight']);
       expect(keys.judgement).toEqual(['BracketLeft', 'BracketRight']);

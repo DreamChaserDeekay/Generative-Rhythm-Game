@@ -192,7 +192,7 @@ def main(argv: list[str] | None = None) -> None:
     mapper.add_argument("--out", default="mapper-probe", help="probe: .osu를 둘 폴더")
     mapper.add_argument("--pad", type=float, default=10.0, help="probe: 곡 뒤에 붙일 무음(초)")
     mapper.add_argument("--seconds", type=float, default=30.0, help="generate: 합성 곡의 길이(초)")
-    mapper.add_argument("--mode", default="7K+1S")
+    mapper.add_argument("--mode", default="8K")
     mapper.add_argument("--difficulty", default="HARD")
 
     args = parser.parse_args(argv)

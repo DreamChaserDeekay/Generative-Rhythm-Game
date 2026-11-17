@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type ReactNode } from 'react';
-import { api, ApiError, EXPORT_LABELS, type Health, type ImportResult, type SavedChart, type ScoreRecord, type ServerChart, type Song } from '../api/client';
+import { api, ApiError, EXPORT_LABELS, type Health, type ImportResult, type RetiredCharts, type SavedChart, type ScoreRecord, type ServerChart, type Song } from '../api/client';
 import { forgetSongBuffer } from '../audio/bufferCache';
 import { menuMusic, PREVIEW_VOLUME } from '../audio/songPreview';
 import { difficultyTiers as tiers, enabledKeyModes, tierOf, tierUpTo, type DifficultyTier } from '../engine/config';
@@ -184,7 +184,7 @@ export function SongSelectScreen(props: Props) {
   };
   useEffect(() => () => window.clearTimeout(saidTimer.current), []);
   // the edited and imported charts of a song (the one they are of: a list never shows on another song)
-  const [savedCharts, setSavedCharts] = useState<{ songId: string | null; charts: SavedChart[] }>({ songId: null, charts: [] });
+  const [savedCharts, setSavedCharts] = useState<{ songId: string | null; charts: SavedChart[]; retired: RetiredCharts[] }>({ songId: null, charts: [], retired: [] });
   const [importReport, setImportReport] = useState<ImportResult | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const importInput = useRef<HTMLInputElement>(null);
@@ -313,13 +313,13 @@ export function SongSelectScreen(props: Props) {
   // Edited and imported charts of the selected song.
   const loadSaved = useCallback(async (songId: string | null) => {
     if (!songId) {
-      setSavedCharts({ songId, charts: [] });
+      setSavedCharts({ songId, charts: [], retired: [] });
       return;
     }
     try {
-      setSavedCharts({ songId, charts: await api.savedCharts(songId) });
+      setSavedCharts({ songId, ...(await api.savedCharts(songId)) });
     } catch {
-      setSavedCharts({ songId, charts: [] });
+      setSavedCharts({ songId, charts: [], retired: [] });
     }
   }, []);
   useEffect(() => {
@@ -331,6 +331,8 @@ export function SongSelectScreen(props: Props) {
   // is kept with the song (a tier otherwise: the one chosen last anywhere).
   const savedLoaded = selected !== null && savedCharts.songId === selected.id;
   const savedOnMode = savedLoaded ? savedCharts.charts.filter((c) => c.keyMode === keyMode) : [];
+  // its saved charts of a key mode taken out of the game (7K+1S): said on every key mode, as none is theirs
+  const retiredCharts = savedLoaded ? savedCharts.retired : [];
   const pickKey = selected ? chartPickKey(selected.id, keyMode) : null;
   const picked = pickKey ? chartPickOf(settings, pickKey) : null;
   const savedEntry = (picked && savedOnMode.find((c) => c.chartId === picked)) || null;
@@ -1658,6 +1660,11 @@ export function SongSelectScreen(props: Props) {
                         </span>
                       </span>
                     )}
+                    {retiredCharts.map((r) => (
+                      <span key={r.keyMode} className="mark-chip other-best" data-testid="retired-charts" title={`${r.keyMode} 모드는 없어져서 이 곡의 ${r.keyMode} 채보 ${r.count}개는 플레이할 수 없습니다. 파일과 기록은 보관함에 그대로 있습니다.`}>
+                        {r.keyMode} 채보 {r.count}개 · 플레이 불가
+                      </span>
+                    ))}
                     {/* a judgement or score rule that is not the default (the records are kept by it) */}
                     {judgementChip(settings.judgementMode) && (
                       <span className="mark-chip" data-testid="chip-judgement">

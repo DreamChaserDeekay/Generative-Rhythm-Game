@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { tool } from './songSelect';
 
-for (const keyMode of ['4K', '7K+1S']) {
+for (const keyMode of ['4K', '6K+FX', '8K']) {
   test(`sync test autoplay is a PERFECT PLAY (${keyMode})`, async ({ page }) => {
     const errors: string[] = [];
     page.on('pageerror', (e) => errors.push(e.message));

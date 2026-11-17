@@ -23,11 +23,11 @@ function screenWidth(presetId: string, half: number, z: number, aspect = 16 / 9)
 }
 
 describe('track layout', () => {
-  it('splits the track width by lane width ratios (scratch is wider)', () => {
-    const g = computeTrackGeometry(keyModes['7K+1S'], 8, 40);
+  it('splits the track width by lane width ratios (keys alike)', () => {
+    const g = computeTrackGeometry(keyModes['8K'], 8, 40);
     const total = g.lanes.reduce((s, l) => s + l.width, 0);
     expect(total).toBeCloseTo(8, 9);
-    expect(g.lanes[0].width / g.lanes[1].width).toBeCloseTo(1.6, 9);
+    expect(g.lanes[0].width / g.lanes[1].width).toBeCloseTo(1, 9);
     expect(g.lanes[0].x - g.lanes[0].width / 2).toBeCloseTo(-4, 9);
     expect(g.lanes[7].x + g.lanes[7].width / 2).toBeCloseTo(4, 9);
   });
@@ -71,7 +71,7 @@ describe('track layout', () => {
       expect(computeTrackGeometry(keyModes[mode], 8, 40).lanes.some((l) => l.over)).toBe(false);
     }
     // a mode without side lanes is the same either way
-    for (const mode of ['4K', '5K', '6K', '7K+1S', '8K'] as const) {
+    for (const mode of ['4K', '5K', '6K', '8K'] as const) {
       expect(computeTrackGeometry(keyModes[mode], 8, 40, 'half')).toEqual(computeTrackGeometry(keyModes[mode], 8, 40, 'lanes'));
     }
     // FXL (sideL) lies over the left half and FXR (sideR) over the right, whatever their places in the list
@@ -156,7 +156,7 @@ describe('track layout', () => {
   });
 
   it('fits a preview\'s track to its box with either camera: the line 0.84 of the width, or the far end at the top', () => {
-    const geometry = computeTrackGeometry(keyModes['7K+1S'], cameraConfig.trackWidth, cameraConfig.trackLength);
+    const geometry = computeTrackGeometry(keyModes['8K'], cameraConfig.trackWidth, cameraConfig.trackLength);
     const half = geometry.width / 2;
     for (const id of ['PLANE', 'SDVX']) {
       for (const [W, H] of [

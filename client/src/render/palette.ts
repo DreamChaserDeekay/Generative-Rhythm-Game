@@ -5,7 +5,6 @@ export const LANE_COLORS: Record<LaneColor, number> = {
   white: 0xeaf6ff,
   blue: 0x4fc3ff,
   gold: 0xffc94f,
-  scratch: 0xff5c8a,
   sideL: 0xb07bff,
   sideR: 0xff8f4f,
 };

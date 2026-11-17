@@ -76,7 +76,7 @@ export interface Settings {
   hitSound: boolean;
   showErrorMs: boolean;
   bindings: Partial<Record<KeyModeId, string[]>>;
-  /** A second key per lane (null = none), alongside `bindings`: two keys for a scratch, a side lane for either hand. */
+  /** A second key per lane (null = none), alongside `bindings`: a side lane for either hand. */
   secondBindings: Partial<Record<KeyModeId, (string | null)[]>>;
   /** Gamepad / controller control per lane (null = none), alongside the keyboard keys. */
   padBindings: Partial<Record<KeyModeId, (string | null)[]>>;

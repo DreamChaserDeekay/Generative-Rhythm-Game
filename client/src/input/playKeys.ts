@@ -63,7 +63,7 @@ export const PLAY_ACTION_LABELS: Readonly<Record<PlayAction, string>> = {
 /**
  * The keys as they always were (Shift with SPEED and the song offset for the bigger steps), but
  * LIFT: it left Shift for Alt, as Ctrl+PageUp / PageDown switch the browser's tabs. Shift is the
- * scratch of 7K+1S and the FX modes' side lanes, which take the press first: the bigger steps are
+ * FX modes' side lanes, which take the press first: the bigger steps are
  * functions of their own, so such a player can move them off Shift.
  */
 export const DEFAULT_PLAY_KEYS: Readonly<Record<PlayAction, string>> = {
@@ -152,7 +152,7 @@ export function cleanPlayKey(value: unknown): string | null {
 /**
  * The functions a key press works: those bound to it, and on a held key's repeat only the stepping
  * ones. A key pressed with Shift that no function has with Shift works the key's own functions: a
- * held Shift lane (a scratch, a side lane) keeps no key from them.
+ * held Shift lane (a side lane) keeps no key from them.
  */
 export function playActionsOf(
   e: Pick<KeyboardEvent, 'code' | 'ctrlKey' | 'altKey' | 'shiftKey' | 'metaKey' | 'repeat'>,

@@ -174,7 +174,6 @@
   --lane-white: #eaf6ff;
   --lane-blue: #4fc3ff;
   --lane-gold: #ffc94f;
-  --lane-scratch: #ff5c8a;
   --lane-sideL: #b07bff;
   --lane-sideR: #ff8f4f;
   --stem-drums: #8fa3c8;
@@ -185,7 +184,7 @@
   --section-1: var(--lane-blue);
   --section-2: var(--lamp-easy);
   --section-3: var(--lane-gold);
-  --section-4: var(--lane-scratch);
+  --section-4: #ff5c8a;
   --section-5: var(--lane-sideL);
   --section-6: var(--lane-sideR);
   /* FEVER steps keep off the accent and the brand colour */
@@ -5016,7 +5015,6 @@ button.opt:active:not(:disabled) {
 .key-cap.lane-white { --lane: var(--lane-white); }
 .key-cap.lane-blue { --lane: var(--lane-blue); }
 .key-cap.lane-gold { --lane: var(--lane-gold); }
-.key-cap.lane-scratch { --lane: var(--lane-scratch); }
 .key-cap.lane-sideL { --lane: var(--lane-sideL); }
 .key-cap.lane-sideR { --lane: var(--lane-sideR); }
 
@@ -7920,7 +7918,7 @@ button.key-cap.clash:hover:not(:disabled) {
   border-top: 1px solid var(--line);
 }
 
-/* a lane's key in its colour; the scratch and the side lanes named */
+/* a lane's key in its colour; the side lanes named */
 .editor-lane-head {
   position: absolute;
   top: 0;

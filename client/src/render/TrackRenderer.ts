@@ -748,9 +748,9 @@ export function notesEndZ(judgeZ: number, offset: number): number {
   return Math.min(judgeZ, 0) + offset;
 }
 
-/** What a lane over the deck is: the scratch, a white key or another (PIANO's keys and cheek blocks follow them). */
+/** What a lane over the deck is: a white key or another (PIANO's keys and cheek blocks follow them). No key mode has a scratch lane (deckArt's 'scratch' is drawn for none). */
 function keyKind(lane: LaneGeom): KeyKind {
-  return lane.kind === 'scratch' ? 'scratch' : lane.color === 'white' ? 'white' : 'other';
+  return lane.color === 'white' ? 'white' : 'other';
 }
 
 /** Renders the SDVX-style track with Three.js. */

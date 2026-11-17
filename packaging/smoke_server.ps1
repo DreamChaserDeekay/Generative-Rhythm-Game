@@ -41,17 +41,17 @@ try {
   Write-Host "demo song analyzed: backends $($s.analyzer.backends | ConvertTo-Json -Compress)"
   $mapper = $health.mapper.state
   Write-Host "Mapperatorinator: $mapper"
-  $brief = (Invoke-RestMethod -Method Post "$base/api/songs/$($demo.id)/charts" -ContentType 'application/json' -Body '{"keyMode":"7K+1S","difficulty":"HARD","brief":true}').meta
+  $brief = (Invoke-RestMethod -Method Post "$base/api/songs/$($demo.id)/charts" -ContentType 'application/json' -Body '{"keyMode":"8K","difficulty":"HARD","brief":true}').meta
   if (-not $brief.predicted) { throw 'a chart not made yet has no predicted brief' }
   Write-Host "brief: aims at Lv.$($brief.level) ($($brief.generator.stars) stars)"
   if ($mapper -eq 'ready') {
-    $chart = (Invoke-RestMethod -Method Post "$base/api/songs/$($demo.id)/charts" -ContentType 'application/json' -Body '{"keyMode":"7K+1S","difficulty":"HARD"}' -TimeoutSec 1800).chart
+    $chart = (Invoke-RestMethod -Method Post "$base/api/songs/$($demo.id)/charts" -ContentType 'application/json' -Body '{"keyMode":"8K","difficulty":"HARD"}' -TimeoutSec 1800).chart
     Write-Host "chart: $($chart.meta.keyMode) $($chart.meta.difficulty) Lv.$($chart.meta.level) | $($chart.meta.noteCount) notes | timing $($chart.meta.generator.timing) | $($chart.meta.generator.seconds)s"
     $s = (Invoke-RestMethod "$base/api/songs/$($demo.id)").song
     if (-not $s.bpm) { throw 'the song has no BPM after its first chart' }
     Write-Host "the song's BPM from its first chart: $($s.bpm)"
   } else {
-    $refused = curl.exe -s -o (Join-Path $work 'refused.json') -w '%{http_code}' -H 'Content-Type: application/json' -d '{"keyMode":"7K+1S","difficulty":"HARD"}' "$base/api/songs/$($demo.id)/charts"
+    $refused = curl.exe -s -o (Join-Path $work 'refused.json') -w '%{http_code}' -H 'Content-Type: application/json' -d '{"keyMode":"8K","difficulty":"HARD"}' "$base/api/songs/$($demo.id)/charts"
     $detail = (Get-Content (Join-Path $work 'refused.json') -Raw -Encoding utf8 | ConvertFrom-Json).detail
     if ($refused -ne '503' -or -not $detail) { throw "a chart without Mapperatorinator answered $refused, not 503 with its reason" }
     Write-Host "chart refused without Mapperatorinator (503): ok"

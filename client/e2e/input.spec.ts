@@ -86,7 +86,7 @@ test('in play: the judge line’s position (LIFT) on Alt+PageUp/Down, the song o
   const toast = page.getByTestId('hud-toast');
   const menu = page.getByTestId('pause-menu');
 
-  // 판정선 위치 (LIFT) left Shift (a scratch and the FX modes' side lanes): Shift+PageDown is
+  // 판정선 위치 (LIFT) left Shift (the FX modes' side lanes): Shift+PageDown is
   // 노트 등장 위치 (SUDDEN+) now; the line moves by 5 %, the cover by 2.5 %
   await page.keyboard.press('Alt+PageDown');
   await expect(toast).toHaveText('판정선 위치 +5%');
@@ -355,7 +355,7 @@ test('a controller without the standard mapping: no menu keys from its lanes or 
   const errors = trackErrors(page);
   // the turntable's axis rests just under the middle
   const pad = await plugPad(page, '', [0.45, 0, 0, 0]);
-  await startWith(page, { lastKeyMode: '7K+1S', padBindings: { '7K+1S': ['Pad:TT0', 'Pad:B0', 'Pad:B1', 'Pad:B2', 'Pad:B3', 'Pad:B4', 'Pad:B5', 'Pad:B6'] } });
+  await startWith(page, { lastKeyMode: '6K+FX', padBindings: { '6K+FX': ['Pad:TT0', 'Pad:B0', 'Pad:B1', 'Pad:B2', 'Pad:B3', 'Pad:B4', 'Pad:B5', 'Pad:B6'] } });
   await page.goto('/');
   await page.getByTestId('open-settings').click();
   await expect(page.getByTestId('opt-hi-speed')).toBeFocused();
@@ -464,17 +464,13 @@ test('key settings: lanes bound in a run, a second key and its clearing, the rol
   await expect(page.getByTestId('keys-clash-4K')).toContainText('Enter');
   await expect(page.getByTestId('play-key-fever')).toHaveClass(/clash/);
   await expect(page.getByTestId('play-key-clash-fever')).toContainText('4K');
-  await page.getByTestId('keys-mode-7K+1S').click();
-  await expect(page.getByTestId('keys-note-7K+1S')).toContainText('고정 키');
-  // the bigger SPEED and offset steps are on Shift: the 7K+1S scratch on L-Shift and both FX side lanes take them
-  await expect(page.getByTestId('keys-clash-7K+1S')).toContainText('L-Shift 노트 속도 −0.5·노트 속도 +0.5·곡 오프셋 −5ms·곡 오프셋 +5ms');
-  await expect(page.getByTestId('keys-clash-7K+1S')).toContainText('R-Shift');
   await page.getByTestId('keys-mode-6K+FX').click();
-  await expect(page.getByTestId('keys-clash-6K+FX')).toContainText('L-Shift R-Shift 노트 속도 −0.5');
-  await page.getByTestId('keys-mode-7K+1S').click();
+  await expect(page.getByTestId('keys-note-6K+FX')).toContainText('고정 키');
+  // the bigger SPEED and offset steps are on Shift: both FX side lanes (L-Shift, R-Shift) take them
+  await expect(page.getByTestId('keys-clash-6K+FX')).toContainText('L-Shift R-Shift 노트 속도 −0.5·노트 속도 +0.5·곡 오프셋 −5ms·곡 오프셋 +5ms');
   await expect(page.getByTestId('play-key-speedUpBig')).toHaveClass(/clash/);
-  await expect(page.getByTestId('play-key-clash-speedUpBig')).toContainText('7K+1S');
-  // moved off Shift, the scratch takes them no more (a binding may have Shift too)
+  await expect(page.getByTestId('play-key-clash-speedUpBig')).toContainText('6K+FX');
+  // moved off Shift, the side lanes take them no more (a binding may have Shift too)
   await page.getByTestId('play-key-speedUpBig').click();
   await page.keyboard.press('Alt+ArrowUp');
   await expect(page.getByTestId('play-key-speedUpBig')).toHaveText('Alt+↑');
@@ -482,7 +478,7 @@ test('key settings: lanes bound in a run, a second key and its clearing, the rol
   await page.keyboard.press('Control+Shift+ArrowDown');
   await expect(page.getByTestId('play-key-speedDownBig')).toHaveText('Ctrl+Shift+↓');
   await expect(page.getByTestId('play-key-speedUpBig')).not.toHaveClass(/clash/);
-  await expect(page.getByTestId('keys-clash-7K+1S')).toContainText('L-Shift 노트 속도 −0.5·곡 오프셋 −5ms·곡 오프셋 +5ms');
+  await expect(page.getByTestId('keys-clash-6K+FX')).toContainText('L-Shift R-Shift 노트 속도 −0.5·곡 오프셋 −5ms·곡 오프셋 +5ms');
 
   // in-play keys: with Alt, a modifier alone; two on one key are marked; 기본값 brings them back
   await page.getByTestId('play-key-retry').click();
@@ -551,14 +547,14 @@ test('gamepad settings: the turntable, lanes bound in a run, the play buttons wi
 test('a controller in the gamepad settings: a run whose turntable keeps turning binds it once, and a d-pad on axes is a menu direction', async ({ page }) => {
   const errors = trackErrors(page);
   const pad = await plugPad(page, '', [0.4, 0, 0, 0]);
-  await startWith(page, { lastKeyMode: '7K+1S' });
+  await startWith(page, { lastKeyMode: '6K+FX' });
   await page.goto('/');
   await page.getByTestId('open-settings').click();
   await settingsTab(page, 'pad');
 
   // 차례로 지정: a quarter turn of the turntable spread over about 200 ms, one 8-bit step at a time
   // (past the middle of its axis on the way), then keys 1 to 7
-  await page.getByTestId('pad-run-7K+1S').click();
+  await page.getByTestId('pad-run-6K+FX').click();
   await page.evaluate(async () => {
     const p = (window as unknown as { __pad: { axes: number[]; timestamp: number } }).__pad;
     for (let i = 1; i <= 60; i++) {
@@ -572,8 +568,8 @@ test('a controller in the gamepad settings: a run whose turntable keeps turning 
     await pad.button(b, true);
     await pad.button(b, false);
   }
-  await expect(page.getByTestId('pad-run-7K+1S')).toHaveText('차례로 지정');
-  expect((await stored(page)).padBindings).toEqual({ '7K+1S': ['Pad:TT0', 'Pad:B0', 'Pad:B1', 'Pad:B2', 'Pad:B3', 'Pad:B4', 'Pad:B5', 'Pad:B6'] });
+  await expect(page.getByTestId('pad-run-6K+FX')).toHaveText('차례로 지정');
+  expect((await stored(page)).padBindings).toEqual({ '6K+FX': ['Pad:TT0', 'Pad:B0', 'Pad:B1', 'Pad:B2', 'Pad:B3', 'Pad:B4', 'Pad:B5', 'Pad:B6'] });
 
   // a d-pad that comes as an axis (a generic controller): its push is the direction, and a push is one step
   await page.getByTestId('pad-menu-up').click();

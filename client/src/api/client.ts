@@ -1,5 +1,5 @@
 import type { ReplayData } from '../engine/replay';
-import type { JudgementModeId } from '../engine/config';
+import { keyModes, type JudgementModeId } from '../engine/config';
 import type { Chart, ChartSection, KeyModeId, StemName } from '../engine/types';
 
 export type SongStatus = 'queued' | 'analyzing' | 'ready' | 'error';
@@ -66,6 +66,12 @@ export interface SavedChart {
   sourceLevel?: string | null;
 }
 
+/** A song's saved charts of a key mode the game no longer has (7K+1S): kept in the library, not listed, not playable. */
+export interface RetiredCharts {
+  keyMode: string;
+  count: number;
+}
+
 export interface ImportResult {
   songs: Song[];
   charts: { chartId: string; songId: string; keyMode: KeyModeId; level: number; name: string; noteCount: number }[];
@@ -82,9 +88,9 @@ export interface KeysoundIndex {
 export type ExportFormat = 'osu' | 'bms' | 'bmson';
 export const EXPORT_LABELS: Record<ExportFormat, string> = { osu: 'osu!mania', bms: 'BMS', bmson: 'bmson' };
 
-/** Formats a key mode can be exported to (BMS players know 5K and 7K+1S only). */
+/** Formats a key mode can be exported to (of our key modes, BMS players know 5K only). */
 export function exportFormats(keyMode: KeyModeId): ExportFormat[] {
-  return keyMode === '5K' || keyMode === '7K+1S' ? ['osu', 'bms', 'bmson'] : ['osu'];
+  return keyMode === '5K' ? ['osu', 'bms', 'bmson'] : ['osu'];
 }
 
 export interface Song {
@@ -364,7 +370,11 @@ export const api = {
     return (await request<{ song: Song }>(`/api/songs/${id}/cover`, { method: 'POST', body: form })).song;
   },
   deleteCover: (id: string) => request<void>(`/api/songs/${id}/cover`, { method: 'DELETE' }),
-  savedCharts: async (songId: string) => (await request<{ charts: SavedChart[] }>(`/api/songs/${songId}/charts`)).charts,
+  savedCharts: async (songId: string) => {
+    const { charts, retired } = await request<{ charts: SavedChart[]; retired?: RetiredCharts[] }>(`/api/songs/${songId}/charts`);
+    // only charts of the key modes there are (the server leaves the others out; one that did not is not shown either)
+    return { charts: charts.filter((c) => c.keyMode in keyModes), retired: retired ?? [] };
+  },
   chart: async (chartId: string) => (await request<{ chart: ServerChart }>(`/api/charts/${chartId}`)).chart,
   saveEditedChart: async (songId: string, baseChartId: string, notes: Chart['notes'], name: string) =>
     (await request<{ chart: ServerChart }>(`/api/songs/${songId}/charts/custom`, json({ baseChartId, notes, name }))).chart,

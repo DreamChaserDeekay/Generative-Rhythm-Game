@@ -186,7 +186,7 @@ const MODE_RUNS = [
     const res = await fetch(`/api/songs/${song.id}/charts`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ keyMode: '7K+1S', difficulty: 'NORMAL' }),
+      body: JSON.stringify({ keyMode: '8K', difficulty: 'NORMAL' }),
     });
     const body = await res.json();
     return { mapper: health.mapper && health.mapper.state, status: res.status, detail: body.detail, notes: body.chart && body.chart.meta.noteCount };

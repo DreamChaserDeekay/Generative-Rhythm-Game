@@ -11,7 +11,7 @@ function deckLanes(mode: KeyModeId, sideNotes: SideNotes = 'lanes'): { left: num
     .lanes.filter((l) => !l.over)
     .map((l) => ({
       left: (l.x - l.width / 2 + 4) * 73.65,
-      kind: l.kind === 'scratch' ? 'scratch' : l.color === 'white' ? 'white' : 'other',
+      kind: l.color === 'white' ? 'white' : 'other',
       width: l.width * 73.65,
       ...(l.kind === 'side' ? { side: true } : {}),
     }));
@@ -121,7 +121,7 @@ describe('the track’s borders in a gear’s frame', () => {
 
 describe('the decks of the gears a player picks', () => {
   /** A deck as the renderer paints it: the whole track's width, the lanes of a key mode. */
-  const spec = (room: number, stretch: number, mode: KeyModeId = '7K+1S'): DeckSpec => ({
+  const spec = (room: number, stretch: number, mode: KeyModeId = '8K'): DeckSpec => ({
     width: 8 * 73.65,
     room,
     depth: room + 40,
@@ -133,7 +133,7 @@ describe('the decks of the gears a player picks', () => {
   /** The skins' gears: each with a key or a dash to a lane, the readouts on its deck and a judge line of its own. */
   const SKIN_GEARS: readonly string[] = ['standard', 'prism', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', 'aqua', 'steel', 'noir', 'wire', 'astral'];
 
-  it('PIANO: a white key under each key lane, the black keys of an octave between them from a C, a cheek block under the scratch and the side lanes', () => {
+  it('PIANO: a white key under each key lane, the black keys of an octave between them from a C, a cheek block under the side lanes', () => {
     const blackAfter = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13].filter(blackKeyAfter);
     // after C, D, F, G and A of each octave
     expect(blackAfter).toEqual([0, 1, 3, 4, 5, 7, 8, 10, 11, 12]);
@@ -141,7 +141,6 @@ describe('the decks of the gears a player picks', () => {
       ['4K', 'lanes', 2],
       ['5K', 'lanes', 3],
       ['6K', 'lanes', 4],
-      ['7K+1S', 'lanes', 5],
       ['8K', 'lanes', 5],
       ['4K+FX', 'lanes', 2],
       ['6K+FX', 'lanes', 4],
@@ -162,11 +161,8 @@ describe('the decks of the gears a player picks', () => {
         const black = calls.filter((c) => c[0] === 'roundRect') as [string, number, number, number, number][];
         expect(black.length, `${mode} ${sideNotes}`).toBe(blacks);
         for (const [, x, , w] of black) expect(keys.some((l) => Math.abs(l.left - (x + w / 2)) < 1e-6), `${mode} black key at ${x}`).toBe(true);
-        // the medallion only on the scratch lane's cheek block; the brass inlay always
-        const names = (s.marks as DeckMark[]).map((m) => m.name);
-        expect(names, mode).toEqual(mode === '7K+1S' ? ['inlay', 'medallion'] : ['inlay']);
-        const medallion = s.marks?.find((m) => m.name === 'medallion');
-        if (medallion) expect(medallion.x + medallion.w).toBeLessThanOrEqual(s.lanes[0].width);
+        // the brass inlay always; no medallion (it stood on a scratch lane's cheek block, and no key mode has one)
+        expect((s.marks as DeckMark[]).map((m) => m.name), mode).toEqual(['inlay']);
       }
     }
   });
@@ -181,6 +177,8 @@ describe('the decks of the gears a player picks', () => {
       [true, true],
       [true, true],
       [true, false],
+      // the next octave's C, the last key: no black key at either side
+      [false, false],
     ];
     for (const [room, stretch] of [
       [155.55, 1.2],
@@ -189,7 +187,7 @@ describe('the decks of the gears a player picks', () => {
       const s = spec(room, stretch);
       for (const pictured of [false, true]) {
         const keys = deckKeys('piano', s, pictured);
-        expect(keys.map((k) => k.lane)).toEqual([1, 2, 3, 4, 5, 6, 7]);
+        expect(keys.map((k) => k.lane)).toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
         // where the keys start: under the plate's lip, or as the picture drew them (26 of its 2048 px, laid as long as the camera flattens it)
         const top = pictured ? ((26 * s.width) / 2048) * (stretch / 1.2) : 3.2 * stretch + 1.2;
         const blackEnd = pictured ? ((299 * s.width) / 2048) * (stretch / 1.2) : top - 0.6 + (room - top) * 0.58;
@@ -202,7 +200,8 @@ describe('the decks of the gears a player picks', () => {
           expect([k.notch.left > 0, k.notch.right > 0], `key ${i}`).toEqual(notched[i]);
           // half a black key (0.56 of a lane) into it, from its edge
           for (const n of [k.notch.left, k.notch.right]) if (n > 0) expect(n).toBeCloseTo(lane.width * 0.28 - 0.55, 6);
-          expect(k.notch.depth).toBeCloseTo(blackEnd - top, 6);
+          // as deep as the black keys reach (a key with none beside it has no notch)
+          expect(k.notch.depth).toBeCloseTo(notched[i].some(Boolean) ? blackEnd - top : 0, 6);
         });
       }
     }
@@ -210,18 +209,18 @@ describe('the decks of the gears a player picks', () => {
     expect(deckKeys('piano', { ...spec(155.55, 1.2, '4K+FX'), lanes: deckLanes('4K+FX') }, false).map((k) => k.lane)).toEqual([1, 2, 3, 4]);
     expect(deckKeys('piano', { ...spec(155.55, 1.2, '6K+FX'), lanes: deckLanes('6K+FX', 'half') }, false).map((k) => k.lane)).toEqual([0, 1, 2, 3, 4, 5]);
     // STANDARD's key caps light with their lanes, one over each key lane
-    expect(deckKeys('standard', spec(155.55, 1.2, '7K+1S'), false).map((k) => [k.lane, k.lit])).toEqual([0, 1, 2, 3, 4, 5, 6, 7].map((lane) => [lane, '#37e2ff']));
+    expect(deckKeys('standard', spec(155.55, 1.2, '8K'), false).map((k) => [k.lane, k.lit])).toEqual([0, 1, 2, 3, 4, 5, 6, 7].map((lane) => [lane, '#37e2ff']));
     // CRYSTAL's (saved as 'prism') too, in its ice blue, each keeping its cut when lit (drawn as much longer along the track as the deck is)
-    expect(deckKeys('prism', spec(155.55, 1.2, '7K+1S'), false).map((k) => [k.lane, k.lit, k.gem])).toEqual([0, 1, 2, 3, 4, 5, 6, 7].map((lane) => [lane, '#7cc8ff', 1.2]));
+    expect(deckKeys('prism', spec(155.55, 1.2, '8K'), false).map((k) => [k.lane, k.lit, k.gem])).toEqual([0, 1, 2, 3, 4, 5, 6, 7].map((lane) => [lane, '#7cc8ff', 1.2]));
     expect(deckKeys('prism', spec(155.55, 1.2, '4K'), false).map((k) => k.box)).toEqual(deckKeys('standard', spec(155.55, 1.2, '4K'), false).map((k) => k.box));
     // SKY's dashes, one to a lane in a thin strip under the line: a held lane's cell of the strip lights cyan, its dash white-hot in the cell's middle
-    const dashes = deckKeys('sky', spec(155.55, 1.2, '7K+1S'), false);
+    const dashes = deckKeys('sky', spec(155.55, 1.2, '8K'), false);
     expect(dashes.map((k) => [k.lane, k.lit])).toEqual([0, 1, 2, 3, 4, 5, 6, 7].map((lane) => [lane, '#3fe3e6']));
     dashes.forEach((k, i) => {
-      const lane = spec(155.55, 1.2, '7K+1S').lanes[i];
+      const lane = spec(155.55, 1.2, '8K').lanes[i];
       expect([k.box.x, k.box.y, k.box.w], `dash ${i}`).toEqual([lane.left, 0, lane.width]);
       // thinner than a key cap by far, and the dash well inside its cell
-      expect(k.box.h).toBeLessThan(deckKeys('standard', spec(155.55, 1.2, '7K+1S'), false)[i].box.h / 2);
+      expect(k.box.h).toBeLessThan(deckKeys('standard', spec(155.55, 1.2, '8K'), false)[i].box.h / 2);
       expect(k.dash![0]).toBeGreaterThan(0.3);
       expect(k.dash![0]).toBeLessThan(0.8);
       expect(k.dash![1]).toBeLessThan(0.3);
@@ -252,7 +251,7 @@ describe('the decks of the gears a player picks', () => {
     // CRYSTAL's hexagons have their points outside the windows, so its side windows start further in
     expect(plateWindows('prism', spec(155.55, 1.2))!.speed.x).toBeGreaterThan(plateWindows('standard', spec(155.55, 1.2))!.speed.x);
     for (const [room, stretch, mode] of [
-      [155.55, 1.2, '7K+1S'],
+      [155.55, 1.2, '8K'],
       [912, 3.25, '4K'],
     ] as [number, number, KeyModeId][]) {
       // each window marked for the light its sapphire takes, and nothing of the deck drawn off it
@@ -273,7 +272,7 @@ describe('the decks of the gears a player picks', () => {
 
   it('SKY writes the score on its sky, the feather left of it on its line, the speed and the rate in two pills, and marks the sky and the feather for its lights', () => {
     for (const [room, stretch, mode] of [
-      [155.55, 1.2, '7K+1S'],
+      [155.55, 1.2, '8K'],
       [912, 3.25, '4K'],
     ] as [number, number, KeyModeId][]) {
       const s = { ...spec(room, stretch, mode), marks: [] as DeckMark[] };
@@ -319,7 +318,7 @@ describe('the decks of the gears a player picks', () => {
     };
     for (const gear of ['aqua', 'steel', 'noir', 'wire', 'astral'] as const) {
       for (const [room, stretch, mode] of [
-        [155.55, 1.2, '7K+1S'],
+        [155.55, 1.2, '8K'],
         [912, 3.25, '4K'],
         [912, 3.25, '6K+FX'],
       ] as [number, number, KeyModeId][]) {
@@ -356,14 +355,14 @@ describe('the decks of the gears a player picks', () => {
       expect(judgeOf(gear).core, gear).toBe('#ffffff');
     }
     // each lights its keys in one colour of its own, whatever the lane
-    expect(new Set(deckKeys('noir', spec(155.55, 1.2, '7K+1S'), false).map((k) => k.press!.fill))).toEqual(new Set(['#ff1a2b']));
-    expect(new Set(deckKeys('aqua', spec(155.55, 1.2, '7K+1S'), false).map((k) => k.lit))).toEqual(new Set(['#22e0e6']));
+    expect(new Set(deckKeys('noir', spec(155.55, 1.2, '8K'), false).map((k) => k.press!.fill))).toEqual(new Set(['#ff1a2b']));
+    expect(new Set(deckKeys('aqua', spec(155.55, 1.2, '8K'), false).map((k) => k.lit))).toEqual(new Set(['#22e0e6']));
   });
 
   it('the four AI companies’ gears house the readouts as FIRE does, each key held in its company’s flat colour, and mark what lights under their keys', () => {
     for (const gear of ['gpt', 'gemini', 'grok', 'claude'] as const) {
       for (const [room, stretch, mode] of [
-        [155.55, 1.2, '7K+1S'],
+        [155.55, 1.2, '8K'],
         [912, 3.25, '4K'],
       ] as [number, number, KeyModeId][]) {
         const s = { ...spec(room, stretch, mode), marks: [] as DeckMark[] };
@@ -397,7 +396,7 @@ describe('the decks of the gears a player picks', () => {
       expect(plateWindows(gear, spec(96, 1.1)), gear).toBeNull();
       expect(() => paintDeck(gear, callRecorder().g, spec(96, 1.1))).not.toThrow();
     }
-    const held = (gear: 'gpt' | 'gemini' | 'grok' | 'claude') => deckKeys(gear, spec(155.55, 1.2, '7K+1S'), false).map((k) => k.press!);
+    const held = (gear: 'gpt' | 'gemini' | 'grok' | 'claude') => deckKeys(gear, spec(155.55, 1.2, '8K'), false).map((k) => k.press!);
     // GPT's goes black with a white dot (someone typing), CLAUDE's terracotta with a cream dot, GROK's solid white and square
     expect(new Set(held('gpt').map((p) => `${p.fill} ${p.dot}`))).toEqual(new Set(['#0d0d0d #ffffff']));
     expect(new Set(held('claude').map((p) => `${p.fill} ${p.dot}`))).toEqual(new Set(['#d97757 #f0eee6']));
@@ -410,7 +409,7 @@ describe('the decks of the gears a player picks', () => {
 
   it('FIRE houses the score in a window of black glass and the speed and the rate in two pills, its chrome caps glowing under their near edges and carrying the members’ crests, and marks that light and its lacquer', () => {
     for (const [room, stretch, mode] of [
-      [155.55, 1.2, '7K+1S'],
+      [155.55, 1.2, '8K'],
       [912, 3.25, '4K'],
     ] as [number, number, KeyModeId][]) {
       const s = { ...spec(room, stretch, mode), marks: [] as DeckMark[] };
@@ -444,7 +443,7 @@ describe('the decks of the gears a player picks', () => {
     // four square cells): one to a cap, in the cap's middle, inside it, as round on the screen as it is drawn
     const crests = { width: 1024, height: 256 } as unknown as Picture;
     for (const [room, stretch, mode] of [
-      [155.55, 1.2, '7K+1S'],
+      [155.55, 1.2, '8K'],
       [912, 3.25, '4K'],
     ] as [number, number, KeyModeId][]) {
       const s = spec(room, stretch, mode);
@@ -621,12 +620,12 @@ describe('the decks of the gears a player picks', () => {
     expect(level).toBeLessThan(0.01);
   });
 
-  it('lays a deck picture only where it was painted for: a camera near its angle, and PIANO’s only on the 7K+1S row', () => {
+  it('lays a deck picture only where it was painted for: a camera near its angle, and PIANO’s on no row the game has (it was painted for 7K+1S)', () => {
     const deck = { width: 2048, height: 541 } as Picture;
     for (const gear of GEAR_STYLES) {
-      for (const mode of ['4K', '7K+1S', '8K', '6K+FX'] as KeyModeId[]) {
+      for (const mode of ['4K', '5K', '8K', '6K+FX'] as KeyModeId[]) {
         const s = spec(155.55, 1.2, mode);
-        expect(deckFromPicture(gear, s, { deck }), `${gear} ${mode}`).toBe(gear !== 'piano' || mode === '7K+1S');
+        expect(deckFromPicture(gear, s, { deck }), `${gear} ${mode}`).toBe(gear !== 'piano');
         expect(deckFromPicture(gear, s, {}), `${gear} ${mode} without its picture`).toBe(false);
         expect(deckFromPicture(gear, spec(912, DECK_PICTURE_FLATTEST + 0.1, mode), { deck }), `${gear} ${mode} on the plane camera`).toBe(false);
       }

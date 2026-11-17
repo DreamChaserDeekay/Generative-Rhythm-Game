@@ -144,13 +144,13 @@ describe('settings', () => {
     try {
       for (const gone of ['cabinet', 'receiver', 'najeon', 'keyboard', 'racing', 'orbital', 'rawglass']) {
         // as the version that had the gear saved it: picked part by part with notes and a hit of other sets, the lettering the gear's
-        saveSettings({ ...DEFAULT_SETTINGS, hiSpeed: 2.5, lastKeyMode: '7K+1S', hudType: 'gear', parts: { note: 'steel', side: 'dots', deck: gone, hit: 'club' } as never });
+        saveSettings({ ...DEFAULT_SETTINGS, hiSpeed: 2.5, lastKeyMode: '6K+FX', hudType: 'gear', parts: { note: 'steel', side: 'dots', deck: gone, hit: 'club' } as never });
         expect(JSON.parse([...items.values()][0]).parts, gone).toEqual({ note: 'steel', side: 'dots', deck: gone, hit: 'club' });
         const s = loadSettings();
         // the gear alone is the default one: the notes, the side notes and the hit as picked
         expect(s.parts, gone).toEqual({ note: 'steel', side: 'dots', deck: 'standard', hit: 'club' });
         expect(skinOf(s).style, gone).toEqual({ note: 'steel', side: 'dots', deck: DEFAULT_SETTINGS.parts.deck, hit: 'club' });
-        expect([s.hiSpeed, s.lastKeyMode, s.hudType], gone).toEqual([2.5, '7K+1S', 'gear']);
+        expect([s.hiSpeed, s.lastKeyMode, s.hudType], gone).toEqual([2.5, '6K+FX', 'gear']);
         // saved again, it is the default gear that is kept
         saveSettings(s);
         expect(JSON.parse([...items.values()][0]).parts.deck, gone).toBe('standard');
@@ -173,13 +173,13 @@ describe('settings', () => {
     try {
       for (const gone of ['chrome', 'hairline', 'glass', 'enamel', 'pearl', 'carbon', 'chamfer', 'round', 'star4', 'star5']) {
         // as the version that had the note saved it: picked on the piano with the dots and a set's hit, colours of the player's own
-        saveSettings({ ...DEFAULT_SETTINGS, hiSpeed: 2.5, lastKeyMode: '7K+1S', hudType: 'skin', noteColors: 'aurora', parts: { note: gone, side: 'dots', deck: 'piano', hit: 'club' } as never });
+        saveSettings({ ...DEFAULT_SETTINGS, hiSpeed: 2.5, lastKeyMode: '6K+FX', hudType: 'skin', noteColors: 'aurora', parts: { note: gone, side: 'dots', deck: 'piano', hit: 'club' } as never });
         expect(JSON.parse([...items.values()][0]).parts, gone).toEqual({ note: gone, side: 'dots', deck: 'piano', hit: 'club' });
         const s = loadSettings();
         // the note alone is the default one (the plain bar): the side notes, the gear and the hit as picked
         expect(s.parts, gone).toEqual({ note: 'flat', side: 'dots', deck: 'piano', hit: 'club' });
         expect(skinOf(s).style, gone).toEqual({ note: DEFAULT_SETTINGS.parts.note, side: 'dots', deck: 'piano', hit: 'club' });
-        expect([s.hiSpeed, s.lastKeyMode, s.hudType, s.noteColors], gone).toEqual([2.5, '7K+1S', 'skin', 'aurora']);
+        expect([s.hiSpeed, s.lastKeyMode, s.hudType, s.noteColors], gone).toEqual([2.5, '6K+FX', 'skin', 'aurora']);
         // saved again, it is the default note that is kept
         saveSettings(s);
         expect(JSON.parse([...items.values()][0]).parts.note, gone).toBe('flat');
@@ -202,13 +202,13 @@ describe('settings', () => {
     try {
       for (const gone of ['rainbow', 'magenta']) {
         // as the version that had the skin saved it: its notes, its gear and its hit, the lettering the gear's
-        saveSettings({ ...DEFAULT_SETTINGS, hiSpeed: 2.5, lastKeyMode: '7K+1S', hudType: 'gear', parts: { note: gone, side: 'dots', deck: gone, hit: gone } as never });
+        saveSettings({ ...DEFAULT_SETTINGS, hiSpeed: 2.5, lastKeyMode: '6K+FX', hudType: 'gear', parts: { note: gone, side: 'dots', deck: gone, hit: gone } as never });
         expect(JSON.parse([...items.values()][0]).parts, gone).toEqual({ note: gone, side: 'dots', deck: gone, hit: gone });
         const s = loadSettings();
         // each of its three parts the default one (the side notes were none of a skin's parts: as picked)
         expect(s.parts, gone).toEqual({ ...DEFAULT_SETTINGS.parts, side: 'dots' });
         expect(skinOf(s).style, gone).toEqual({ note: 'flat', side: 'dots', deck: 'standard', hit: 'flash' });
-        expect([s.hiSpeed, s.lastKeyMode, s.hudType], gone).toEqual([2.5, '7K+1S', 'gear']);
+        expect([s.hiSpeed, s.lastKeyMode, s.hudType], gone).toEqual([2.5, '6K+FX', 'gear']);
         // one of its parts picked among others: that part alone is the default one
         expect(sanitizeSettings({ parts: { note: 'gemini', side: 'bar', deck: gone, hit: 'grid' } as never }).parts, gone).toEqual({ note: 'gemini', side: 'bar', deck: 'standard', hit: 'grid' });
       }
@@ -292,31 +292,31 @@ describe('settings', () => {
 
   it('keeps a second key per lane, none that is already a key of the mode (settings saved before them: none)', () => {
     expect(sanitizeSettings({}).secondBindings).toEqual({});
-    expect(secondBindingsFor(sanitizeSettings({}), '7K+1S')).toEqual(new Array(8).fill(null));
-    const s = sanitizeSettings({ secondBindings: { '7K+1S': ['ControlLeft', null, null, null, null, null, null, null], '4K': ['KeyD', 'KeyX', 'KeyX', 5 as never], '5K': ['KeyQ'] } });
-    expect(secondBindingsFor(s, '7K+1S')[0]).toBe('ControlLeft');
+    expect(secondBindingsFor(sanitizeSettings({}), '6K+FX')).toEqual(new Array(8).fill(null));
+    const s = sanitizeSettings({ secondBindings: { '6K+FX': ['ControlLeft', null, null, null, null, null, null, null], '4K': ['KeyD', 'KeyX', 'KeyX', 5 as never], '5K': ['KeyQ'] } });
+    expect(secondBindingsFor(s, '6K+FX')[0]).toBe('ControlLeft');
     // D is the first key of 4K's lane 1, X is used once only
     expect(secondBindingsFor(s, '4K')).toEqual([null, 'KeyX', null, null]);
     // the wrong length for 5K: dropped
     expect(s.secondBindings['5K']).toBeUndefined();
-    expect(laneKeysFor(s, '7K+1S')).toEqual([...bindingsFor(s, '7K+1S'), 'ControlLeft']);
+    expect(laneKeysFor(s, '6K+FX')).toEqual([...bindingsFor(s, '6K+FX'), 'ControlLeft']);
     // a mode's keys that are not all keyboard codes fall back to the defaults
     expect(bindingsFor(sanitizeSettings({ bindings: { '4K': ['KeyA', 'Pad:B1', 'KeyJ', 'KeyK'] } }), '4K')).toEqual(['KeyD', 'KeyF', 'KeyJ', 'KeyK']);
   });
 
   it('binds a lane key or a second key, swapping with the key it takes, and never leaves a lane without one', () => {
     const s = { ...DEFAULT_SETTINGS };
-    const scratch2 = rebindKey(s, '7K+1S', 0, true, 'ControlLeft');
-    expect(secondBindingsFor(scratch2!, '7K+1S')[0]).toBe('ControlLeft');
+    const side2 = rebindKey(s, '6K+FX', 0, true, 'ControlLeft');
+    expect(secondBindingsFor(side2!, '6K+FX')[0]).toBe('ControlLeft');
     // the second key given to another lane's first key: they swap
-    const swapped = rebindKey(scratch2!, '7K+1S', 1, false, 'ControlLeft')!;
-    expect(bindingsFor(swapped, '7K+1S')[1]).toBe('ControlLeft');
-    expect(secondBindingsFor(swapped, '7K+1S')[0]).toBe('KeyS');
+    const swapped = rebindKey(side2!, '6K+FX', 1, false, 'ControlLeft')!;
+    expect(bindingsFor(swapped, '6K+FX')[1]).toBe('ControlLeft');
+    expect(secondBindingsFor(swapped, '6K+FX')[0]).toBe('KeyS');
     // a lane's only key taken for an empty second key: refused; a first key cannot be cleared
     expect(rebindKey(s, '4K', 0, true, 'KeyF')).toBe(null);
     expect(rebindKey(s, '4K', 0, false, null)).toBe(null);
     // a second key cleared: none left in the mode
-    expect(rebindKey(scratch2!, '7K+1S', 0, true, null)!.secondBindings['7K+1S']).toBeUndefined();
+    expect(rebindKey(side2!, '6K+FX', 0, true, null)!.secondBindings['6K+FX']).toBeUndefined();
   });
 
   it('keeps in-play keys that differ from the defaults, and the pad buttons and menu buttons assigned', () => {
@@ -340,8 +340,8 @@ describe('settings', () => {
 
   it('infers the menu buttons of a controller from its lanes: keys 1–4 decide, cancel, go left and right; the turntable scrolls', () => {
     const iidx = sanitizeSettings({
-      lastKeyMode: '7K+1S',
-      padBindings: { '7K+1S': ['Pad:TT0', 'Pad:B0', 'Pad:B1', 'Pad:B2', 'Pad:B3', 'Pad:B4', 'Pad:B5', 'Pad:B6'] },
+      lastKeyMode: '6K+FX',
+      padBindings: { '6K+FX': ['Pad:TT0', 'Pad:B0', 'Pad:B1', 'Pad:B2', 'Pad:B3', 'Pad:B4', 'Pad:B5', 'Pad:B6'] },
     });
     expect(padMenuFor(iidx)).toEqual({ ok: 'Pad:B0', back: 'Pad:B1', up: 'Pad:TT0-', down: 'Pad:TT0+', left: 'Pad:B2', right: 'Pad:B3', options: null, retry: null });
     // one assigned replaces the inferred, null clears it
@@ -394,38 +394,68 @@ describe('settings', () => {
     expect(withSongOffset(t, 'e', -500).songOffsets.e).toBe(-200);
   });
 
+  it('opens settings saved while there was a 7K+1S on the default key mode, without its keys, pad buttons and charts chosen; the rest as saved', () => {
+    const items = new Map<string, string>();
+    vi.stubGlobal('localStorage', { getItem: (k: string) => items.get(k) ?? null, setItem: (k: string, v: string) => void items.set(k, v) });
+    try {
+      const song = '0123456789abcdef';
+      const eight = ['ShiftLeft', 'KeyZ', 'KeyS', 'KeyX', 'KeyD', 'KeyC', 'KeyF', 'KeyV'];
+      saveSettings({
+        ...DEFAULT_SETTINGS,
+        hiSpeed: 2.5,
+        lastKeyMode: '7K+1S',
+        bindings: { '7K+1S': eight, '4K': ['KeyA', 'KeyS', 'KeyK', 'KeyL'] },
+        secondBindings: { '7K+1S': ['ControlLeft', null, null, null, null, null, null, null] },
+        padBindings: { '7K+1S': ['Pad:TT0', 'Pad:B0', 'Pad:B1', 'Pad:B2', 'Pad:B3', 'Pad:B4', 'Pad:B5', 'Pad:B6'] },
+        patterns: { [`${song}|7K+1S|GRG|HARD`]: 3, [patternKey(song, '4K', 'HARD')]: 4 },
+        chartPicks: { [`${song}|7K+1S`]: `c${'a'.repeat(20)}` },
+      } as never);
+      const s = loadSettings();
+      expect(s.lastKeyMode).toBe(DEFAULT_SETTINGS.lastKeyMode);
+      expect([s.hiSpeed, s.bindings, s.secondBindings, s.padBindings]).toEqual([2.5, { '4K': ['KeyA', 'KeyS', 'KeyK', 'KeyL'] }, {}, {}]);
+      expect([s.patterns, s.chartPicks]).toEqual([{ [patternKey(song, '4K', 'HARD')]: 4 }, {}]);
+      // every key mode there is has its keys
+      for (const mode of Object.keys(keyModes) as (keyof typeof keyModes)[]) expect(bindingsFor(s, mode)).toHaveLength(keyModes[mode].lanes.length);
+      expect(Object.keys(keyModes)).not.toContain('7K+1S');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('keeps the pattern of a difficulty of a song and the saved chart of a key mode of a song, of their kinds', () => {
     const song = '0123456789abcdef';
-    const mx = patternKey(song, '7K+1S', 'MASTER');
+    const mx = patternKey(song, '8K', 'MASTER');
     const raw = {
       patterns: {
         [mx]: 42,
         [patternKey(song, '6K+FX', 'MASTER')]: 2 ** 32 - 1,
-        [patternKey(song, '7K+1S', 'HARD')]: `c${'d'.repeat(20)}`,
-        [patternKey(song, '7K+1S', 'NORMAL')]: 'c-not-a-chart',
+        [patternKey(song, '8K', 'HARD')]: `c${'d'.repeat(20)}`,
+        [patternKey(song, '8K', 'NORMAL')]: 'c-not-a-chart',
         [patternKey(song, '4K', 'NORMAL')]: -1,
         [patternKey(song, '4K', 'EXPERT')]: 1.5,
         [`${song}|9K|GRG|MASTER`]: 1,
+        // 7K+1S was taken out
+        [`${song}|7K+1S|GRG|MASTER`]: 7,
         // the DJMAX and EZ2ON difficulty systems were taken out
         [`${song}|4K|DJMAX|NM`]: 1,
         [`${song}|4K|EZ2ON|SHD`]: 1,
         'abc|4K|GRG|NORMAL': 1,
       },
-      chartPicks: { [chartPickKey(song, '7K+1S')]: `c${'a'.repeat(20)}`, [chartPickKey(song, '4K')]: 'c123', [`${song}|9K`]: `c${'b'.repeat(20)}` },
+      chartPicks: { [chartPickKey(song, '8K')]: `c${'a'.repeat(20)}`, [chartPickKey(song, '4K')]: 'c123', [`${song}|9K`]: `c${'b'.repeat(20)}`, [`${song}|7K+1S`]: `c${'e'.repeat(20)}` },
     };
     const s = sanitizeSettings(raw as never);
     // a seed (새 패턴) or a chart chosen by its id
-    expect(s.patterns).toEqual({ [mx]: 42, [patternKey(song, '6K+FX', 'MASTER')]: 2 ** 32 - 1, [patternKey(song, '7K+1S', 'HARD')]: `c${'d'.repeat(20)}` });
+    expect(s.patterns).toEqual({ [mx]: 42, [patternKey(song, '6K+FX', 'MASTER')]: 2 ** 32 - 1, [patternKey(song, '8K', 'HARD')]: `c${'d'.repeat(20)}` });
     // stored under the key the patterns were kept with before
-    expect(mx).toBe(`${song}|7K+1S|GRG|MASTER`);
-    expect(s.chartPicks).toEqual({ [chartPickKey(song, '7K+1S')]: `c${'a'.repeat(20)}` });
+    expect(mx).toBe(`${song}|8K|GRG|MASTER`);
+    expect(s.chartPicks).toEqual({ [chartPickKey(song, '8K')]: `c${'a'.repeat(20)}` });
     expect(sanitizeSettings({ patterns: [1] as never, chartPicks: 'x' as never })).toMatchObject({ patterns: {}, chartPicks: {} });
     expect(patternOf(s, mx)).toBe(42);
     expect(patternOf(s, patternKey(song, '4K', 'NORMAL'))).toBeNull();
     // back to the default pattern, and to a difficulty
     expect(patternOf(withPattern(s, mx, null), mx)).toBeNull();
     expect(withPattern(s, mx, 7).patterns[mx]).toBe(7);
-    expect(chartPickOf(withChartPick(s, chartPickKey(song, '7K+1S'), null), chartPickKey(song, '7K+1S'))).toBeNull();
+    expect(chartPickOf(withChartPick(s, chartPickKey(song, '8K'), null), chartPickKey(song, '8K'))).toBeNull();
     expect(chartPickOf(withChartPick(s, chartPickKey(song, '4K'), `c${'c'.repeat(20)}`), chartPickKey(song, '4K'))).toBe(`c${'c'.repeat(20)}`);
   });
 
@@ -434,7 +464,7 @@ describe('settings', () => {
     const other = 'fedcba9876543210';
     const s = withSongOffset(
       withSongOffset(
-        withChartPick(withPattern(withPattern(DEFAULT_SETTINGS, patternKey(song, '4K', 'NORMAL'), `c${'d'.repeat(20)}`), patternKey(other, '4K', 'NORMAL'), 5), chartPickKey(song, '7K+1S'), `c${'a'.repeat(20)}`),
+        withChartPick(withPattern(withPattern(DEFAULT_SETTINGS, patternKey(song, '4K', 'NORMAL'), `c${'d'.repeat(20)}`), patternKey(other, '4K', 'NORMAL'), 5), chartPickKey(song, '8K'), `c${'a'.repeat(20)}`),
         song,
         12,
       ),

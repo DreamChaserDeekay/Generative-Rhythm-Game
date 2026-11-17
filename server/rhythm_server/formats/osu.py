@@ -72,7 +72,7 @@ def export_osu(chart: dict[str, Any], audio_name: str, preview_ms: float | None 
         "StackLeniency: 0.7",
         "Mode: 3",
         "LetterboxInBreaks: 0",
-        f"SpecialStyle: {1 if key_mode == '7K+1S' else 0}",
+        "SpecialStyle: 0",
         "WidescreenStoryboard: 0",
         "",
         "[Editor]",
@@ -155,7 +155,7 @@ def _background(events: list[str]) -> list[str]:
     return []
 
 
-def _key_mode(keys: int, special_style: bool, tags: str) -> tuple[str, list[int]]:
+def _key_mode(keys: int, tags: str) -> tuple[str, list[int]]:
     """Our key mode for an osu!mania column count and the lane of every column."""
     m = re.search(re.escape(MODE_TAG) + r"(\S+)", tags)
     if m:
@@ -171,11 +171,9 @@ def _key_mode(keys: int, special_style: bool, tags: str) -> tuple[str, list[int]
         return "5K", list(range(5))
     if keys == 6:
         return "6K", list(range(6))
-    if keys == 7:
-        return "7K+1S", list(range(1, 8))  # seven keys on 7K+1S, scratch unused
     if keys == 8:
-        return ("7K+1S", list(range(8))) if special_style else ("8K", list(range(8)))
-    raise FormatError(f"osu!mania {keys}K는 지원하지 않습니다 (4·5·6·7·8키만)")
+        return "8K", list(range(8))  # a special style's scratch column is a key as the others
+    raise FormatError(f"osu!mania {keys}K는 지원하지 않습니다 (4·5·6·8키만)")
 
 
 def red_lines(text: str) -> list[tuple[float, float, int]]:
@@ -228,7 +226,7 @@ def parse_osu(text: str, source_name: str = "") -> ParsedChart:
     if general.get("Mode", "0") != "3":
         raise FormatError("osu!mania(모드 3) 비트맵만 가져올 수 있습니다")
     keys = int(round(float(difficulty.get("CircleSize", "4"))))
-    key_mode, column_lane = _key_mode(keys, general.get("SpecialStyle", "0") == "1", metadata.get("Tags", ""))
+    key_mode, column_lane = _key_mode(keys, metadata.get("Tags", ""))
 
     reds = red_lines(text)
     if not reds:

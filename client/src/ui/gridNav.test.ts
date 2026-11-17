@@ -11,8 +11,8 @@ function block(mode: string, lanes: number, buttons: number): NavStop[] {
 }
 
 describe('arrows through the key settings', () => {
-  // 4K (4 lanes, 3 buttons), then 7K+1S (8 lanes, 4 buttons), then a row of its own
-  const stops = [...block('4K', 4, 3), ...block('7K', 8, 4), { line: 'default', column: null }];
+  // 4K (4 lanes, 3 buttons), then 8K (8 lanes, 4 buttons), then a row of its own
+  const stops = [...block('4K', 4, 3), ...block('8K', 8, 4), { line: 'default', column: null }];
   const at = (line: string, column: number) => stops.findIndex((s) => s.line === line && s.column === column);
 
   it('goes along a line with ←→ and stops at its ends', () => {
@@ -27,9 +27,9 @@ describe('arrows through the key settings', () => {
     expect(stops[buttons].line).toBe('4K-buttons');
     // the first button of the line; the lane kept is the one before it
     expect(buttons).toBe(stops.findIndex((s) => s.line === '4K-buttons'));
-    expect(arrowTarget(stops, buttons, 'down', 2)).toBe(at('7K-1', 2));
+    expect(arrowTarget(stops, buttons, 'down', 2)).toBe(at('8K-1', 2));
     // a lane past the narrower mode's last: its nearest
-    expect(arrowTarget(stops, at('7K-1', 7), 'up', null)).toBe(stops.findIndex((s) => s.line === '4K-buttons'));
+    expect(arrowTarget(stops, at('8K-1', 7), 'up', null)).toBe(stops.findIndex((s) => s.line === '4K-buttons'));
     expect(arrowTarget(stops, stops.findIndex((s) => s.line === '4K-buttons'), 'up', 7)).toBe(at('4K-2', 3));
   });
 

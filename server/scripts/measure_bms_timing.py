@@ -148,7 +148,7 @@ def one(folder: str) -> list[dict]:
     except Exception as e:  # noqa: BLE001
         return [{"song": _name(root, ""), "error": f"parse: {type(e).__name__}"}]
     for g in groups:
-        charts = [c for c in g.charts if c.key_mode in ("7K+1S", "5K") and len(c.notes) >= 50] or [c for c in g.charts if len(c.notes) >= 50]
+        charts = [c for c in g.charts if c.key_mode == "5K" and len(c.notes) >= 50] or [c for c in g.charts if len(c.notes) >= 50]
         if not charts:
             continue
         render = max(charts, key=lambda c: len(c.notes) + len(c.bgm))

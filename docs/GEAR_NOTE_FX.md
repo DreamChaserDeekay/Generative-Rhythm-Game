@@ -2,6 +2,8 @@
 
 2026-11-11, 브랜치 `claude/gear-notes-fx`. 조사와 사용자의 스킨 지침은 `docs/GEAR_NOTE_FX_RESEARCH.md`(지침은 7절), 시안과 그 출처는 `design-mockups/gear-concepts/`.
 
+2026-11-17에 7K+1S 모드와 스크래치 레인을 없앴습니다(키 모드는 4K · 4K+FX · 5K · 6K · 6K+FX · 8K). 그래서 어느 키 모드에도 스크래치 레인이 없고, 아래 스킨 표의 "스크래치는 …"(스크래치 단노트의 표시, 기어의 스크래치 자리)은 플레이어가 보는 것이 아니라 쓰이지 않는 채로 남은 그림의 기록입니다. 스크래치 노트 그림(`tintArt.ts` · `styleArt.ts`의 `scratch` 표시, `media/notes` 그림의 스크래치 줄, `scripts/assets/build_long_notes.py`)과 기어 그림의 스크래치 부분(`deckArt.ts`의 `KeyKind` `scratch`, 피아노의 높은음자리표 메달과 7K+1S 줄에 맞춰 그린 받침 그림)은 2단계 정리 때까지 그대로 둡니다. 스킨마다 한 장이던 7K+1S 스크린샷은 8K로 다시 찍어 파일 이름의 `-7k`를 `-8k`로 바꿨습니다(`44-prism-7k.png`만 그대로). 날짜가 붙은 절의 7K+1S · 스크래치는 그때 한 일의 기록입니다.
+
 "스킨"은 기어·노트·타격 효과·콤보와 판정 글자를 묶어 가리킵니다(사이드 노트 제외). 좌측 상단 곡 정보는 어느 스킨에서도 그대로이고, 레인(트랙 바닥)도 어두운 바닥 그대로입니다(스킨이 받침의 그림을 레인에 아주 옅게 깔 수는 있습니다: 지금은 '하늘'만). **설정 → 기어 맨 위의 "스킨"** 한 줄로 한 번에 고릅니다(아래 "스킨 고르기").
 
 | 스킨 | 스킨이 정하는 부품 | 상태 |
@@ -226,7 +228,7 @@
 
 ## '크리스털' 스킨
 
-시안: `design-mockups/gear-concepts/r2-skin-crystal-b6.jpg`(화면·받침·육각 수치판), `r2-skin-crystal-c3.jpg`와 `r2-skin-crystal-type.jpg`의 MODERATE 열(글자), `r2-skin-crystal-parts.jpg`(부품). 스크린샷: `docs/screenshots/50-crystal-7k.png`, `51-crystal-6kfx.png`, `52-crystal-4k-fever.png`. 코드 안의 이름은 `prism`입니다(저장값도 `prism`: 예전에 "프리즘"을 골라 둔 PC는 그대로 이 스킨이 됩니다).
+시안: `design-mockups/gear-concepts/r2-skin-crystal-b6.jpg`(화면·받침·육각 수치판), `r2-skin-crystal-c3.jpg`와 `r2-skin-crystal-type.jpg`의 MODERATE 열(글자), `r2-skin-crystal-parts.jpg`(부품). 스크린샷: `docs/screenshots/50-crystal-8k.png`, `51-crystal-6kfx.png`, `52-crystal-4k-fever.png`. 코드 안의 이름은 `prism`입니다(저장값도 `prism`: 예전에 "프리즘"을 골라 둔 PC는 그대로 이 스킨이 됩니다).
 
 | 부분 | 내용 |
 |---|---|
@@ -252,7 +254,7 @@ PRISM 1차 구현에서 바뀐 것: 기어(검은 아노다이징 알루미늄·
 
 ## '하늘' 스킨
 
-시안: `design-mockups/gear-concepts/r2-skin-sky-c3.jpg`(사용자가 고른 안: A안의 받침에 B안의 글자·노트, 레인에는 받침의 하늘을 아주 옅게, 흰 곡선은 그대로). 부품 시트는 `r2-skin-sky-parts2.jpg`. 스크린샷: `docs/screenshots/53-sky-7k.png`, `54-sky-6kfx.png`, `55-sky-4k-fever.png`. 코드 안의 이름과 저장값은 `sky`입니다.
+시안: `design-mockups/gear-concepts/r2-skin-sky-c3.jpg`(사용자가 고른 안: A안의 받침에 B안의 글자·노트, 레인에는 받침의 하늘을 아주 옅게, 흰 곡선은 그대로). 부품 시트는 `r2-skin-sky-parts2.jpg`. 스크린샷: `docs/screenshots/53-sky-8k.png`, `54-sky-6kfx.png`, `55-sky-4k-fever.png`. 코드 안의 이름과 저장값은 `sky`입니다.
 
 | 부분 | 내용 |
 |---|---|
@@ -285,7 +287,7 @@ PRISM 1차 구현에서 바뀐 것: 기어(검은 아노다이징 알루미늄·
 
 ## '파이어스타터' 스킨
 
-사용자가 정한 컨셉(K/DA FIRESTARTER: 검정·크롬·빨강의 컴백 무대)입니다. 시안: `design-mockups/gear-concepts/r2-skin-fire-b.jpg`(사용자가 고른 B안. A·C안도 같은 폴더). 스크린샷: `docs/screenshots/56-fire-7k.png`, `57-fire-6kfx.png`, `58-fire-4k-fever.png`(양옆의 사람 모양은 테스트가 그 자리에서 그린 대역입니다). 코드 안의 이름과 저장값은 `fire`입니다. 전부 코드로 그렸고, 그 그룹의 그림·로고·이름은 게임과 저장소에 들어 있지 않습니다.
+사용자가 정한 컨셉(K/DA FIRESTARTER: 검정·크롬·빨강의 컴백 무대)입니다. 시안: `design-mockups/gear-concepts/r2-skin-fire-b.jpg`(사용자가 고른 B안. A·C안도 같은 폴더). 스크린샷: `docs/screenshots/56-fire-8k.png`, `57-fire-6kfx.png`, `58-fire-4k-fever.png`(양옆의 사람 모양은 테스트가 그 자리에서 그린 대역입니다). 코드 안의 이름과 저장값은 `fire`입니다. 전부 코드로 그렸고, 그 그룹의 그림·로고·이름은 게임과 저장소에 들어 있지 않습니다.
 
 | 부분 | 내용 |
 |---|---|
@@ -315,7 +317,7 @@ PRISM 1차 구현에서 바뀐 것: 기어(검은 아노다이징 알루미늄·
 
 ## 'GPT' · 'Gemini' · 'Grok' · 'Claude' 스킨 (스킨 4)
 
-사용자가 스킨 4를 AI 회사 네 곳의 스킨으로 정했습니다(2026-11-11): "각 회사 스킨을 만들어줘", "노트 자체를 로고 모양으로", "기어 하단 디자인은 각 회사의 키 컬러를 사용하되, 색 이외에도 회사 특징이 드러나도록", 디시 AI 활용 갤러리의 회사별 콘 둘(올려다보는 얼굴, Don't Die)은 "기어 하단 좌, 우에 딱 붙여", "기어 앞으로 오게 하고 … 판정선 가리지 않는 선으로만". 시안: `design-mockups/gear-concepts/r2-skin-gpt2.jpg`(처음의 `r2-skin-gpt.jpg`는 특색이 없다는 의견으로 다시 그림), `r2-skin-gemini.jpg`, `r2-skin-grok.jpg`, `r2-skin-claude.jpg`. 스크린샷: `docs/screenshots/59-gpt-7k.png`, `60-gemini-7k.png`, `61-grok-7k.png`, `62-claude-7k.png`.
+사용자가 스킨 4를 AI 회사 네 곳의 스킨으로 정했습니다(2026-11-11): "각 회사 스킨을 만들어줘", "노트 자체를 로고 모양으로", "기어 하단 디자인은 각 회사의 키 컬러를 사용하되, 색 이외에도 회사 특징이 드러나도록", 디시 AI 활용 갤러리의 회사별 콘 둘(올려다보는 얼굴, Don't Die)은 "기어 하단 좌, 우에 딱 붙여", "기어 앞으로 오게 하고 … 판정선 가리지 않는 선으로만". 시안: `design-mockups/gear-concepts/r2-skin-gpt2.jpg`(처음의 `r2-skin-gpt.jpg`는 특색이 없다는 의견으로 다시 그림), `r2-skin-gemini.jpg`, `r2-skin-grok.jpg`, `r2-skin-claude.jpg`. 스크린샷: `docs/screenshots/59-gpt-8k.png`, `60-gemini-8k.png`, `61-grok-8k.png`, `62-claude-8k.png`.
 
 **로고와 콘은 빌드에 들어 있습니다.** 처음에는 저장소가 공개라서 싣지 않고 플레이어가 자기 PC에서 가져오게 했으나, 사용자가 그림을 고정으로 넣어 빌드하라고 정했습니다(2026-11-11). `client/public/stage/<스킨>/`에 스킨마다 세 장이 있고(`1.webp` 올려다보는 콘, `2.png` Don't Die 콘, `note.png` 로고의 흰 실루엣), 누구의 것인지는 `client/public/licenses/STAGE-PICTURES.md`에 적었습니다. 받침·키·레일·타격 효과·글자는 회사의 색과 그 회사 화면의 분위기를 새로 그린 것입니다.
 
@@ -345,7 +347,7 @@ PRISM 1차 구현에서 바뀐 것: 기어(검은 아노다이징 알루미늄·
 
 ## '아쿠아' 스킨 (레퍼런스 5)
 
-사용자가 보여 준 참고 패널 5(청록·분홍 메카)와 최대한 비슷한 컨셉입니다. 참고 그림은 저장소에 없고 이미지 모델에도 보내지 않았습니다: 본 것을 말로 적어 시안(`design-mockups/gear-concepts/r2-skin-aqua.jpg`)을 만들고 코드로 그렸습니다. 스크린샷: `docs/screenshots/63-aqua-7k.png`. 코드 안의 이름은 `aqua`.
+사용자가 보여 준 참고 패널 5(청록·분홍 메카)와 최대한 비슷한 컨셉입니다. 참고 그림은 저장소에 없고 이미지 모델에도 보내지 않았습니다: 본 것을 말로 적어 시안(`design-mockups/gear-concepts/r2-skin-aqua.jpg`)을 만들고 코드로 그렸습니다. 스크린샷: `docs/screenshots/63-aqua-8k.png`. 코드 안의 이름은 `aqua`.
 
 참고 패널에서 본 것: 유광 흰 건반 줄(두 칸은 청록)을 두른 흰 테, 그 아래 어두운 청록 유리판을 모서리를 45°로 깎은 흰 장갑판이 감쌈, 분홍 가는 테두리와 빗금, 양옆의 청록 빗금 블록, 가운데의 흰 고리 문장(화살표 셋으로 끊김), 아래 양쪽의 청록 라벨과 흰 숫자, 오른쪽의 청록→분홍 게이지.
 
@@ -365,7 +367,7 @@ PRISM 1차 구현에서 바뀐 것: 기어(검은 아노다이징 알루미늄·
 
 ## '스틸' · '레드라인' · '화이트 라인' · '별밤' 스킨 (레퍼런스 6 · 8 · 10 · 11)
 
-사용자가 보여 준 참고 패널 6 · 8 · 10 · 11과 최대한 비슷한 컨셉의 네 스킨입니다. '아쿠아'와 같은 방식으로 만들었습니다: 참고 그림은 저장소에 없고 이미지 모델에도 보내지 않았으며, 본 것을 말로 적어 시안(`design-mockups/gear-concepts/r2-skin-steel.jpg`, `-noir`, `-wire`, `-astral`)을 한 장씩 만들고 코드로 그렸습니다. 시안이 받침을 양옆으로 넓히거나 게이지를 따로 그린 곳은 따르지 않았습니다. 스크린샷: `docs/screenshots/64-steel-7k.png`, `66-noir-7k.png`, `68-wire-7k.png`, `69-astral-7k.png`. 코드 안의 이름은 `steel`, `noir`, `wire`, `astral`.
+사용자가 보여 준 참고 패널 6 · 8 · 10 · 11과 최대한 비슷한 컨셉의 네 스킨입니다. '아쿠아'와 같은 방식으로 만들었습니다: 참고 그림은 저장소에 없고 이미지 모델에도 보내지 않았으며, 본 것을 말로 적어 시안(`design-mockups/gear-concepts/r2-skin-steel.jpg`, `-noir`, `-wire`, `-astral`)을 한 장씩 만들고 코드로 그렸습니다. 시안이 받침을 양옆으로 넓히거나 게이지를 따로 그린 곳은 따르지 않았습니다. 스크린샷: `docs/screenshots/64-steel-8k.png`, `66-noir-8k.png`, `68-wire-8k.png`, `69-astral-8k.png`. 코드 안의 이름은 `steel`, `noir`, `wire`, `astral`.
 
 공통: 기어 폭은 트랙 폭 그대로, SCORE는 받침 윗단 가운데, SPEED · RATE는 아랫단 양끝. 참고 패널의 가운데 문장은 아랫단 가운데로 옮겼습니다(화이트 라인의 고리, 별밤의 별). 노트는 모두 막대 계열(깊이는 기본 노트와 같음)이고 롱노트의 끝은 수평으로 반듯합니다. 게이지 이름은 FEVER.
 
@@ -387,11 +389,11 @@ PRISM 1차 구현에서 바뀐 것: 기어(검은 아노다이징 알루미늄·
 
 코드: `render/deckArt.ts`(`steelPlate`, `noirPlate`, `wirePlate`, `astralPlate`와 그 단 높이 `STEEL` … `ASTRAL`, `GEAR_FRAMES`, `judgeOf`, `deckKeys`), `render/tintArt.ts`(`steelNote` … `astralNote`, `steelLong`, `noirLong`, `wireLong`, `drawPlus`, `drawGlitch`, `drawRingTicks`, `drawStarlight`, `SKIN_HITS`), `render/gearHud.ts`(`GEAR_TYPES`), `render/gearLights.ts`(`steelLights` … `astralLights`), `styles.css`(`.hud[data-gear='steel']` 등과 `.hud[data-fill='steel']` 등).
 
-남은 것: 스크린샷은 스킨마다 7K+1S 한 장입니다. 다른 키 모드는 화면으로 확인하지 않았고 단위 테스트(키 모드 셋의 받침·키 배치)만 거쳤습니다.
+남은 것: 스크린샷은 스킨마다 8K 한 장입니다(2026-11-17까지는 7K+1S 한 장). 다른 키 모드는 화면으로 확인하지 않았고 단위 테스트(키 모드 셋의 받침·키 배치)만 거쳤습니다.
 
 ## '기본' 스킨
 
-설정의 기어 "기본"(`standard`) + 노트 "기본"(`flat`) + 타격 효과 "플래시"(`flash`)가 '기본' 스킨입니다. 시안은 `design-mockups/gear-concepts/r2-skin-default-b.jpg`(사용자가 B를 고름), 스크린샷은 `docs/screenshots/47-default-7k.png`, `48-default-6kfx.png`, `49-default-4k-fever.png`.
+설정의 기어 "기본"(`standard`) + 노트 "기본"(`flat`) + 타격 효과 "플래시"(`flash`)가 '기본' 스킨입니다. 시안은 `design-mockups/gear-concepts/r2-skin-default-b.jpg`(사용자가 B를 고름), 스크린샷은 `docs/screenshots/47-default-8k.png`, `48-default-6kfx.png`, `49-default-4k-fever.png`.
 
 | 부분 | 내용 |
 |---|---|
@@ -705,6 +707,7 @@ Chromium의 추적(`contentTracing`)으로 래스터 작업 시간을, 페이지
 두 탭은 키 모드 일곱(4K · 4K+FX · 5K · 6K · 6K+FX · 7K+1S · 8K)의 줄을 아래로 죽 늘어놓고 있었습니다. 이제 키 모드가 탭 한 줄이고, 고른 모드의 키(또는 패드 버튼)와 그 단추들(차례로 지정 · 기본값 · 동시 입력 테스트 / 차례로 지정 · 지우기 · 입력 확인)만 그 아래에 나옵니다(`SettingsScreen.tsx`의 `KeyModeTabs`, `styles.css`의 `.key-mode-tabs`).
 
 - 처음 고른 모드는 마지막에 플레이한 키 모드(`lastKeyMode`)이고, 두 탭이 같은 모드를 봅니다(키 설정에서 7K+1S를 고르고 게임패드로 가면 7K+1S).
+- 같은 날 이어서 7K+1S 모드를 없애 탭은 여섯(4K · 4K+FX · 5K · 6K · 6K+FX · 8K)이 됐고, 키 설정의 7K+1S용 "BMS 배치" 단추도 없어졌습니다.
 - 키보드 · 패드로: 탭에 들어가면 커서가 고른 모드의 탭에 서고, 거기서 ←→가 옆 모드로 바꿉니다(끝에서는 멈춤). ↓는 그 모드의 레인 키로 내려가고, 레인 줄에서 ←→는 전처럼 레인을 옮깁니다. 그래서 아래 키 안내의 ↑↓는 "항목", ←→는 "모드 · 레인"입니다. 마우스는 아무 탭이나 누릅니다.
 - 다른 모드의 탭을 고르면 떠나는 모드에서 키를 기다리던 레인은 기다림을 그만두고, 열려 있던 동시 입력 테스트 · 입력 확인은 닫힙니다.
 - **사용자가 정하지 않아 채워 넣은 것:** 모드와 상관없는 부분은 탭 밖 제자리에 두었습니다(키 설정의 "플레이 중 키"는 탭 아래, 게임패드의 연결 상태 · 턴테이블 감도 · 정지 판정은 탭 위, "플레이 중 버튼" · "메뉴 버튼"은 탭 아래). 오른쪽 미리보기는 전처럼 마지막에 플레이한 키 모드를 보여 줍니다(탭을 따라가지 않음).
@@ -739,6 +742,7 @@ Chromium의 추적(`contentTracing`)으로 래스터 작업 시간을, 페이지
 
 ## 남은 것
 
+- **스크래치 그림 정리(2단계).** 2026-11-17에 7K+1S 모드와 스크래치 레인을 없앴지만 스크래치 노트를 그리는 코드와 그림, 기어 그림의 스크래치 부분은 지우지 않았습니다(다른 브랜치의 노트 그림 작업을 기다림). 지금은 어디서도 불리거나 보이지 않습니다. 피아노의 받침 그림은 7K+1S 줄에 맞춰 그린 것이라 맞는 키 모드가 없어, 피아노 받침은 언제나 코드로 그립니다.
 - **설정 정리(2026-11-17)에서 사용자가 볼 것.** ① 1번을 "기어 없이 노트만 있는 노트 열을 지움"으로 읽었습니다. 피아노 기어(노트 없이 기어만 있음)와 타격 효과는 그대로입니다. 읽기가 달랐다면 지운 노트는 커밋 `01f462d`를 되돌려 살릴 수 있습니다(그림 파일도 기록에 남아 있음). ② 줄인 도움말 여덟의 문장은 제가 쓴 것이라 고칠 곳이 있으면 문장째로 바꾸면 됩니다. 값 설명이 아닌 긴 도움말(노트 속도 205자 등)은 그대로입니다. ③ "노트 색상"은 줄 이름만 바꿨습니다. 그 줄의 도움말, "새 프리셋으로 저장" 단추, 안내문에는 "프리셋"이라는 말이 남아 있습니다. ④ 키 모드 탭 밖에 둔 것(플레이 중 키, 턴테이블 감도 · 정지 판정, 플레이 중 버튼, 메뉴 버튼)을 탭으로 더 나눌지, 오른쪽 미리보기가 고른 키 모드를 따라가게 할지는 정하지 않았습니다(지금은 따라가지 않음). ⑤ 선곡 화면의 플레이 옵션과 같이 쓰는 줄(플레이 탭: 배치 · 게이지 등, `PlayOptions.tsx`)의 도움말은 다른 세션의 파일이라 손대지 않았습니다.
 - **기어 사라짐 재발(2026-11-16): 멈추는 자리는 찾았고(Skia의 글자 그리기 검사, 위 "기본 모드의 끊김"), 무엇이 그 검사에 걸리는지는 모릅니다.** 기본 모드를 CPU 래스터로 바꾼 것이 사용자 PC에서 끊김을 없애는지는 사용자 PC에서만 알 수 있습니다: 설정 → 연출·배경 → 그래픽 호환 모드에서 **기본**을 고르고(마지막에 쓴 모드가 OpenGL로 기억돼 있을 수 있음) 다시 시작한 뒤, 끊겼던 곡과 자리(FIRESTARTER 2:06, THE ULTIMACY 0:57 · 1:47, Big Daddy 0:25, Skyriser 1:36)를 다시 칩니다. `graphics.log`의 `start` 줄이 `mode=default switches=disable-gpu-rasterization … rasterization=disabled_software`여야 합니다. 그래도 끊기면 이번에는 `crash-stack`이 64곳까지 남아, 그 그리기를 누가 시켰는지가 보입니다.
 - 그래픽 호환 모드가 사용자 PC에서 무엇으로 그려지는지는 사용자의 로그로 확인됐습니다(OpenGL: `ANGLE_OPENGL`, 11on12: `ANGLE_D3D11on12`, DirectComposition 끄기: `dcomp=no`). 러너는 소프트웨어로 그려서 CPU 래스터가 실제 카드에서 내는 차이(`rasterization=`)는 확인하지 못했습니다. CPU 래스터의 **실제 그래픽 카드에서의 프레임 시간도 재지 못했습니다**(이 환경은 소프트웨어 전용): 플레이가 무거워지거나 선곡 화면의 긴 목록이 느려지면 "GPU 래스터" 모드가 예전 그대로입니다.

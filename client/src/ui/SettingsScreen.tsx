@@ -30,7 +30,6 @@ import {
   padPlayOf,
   playKeysOf,
   rebindKey,
-  sanitizeSettings,
   secondBindingsFor,
   TURNTABLE_RELEASE_MAX,
   TURNTABLE_RELEASE_MIN,
@@ -1123,11 +1122,6 @@ function KeysPanel({
                 >
                   {running ? '멈추기' : '차례로 지정'}
                 </button>
-                {mode === '7K+1S' && (
-                  <button className="small" onClick={() => onSettingsChange(sanitizeSettings({ ...settings, bindings: { ...settings.bindings, [mode]: keyModes[mode].bindings.BMS } }))}>
-                    BMS 배치
-                  </button>
-                )}
                 <button
                   className="small"
                   data-testid={`keys-default-${mode}`}

@@ -93,7 +93,7 @@ export function EditorScreen({ session, settings, onExit, onTestPlay, onSaved }:
 
   const keyLanes = mode.lanes.map((l, i) => (l.kind === 'key' ? i : -1)).filter((i) => i >= 0);
   const special = new Set(mode.lanes.map((l, i) => (l.kind !== 'key' ? i : -1)).filter((i) => i >= 0));
-  // the lanes as wide as the play has them (the scratch wider), none narrower than a key's
+  // the lanes as wide as the play has them, none narrower than a key's
   const laneUnits = mode.lanes.map((l) => Math.max(1, l.width));
   /** Where the canvas lays the lanes (px), for the lane heads under it. */
   const [heads, setHeads] = useState<{ x: number[]; w: number[] } | null>(null);
@@ -756,7 +756,7 @@ export function EditorScreen({ session, settings, onExit, onTestPlay, onSaved }:
                   className={`editor-lane-head ${l.kind}`}
                   data-testid={`editor-lane-${i}`}
                   style={{ left: heads.x[i], width: heads.w[i], ['--lane' as string]: laneColors[i] } as CSSProperties}
-                  title={`${l.kind === 'scratch' ? '스크래치' : l.kind === 'side' ? '사이드' : `${l.id}번`} 레인 · ${keyLabel(bindings[i])}`}
+                  title={`${l.kind === 'side' ? '사이드' : `${l.id}번`} 레인 · ${keyLabel(bindings[i])}`}
                 >
                   <kbd>{keyLabel(bindings[i])}</kbd>
                   {l.kind !== 'key' && <span>{l.id}</span>}

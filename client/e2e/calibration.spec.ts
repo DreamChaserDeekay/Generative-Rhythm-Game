@@ -204,10 +204,10 @@ test('the sync test played by hand from the settings: ←→ the display offset,
   expect(errors).toEqual([]);
 });
 
-test('the sync test by hand in 7K+1S leaves Shift to the scratch: the judgement offset on [ ], the keys shown as they are', async ({ page }) => {
+test('the sync test by hand in 6K+FX leaves Shift to the side lanes: the judgement offset on [ ], the keys shown as they are', async ({ page }) => {
   const errors = trackErrors(page);
   await page.addInitScript(() => {
-    if (!localStorage.getItem('grg.settings.v1')) localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '7K+1S' }));
+    if (!localStorage.getItem('grg.settings.v1')) localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '6K+FX' }));
   });
   await judgeTab(page);
   const row = page.getByTestId('settings-sync-play');
@@ -220,7 +220,7 @@ test('the sync test by hand in 7K+1S leaves Shift to the scratch: the judgement 
   await expect(rows.nth(1).locator('kbd')).toHaveText(['[', ']']);
   await page.keyboard.press('BracketRight');
   await expect(page.getByTestId('hud-sync-input')).toHaveText('+1ms');
-  // the scratch held (L-Shift) with →: the display offset, the judgement offset left alone
+  // a side lane held (L-Shift) with →: the display offset, the judgement offset left alone
   await page.keyboard.press('Shift+ArrowRight');
   await expect(page.getByTestId('hud-sync-visual')).toHaveText('+1ms');
   await expect(page.getByTestId('hud-sync-input')).toHaveText('+1ms');
