@@ -158,8 +158,8 @@ function slabRow(g: CanvasRenderingContext2D, notes: ArtImage, layout: SlabLayou
   slices(g, notes, row * layout.row + layout.top, layout.h, [0, c0, c1, c2, c3, layout.w], [0, cap, cap + half, cap + half + mid, w - cap, w], h);
 }
 
-/** Where each key's coin lies in the coin's notes.png: a cell of 512 per mark, two to a row, the coin at (6, 6) in it, 500 × 500. */
-const COIN_MARK: Record<Exclude<NoteMark, 'side'>, number> = { white: 0, blue: 1, gold: 2, scratch: 3 };
+/** Where each key's coin lies in the coin's notes.png: a cell of 512 per mark, two to a row, the coin at (6, 6) in it, 500 × 500 (its fourth cell was the scratch's coin, drawn for no lane now). */
+const COIN_MARK: Record<Exclude<NoteMark, 'side'>, number> = { white: 0, blue: 1, gold: 2 };
 const COIN_CELL = { left: 6, top: 6, w: 500, h: 500 } as const;
 
 /** The coin: a record, round, its lane's mark printed on its label; in code (coinNote) where its picture is missing, and on a side lane. */
@@ -259,14 +259,14 @@ function artLongOf(long: LongStyle, images: StyleImages): LongPaint | undefined 
 
 /**
  * The bars that were drawn in code, drawn again with the image model with their long notes (make_long_notes.py,
- * build_long_notes.py: media/notes/<note>.png, "notes/<note>"): the key lanes' tap in the first row (every key's
- * colour and a side lane's own), the scratch's in the second, each ART_NOTE's size. Take a name out to have its code
+ * build_long_notes.py: media/notes/<note>.png, "notes/<note>"): the key lanes' tap (every key's
+ * colour and a side lane's own), ART_NOTE's size. Take a name out to have its code
  * drawing back; a picture that did not load is drawn in code too.
  */
 export const ART_NOTES: readonly NoteStyle[] = ['flat', 'prism', 'sky', 'fire', 'aqua', 'steel', 'noir', 'wire', 'astral'];
 /** The AI companies' marks whose inside is drawn from a material made with the image model (media/notes/<logo>.png, 512 × 512). */
 export const ART_MATERIALS: readonly NoteStyle[] = ['gpt', 'gemini', 'grok', 'claude'];
-/** media/notes/<note>.png's rows: 1024 × 224 a tap, its ends and its middle (the scratch's mark) kept as drawn. */
+/** media/notes/<note>.png: a tap 1024 × 224, its ends and its middle kept as drawn. */
 const ART_NOTE: SlabLayout = { row: 256, top: 16, w: 1024, h: 224, cuts: [212, 332, 692, 812] };
 
 /**
@@ -298,12 +298,12 @@ export function ledSpritesOf(images: StyleImages): LedSprites | undefined {
   return image ? { image, size: 128, lens: 48 / 64 } : undefined;
 }
 
-/** A bar drawn from its picture (ART_NOTES): a key's (and a side lane's) from its first row, the scratch's from its second. */
+/** A bar drawn from its picture (ART_NOTES), a key's and a side lane's alike. */
 function artTap(image: ArtImage, code: NotePaint): NotePaint {
   return (g, w, h, mark) => {
     if (!image) return code(g, w, h, mark);
     g.imageSmoothingQuality = 'high';
-    slabRow(g, image, ART_NOTE, mark === 'scratch' ? 1 : 0, w, h);
+    slabRow(g, image, ART_NOTE, 0, w, h);
   };
 }
 

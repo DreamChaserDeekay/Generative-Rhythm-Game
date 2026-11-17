@@ -794,7 +794,7 @@
       "bundle": "notes",
       "size": [
         1024,
-        512
+        256
       ]
     },
     "notes/astral": {
@@ -802,7 +802,7 @@
       "bundle": "notes",
       "size": [
         1024,
-        512
+        256
       ]
     },
     "notes/claude": {
@@ -818,7 +818,7 @@
       "bundle": "notes",
       "size": [
         1024,
-        512
+        256
       ]
     },
     "notes/flat": {
@@ -826,7 +826,7 @@
       "bundle": "notes",
       "size": [
         1024,
-        512
+        256
       ]
     },
     "notes/gemini": {
@@ -858,7 +858,7 @@
       "bundle": "notes",
       "size": [
         1024,
-        512
+        256
       ]
     },
     "notes/prism": {
@@ -866,7 +866,7 @@
       "bundle": "notes",
       "size": [
         1024,
-        512
+        256
       ]
     },
     "notes/sky": {
@@ -874,7 +874,7 @@
       "bundle": "notes",
       "size": [
         1024,
-        512
+        256
       ]
     },
     "notes/steel": {
@@ -882,7 +882,7 @@
       "bundle": "notes",
       "size": [
         1024,
-        512
+        256
       ]
     },
     "notes/wire": {
@@ -890,7 +890,7 @@
       "bundle": "notes",
       "size": [
         1024,
-        512
+        256
       ]
     },
     "piano/deck": {

@@ -23,8 +23,8 @@ for i, f in enumerate([261.6, 329.6, 392.0]):
 lines = ["#TITLE E2E Keysound [HYPER]", "#ARTIST Synth", "#BPM 120", "#PLAYLEVEL 5", "#WAV01 kick.wav"]
 lines += [f"#WAV1{i} lead{i}.wav" for i in range(3)]
 for m in range(1, 7):
-    lines += [f"#{m:03d}01:01010101", f"#{m:03d}12:10001100", f"#{m:03d}19:00120012"]
-(out / "e2e_hyper.bme").write_text("\\n".join(lines) + "\\n", encoding="utf-8")
+    lines += [f"#{m:03d}01:01010101", f"#{m:03d}12:10001100", f"#{m:03d}15:00120012"]
+(out / "e2e_hyper.bms").write_text("\\n".join(lines) + "\\n", encoding="utf-8")
 `;
 
 function trackErrors(page: Page): string[] {

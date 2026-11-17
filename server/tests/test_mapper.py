@@ -49,14 +49,14 @@ def test_the_song_timing_goes_to_mapperatorinator_as_red_lines() -> None:
     assert "Mode: 3" in text and "CircleSize:8" in text
 
 
-def test_columns_are_the_lanes_but_fx_and_7k1s_takes_the_first_as_scratch() -> None:
-    assert charts.columns("7K+1S") == list(range(8))  # column 0 is the scratch lane
+def test_columns_are_the_lanes_but_fx() -> None:
+    assert charts.columns("8K") == list(range(8))
     assert charts.columns("6K+FX") == [1, 2, 3, 4, 5, 6]  # FX lanes stay empty
     assert charts.columns("4K") == [0, 1, 2, 3]
     objects = [f"{x_of(c, 8)},192,{1000 + 200 * c},1,0,0:0:0:0:" for c in range(8)]
     objects.append(f"{x_of(3, 8)},192,3000,128,0,3600:0:0:0:0:")
     objects.append(f"{x_of(5, 8)},192,4000,128,0,4030:0:0:0:0:")  # a 30 ms hold is a tap
-    notes = charts.notes_from_osu(osu(8, objects), charts.columns("7K+1S"))
+    notes = charts.notes_from_osu(osu(8, objects), charts.columns("8K"))
     assert [n["lane"] for n in notes[:8]] == list(range(8))
     holds = [n for n in notes if n["type"] == "hold"]
     assert len(holds) == 1 and holds[0]["lane"] == 3 and holds[0]["endT"] == 3600
@@ -77,10 +77,10 @@ def test_the_osu_it_makes_becomes_a_chart_rated_by_our_estimate() -> None:
     a = _analysis()
     cfg = dict(mapper_config())
     level, seed = 12, 1234
-    cid = charts.chart_id(a, "7K+1S", "EXPERT", level, seed, cfg)
-    chart = charts.make_chart(a, "7K+1S", "EXPERT", level, seed, cid, cfg, {"songId": None, "title": "T"}, onset_osu(a, 8), {"seconds": 3.0, "device": "cuda"})
+    cid = charts.chart_id(a, "8K", "EXPERT", level, seed, cfg)
+    chart = charts.make_chart(a, "8K", "EXPERT", level, seed, cid, cfg, {"songId": None, "title": "T"}, onset_osu(a, 8), {"seconds": 3.0, "device": "cuda"})
     meta = chart["meta"]
-    assert meta["chartId"] == cid and meta["keyMode"] == "7K+1S" and meta["noteCount"] == len(chart["notes"]) == 61
+    assert meta["chartId"] == cid and meta["keyMode"] == "8K" and meta["noteCount"] == len(chart["notes"]) == 61
     assert meta["generator"]["name"] == "mapperatorinator" and meta["generator"]["keycount"] == 8 and meta["generator"]["timing"] == "model"
     assert 1 <= meta["level"] <= 20 and meta["generator"]["stars"] == charts.stars_for(level, cfg["starsForLevel"])
     assert {n["lane"] for n in chart["notes"]} == set(range(8))
@@ -91,10 +91,10 @@ def test_the_osu_it_makes_becomes_a_chart_rated_by_our_estimate() -> None:
     assert len(chart["sections"]) == len(kept) and all(abs(tempo.beat_to_ms(c["startBeat"]) - s["t"]) < 1.0 for c, s in zip(chart["sections"], kept))
     # given the song's timing (a later tier), the chart carries exactly that
     given = {"offsetMs": 250.0, "tempoMap": [{"beat": 0, "bpm": 100.0}], "meter": [{"measure": 0, "beatsPerMeasure": 4}]}
-    later = charts.make_chart(a, "7K+1S", "EXPERT", level, seed, cid, cfg, {"songId": None, "title": "T"}, onset_osu(a, 8), {"seconds": 3.0}, None, given)
+    later = charts.make_chart(a, "8K", "EXPERT", level, seed, cid, cfg, {"songId": None, "title": "T"}, onset_osu(a, 8), {"seconds": 3.0}, None, given)
     assert later["timing"] == given and later["meta"]["generator"]["timing"] == "song"
     assert sum(1 for n in chart["notes"] if n.get("src")) > 40  # notes on onsets follow their stems
-    assert charts.chart_id(a, "7K+1S", "EXPERT", level, seed + 1, cfg) != cid
+    assert charts.chart_id(a, "8K", "EXPERT", level, seed + 1, cfg) != cid
 
 
 def test_uv_comes_from_its_wheel_checked(tmp_path) -> None:
@@ -136,9 +136,9 @@ def test_charts_come_from_mapperatorinator_once_its_runtime_is_set_up(mapped: Te
     song = mapped.post("/api/songs/demo", json={"bpm": 128, "bars": 12, "seed": 2}).json()["song"]
     sid = song["id"]
     assert song["bpm"] is None  # no beat analysis: the BPM comes with the song's first chart
-    brief = mapped.post(f"/api/songs/{sid}/charts", json={"keyMode": "7K+1S", "difficulty": "EXPERT", "brief": True}).json()["meta"]
-    assert brief["predicted"] is True and brief["noteCount"] == 0 and brief["level"] == charts.target_level("7K+1S", "EXPERT", None)
-    made = mapped.post(f"/api/songs/{sid}/charts", json={"keyMode": "7K+1S", "difficulty": "EXPERT"}).json()
+    brief = mapped.post(f"/api/songs/{sid}/charts", json={"keyMode": "8K", "difficulty": "EXPERT", "brief": True}).json()["meta"]
+    assert brief["predicted"] is True and brief["noteCount"] == 0 and brief["level"] == charts.target_level("8K", "EXPERT", None)
+    made = mapped.post(f"/api/songs/{sid}/charts", json={"keyMode": "8K", "difficulty": "EXPERT"}).json()
     chart = made["chart"]
     assert made["cached"] is False and chart["meta"]["chartId"] == brief["chartId"]
     assert chart["meta"]["generator"]["name"] == "mapperatorinator" and chart["meta"]["noteCount"] == 48
@@ -147,9 +147,9 @@ def test_charts_come_from_mapperatorinator_once_its_runtime_is_set_up(mapped: Te
     assert chart["meta"]["generator"]["timing"] == "model" and chart["timing"]["tempoMap"] == [{"beat": 0, "bpm": 128.0}]
     listed = mapped.get(f"/api/songs/{sid}").json()["song"]
     assert (listed["bpm"], listed["bpmMin"], listed["bpmMax"]) == (128.0, 128.0, 128.0)
-    again = mapped.post(f"/api/songs/{sid}/charts", json={"keyMode": "7K+1S", "difficulty": "EXPERT"}).json()
+    again = mapped.post(f"/api/songs/{sid}/charts", json={"keyMode": "8K", "difficulty": "EXPERT"}).json()
     assert again["cached"] is True and again["chart"]["meta"]["chartId"] == chart["meta"]["chartId"]
-    brief2 = mapped.post(f"/api/songs/{sid}/charts", json={"keyMode": "7K+1S", "difficulty": "EXPERT", "brief": True}).json()["meta"]
+    brief2 = mapped.post(f"/api/songs/{sid}/charts", json={"keyMode": "8K", "difficulty": "EXPERT", "brief": True}).json()["meta"]
     assert "predicted" not in brief2 and brief2["noteCount"] == 48  # the made chart's own meta now
     # the other tiers of the key mode follow in the background, one at a time, and are saved
     others = [t for t in ("NORMAL", "HARD", "ELITE", "MASTER")]
@@ -157,7 +157,7 @@ def test_charts_come_from_mapperatorinator_once_its_runtime_is_set_up(mapped: Te
     made: dict[str, dict] = {}
     while time.time() < deadline and len(made) < len(others):
         for tier in others:
-            m = mapped.post(f"/api/songs/{sid}/charts", json={"keyMode": "7K+1S", "difficulty": tier, "brief": True}).json()["meta"]
+            m = mapped.post(f"/api/songs/{sid}/charts", json={"keyMode": "8K", "difficulty": tier, "brief": True}).json()["meta"]
             if m.get("predicted"):
                 assert m["queued"] or m["making"]  # waiting its turn, or being made
             else:
@@ -249,7 +249,7 @@ def test_the_server_tells_what_chart_is_being_made_and_whether_the_model_is_load
     # before the first chart: nothing made, and no worker holding the model
     assert mapped.get("/api/mapper/queue").json() == {"making": None, "waiting": 0, "loaded": False}
     sid = mapped.post("/api/songs/demo", json={"bpm": 128, "bars": 12, "seed": 2}).json()["song"]["id"]
-    assert mapped.post(f"/api/songs/{sid}/charts", json={"keyMode": "7K+1S", "difficulty": "EXPERT"}).status_code == 200
+    assert mapped.post(f"/api/songs/{sid}/charts", json={"keyMode": "8K", "difficulty": "EXPERT"}).status_code == 200
     # the other four tiers follow in the background: named here until the last is made
     seen = mapped.get("/api/mapper/queue").json()
     assert set(seen) == {"making", "waiting", "loaded"} and 0 <= seen["waiting"] <= 4 and seen["loaded"] is True
@@ -435,22 +435,6 @@ def test_a_real_tempo_change_a_meter_change_and_a_tempo_with_few_onsets_stay() -
     # a single tempo is never taken out
     one = timing_from_reds([(0.0, 500.0, 4)])
     assert charts.checked_timing(one, [], 10_000.0) == (one, [])
-
-
-def test_v32s_last_column_goes_on_the_7k1s_scratch_and_v32_minis_first() -> None:
-    cfg = dict(mapper_config())
-    assert cfg["scratchColumn"]["v32"] == "last" and cfg["scratchColumn"]["v32-mini"] == "first"
-    v32, mini = {**cfg, "model": "v32"}, {**cfg, "model": "v32-mini"}
-    assert charts.column_lanes("7K+1S", v32) == [1, 2, 3, 4, 5, 6, 7, 0]
-    assert charts.column_lanes("7K+1S", mini) == list(range(8))
-    assert charts.column_lanes("8K", v32) == list(range(8)) and charts.column_lanes("6K+FX", v32) == charts.columns("6K+FX")
-    # a note in the model's last column is on the scratch, one in its first on the first key
-    text = osu(8, [f"{x_of(7, 8)},192,1000,1,0,0:0:0:0:", f"{x_of(0, 8)},192,1500,1,0,0:0:0:0:"])
-    assert [(n["t"], n["lane"]) for n in charts.notes_from_osu(text, charts.column_lanes("7K+1S", v32))] == [(1000.0, 0), (1500.0, 1)]
-    # v32's 7K+1S charts are new ones (made again when asked for); the others keep their ids
-    a, first = _analysis(), {**v32, "scratchColumn": {"v32": "first"}}
-    assert charts.chart_id(a, "7K+1S", "HARD", 8, 1, v32) != charts.chart_id(a, "7K+1S", "HARD", 8, 1, first)
-    assert charts.chart_id(a, "8K", "HARD", 8, 1, v32) == charts.chart_id(a, "8K", "HARD", 8, 1, first)
 
 
 LOST_BEAT_WORKER = textwrap.dedent('''

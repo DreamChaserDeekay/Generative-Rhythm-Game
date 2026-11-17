@@ -40,8 +40,8 @@ export interface GaugeRule {
   lamp: ClearLamp;
 }
 
-export type LaneColor = 'white' | 'blue' | 'gold' | 'scratch' | 'sideL' | 'sideR';
-export type LaneKind = 'key' | 'scratch' | 'side';
+export type LaneColor = 'white' | 'blue' | 'gold' | 'sideL' | 'sideR';
+export type LaneKind = 'key' | 'side';
 
 export interface LaneConfig {
   id: string;

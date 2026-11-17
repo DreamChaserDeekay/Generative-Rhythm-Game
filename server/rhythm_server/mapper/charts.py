@@ -2,9 +2,8 @@
 an .osu file), and the .osu it gives back as one of our charts (docs/MAPPERATORINATOR.md).
 
 Key modes: Mapperatorinator makes osu!mania charts of 1 to 18 columns. Every lane but the FX ones
-is a column, in our lane order: 4K, 5K, 6K, 8K as they are, 7K+1S as 8 columns, the one the model
-leaves nearly empty on the scratch (v32 its last, v32-mini its first: mapper.json scratchColumn)
-and the others in order on the keys, 4K+FX and 6K+FX as 4K and 6K with their FX lanes left empty.
+is a column, in our lane order: 4K, 5K, 6K, 8K as they are, 4K+FX and 6K+FX as 4K and 6K with
+their FX lanes left empty.
 
 Timing: the model's own. A song's first chart finds it (Mapperatorinator's timing pass); the
 song keeps it (`song_timing`) and its other charts are given it as timing context, so every tier
@@ -51,28 +50,6 @@ MIN_HOLD_MS = 60.0
 def columns(key_mode: str) -> list[int]:
     """Our lane of each column Mapperatorinator is asked for (every lane but FX ones)."""
     return [l.index for l in lane_infos(key_mode) if l.kind != "side"]
-
-
-def scratch_column(cfg: dict[str, Any]) -> str:
-    """Which column of the model's goes on a scratch: "first" or "last" (mapper.json scratchColumn,
-    by model). v32 leaves its last of 8 nearly empty (4-10 % of the notes, the least used column of
-    14 of 18 charts on the runner, docs/MAPPERATORINATOR.md); v32-mini its first."""
-    by_model = cfg.get("scratchColumn") or {}
-    choice = by_model.get(str(cfg.get("model", "v32")), "first") if isinstance(by_model, dict) else by_model
-    return "last" if choice == "last" else "first"
-
-
-def column_lanes(key_mode: str, cfg: dict[str, Any]) -> list[int]:
-    """Our lane of each column of the chart the model made: columns(), but where the key mode has a
-    scratch and the model leaves its last column for it, that column goes on the scratch and the
-    others, in order, on the keys."""
-    lanes = columns(key_mode)
-    infos = lane_infos(key_mode)
-    scratch = [k for k, lane in enumerate(lanes) if infos[lane].kind == "scratch"]
-    if scratch and scratch_column(cfg) == "last":
-        k = scratch[0]
-        lanes = lanes[:k] + lanes[k + 1:] + [lanes[k]]
-    return lanes
 
 
 def target_level(key_mode: str, difficulty: str, level: int | None) -> int:
@@ -129,9 +106,6 @@ def chart_id(analysis: dict[str, Any], key_mode: str, difficulty: str, level: in
         "parallel": bool(cfg.get("parallel", False)),
         "camera": cfg.get("cameraFrom", "notes"),
     }
-    if any(l.kind == "scratch" for l in lane_infos(key_mode)) and scratch_column(cfg) == "last":
-        # the last column on the scratch: these charts are not those that had the first there
-        payload["scratch"] = "last"
     return "c" + hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()[:20]
 
 
@@ -437,7 +411,7 @@ def make_chart(
     lanes = lane_infos(key_mode)
     timing = song_timing or found_timing or parse_osu(osu_text).timing
     tempo = TempoMap(timing)
-    notes = notes_from_osu(osu_text, column_lanes(key_mode, cfg))
+    notes = notes_from_osu(osu_text, columns(key_mode))
     duration = float(analysis["durationMs"])
     # nothing is played in a silence, nor past the song's end
     notes, silent = drop_silent(notes, [*(quiet or []), (duration, float("inf"))], float((cfg.get("silence") or {}).get("marginMs", 100.0)))
@@ -491,7 +465,6 @@ def make_chart(
                 "timing": "song" if song_timing else "model",
                 # the tempos taken out of it, the song not following them (checked_timing)
                 **({"timingFixed": timing_fixed} if timing_fixed else {}),
-                **({"scratchColumn": scratch_column(cfg)} if any(l.kind == "scratch" for l in lanes) else {}),
                 "camera": "structure" if cfg.get("cameraFrom") == "structure" else "notes",
                 # notes the model put in a silence of the song (or past its end), dropped
                 "silentDropped": silent,

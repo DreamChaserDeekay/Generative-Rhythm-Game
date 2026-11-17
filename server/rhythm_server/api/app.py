@@ -629,28 +629,34 @@ def create_app(
             raise HTTPException(502, f"AI 채보를 만들지 못했습니다: {type(e).__name__}: {e} — 다시 시도해 주세요.") from e
         return {"chart": chart, "cached": False}
 
-    @app.get("/api/charts/{chart_id}")
-    def get_chart(chart_id: str) -> dict[str, Any]:
-        chart = library.load_chart(chart_id)
-        if chart is None:
-            raise HTTPException(404, "채보를 찾을 수 없습니다")
-        return {"chart": chart}
-
     def chart_or_404(chart_id: str) -> dict[str, Any]:
         chart = library.load_chart(chart_id)
         if chart is None:
             raise HTTPException(404, "채보를 찾을 수 없습니다")
         return chart
 
+    def playable_chart(chart_id: str) -> dict[str, Any]:
+        """A chart the game can open: not one of a key mode it no longer has (its file stays in the library)."""
+        chart = chart_or_404(chart_id)
+        key_mode = chart["meta"]["keyMode"]
+        if key_mode not in load_config("keymodes")["modes"]:
+            raise HTTPException(410, f"{key_mode} 모드는 없어져서 이 채보를 열 수 없습니다 (파일은 보관함에 남아 있습니다)")
+        return chart
+
+    @app.get("/api/charts/{chart_id}")
+    def get_chart(chart_id: str) -> dict[str, Any]:
+        return {"chart": playable_chart(chart_id)}
+
     @app.get("/api/songs/{song_id}/charts")
     def saved_charts(song_id: str) -> dict[str, Any]:
         song_or_404(song_id)
-        return {"charts": library.list_charts(song_id)}
+        # retired: its saved charts of key modes the game no longer has, counted (not listed, not playable)
+        return {"charts": library.list_charts(song_id), "retired": library.retired_charts(song_id)}
 
     @app.post("/api/songs/{song_id}/charts/custom", status_code=201)
     def save_custom_chart(song_id: str, req: CustomChartRequest) -> dict[str, Any]:
         song = song_or_404(song_id)
-        base = chart_or_404(req.baseChartId)
+        base = playable_chart(req.baseChartId)
         bmeta = base["meta"]
         notes = [{k: n[k] for k in NOTE_FIELDS if k in n} for n in req.notes]
         base_name = bmeta.get("chartName") or f"{bmeta['keyMode']} {bmeta['difficulty']}"
@@ -753,7 +759,7 @@ def create_app(
 
     @app.get("/api/charts/{chart_id}/export")
     def export_chart_file(chart_id: str, format: str = "osu", offsetMs: float = Query(default=0.0, ge=-5000, le=5000)) -> Response:
-        chart = chart_or_404(chart_id)
+        chart = playable_chart(chart_id)
         if format not in export_formats(chart["meta"]["keyMode"]):
             raise HTTPException(400, f"{chart['meta']['keyMode']} 채보는 {format}로 내보낼 수 없습니다")
         song_id = chart["meta"].get("songId") or library.chart_song(chart_id)

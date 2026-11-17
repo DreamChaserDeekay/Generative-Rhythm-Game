@@ -33,7 +33,7 @@ export interface SyncTestKeys {
   visual: KeyPair | null;
   /** Played by hand only. */
   judgement: KeyPair | null;
-  /** A lane is on Shift (the scratch, a side lane): held, it is no modifier. */
+  /** A lane is on Shift (a side lane): held, it is no modifier. */
   shiftLane: boolean;
 }
 
@@ -47,7 +47,7 @@ const SYNC_PAIRS: readonly KeyPair[] = [
 /**
  * The sync test's keys among those no lane takes (`laneCodes`: the lanes' keys played by hand,
  * none on autoplay): the display offset on ←→ and, played by hand, the judgement offset on
- * Shift+←→. Where a lane takes them (Shift is the scratch of 7K+1S and the side lanes of the FX
+ * Shift+←→. Where a lane takes them (Shift is the side lanes of the FX
  * modes, and any key can be a lane's), the next pair no lane takes: [ ], then , .
  */
 export function syncTestKeys(laneCodes: readonly string[], byHand: boolean): SyncTestKeys {

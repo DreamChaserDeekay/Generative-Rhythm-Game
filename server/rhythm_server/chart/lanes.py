@@ -13,7 +13,7 @@ class LaneInfo:
     kind: str
     hand: str
     finger: int
-    pos: float  # 0..1 across key lanes; scratch lanes are -1
+    pos: float  # 0..1 across key lanes; side lanes are -1
 
 
 def lane_infos(key_mode: str) -> list[LaneInfo]:

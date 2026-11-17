@@ -30,7 +30,7 @@ __all__ = [
 
 
 def export_formats(key_mode: str) -> list[str]:
-    """Formats a chart of this key mode can be written in (BMS/bmson know only 5K and 7K+1S)."""
+    """Formats a chart of this key mode can be written in (of our key modes, BMS and bmson players know 5K only)."""
     return ["osu", "bms", "bmson"] if key_mode in LANE_COLUMNS else ["osu"]
 
 

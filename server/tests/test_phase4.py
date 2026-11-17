@@ -53,7 +53,7 @@ def test_tempo_map_stops_pause_the_beat_clock() -> None:
     assert tempo.ms_to_beat(1000) == pytest.approx(2)
 
 
-@pytest.mark.parametrize("mode", ["4K", "6K+FX", "7K+1S", "8K"])
+@pytest.mark.parametrize("mode", ["4K", "5K", "6K+FX", "8K"])
 def test_osu_export_round_trip(mode: str) -> None:
     chart = made_chart(analysis(), mode, "HARD", 4)
     parsed = parse_osu(export_osu(chart, "song.ogg", preview_ms=1000), "x.osu")
@@ -61,11 +61,11 @@ def test_osu_export_round_trip(mode: str) -> None:
     _same_notes(chart["notes"], parsed.notes, 0.5)  # osu! stores whole milliseconds
 
 
-@pytest.mark.parametrize("mode", ["5K", "7K+1S"])
-def test_bms_and_bmson_export_round_trip(mode: str) -> None:
+def test_bms_and_bmson_export_round_trip() -> None:
+    mode = "5K"
     chart = on_grid(made_chart(analysis(), mode, "MASTER", 4))
     text, ext = export_bms(chart, "song.ogg")
-    assert ext == (".bme" if mode == "7K+1S" else ".bms")
+    assert ext == ".bms"
     bms = parse_bms(text.encode("utf-8"), "x" + ext)
     assert bms.key_mode == mode and bms.sounds == ["song.ogg"] and bms.bgm[0]["t"] == pytest.approx(0, abs=1e-6)
     _same_notes(chart["notes"], bms.notes, 0.01)
@@ -75,8 +75,8 @@ def test_bms_and_bmson_export_round_trip(mode: str) -> None:
 
 
 def test_export_formats_by_key_mode() -> None:
-    assert export_formats("7K+1S") == ["osu", "bms", "bmson"]
-    assert export_formats("4K") == ["osu"]
+    assert export_formats("5K") == ["osu", "bms", "bmson"]
+    assert export_formats("4K") == ["osu"] and export_formats("8K") == ["osu"]
     chart = made_chart(analysis(), "4K", "NORMAL", 1)
     with pytest.raises(FormatError):
         export_chart(chart, "bms", "song.ogg")
@@ -132,10 +132,15 @@ def test_bms_timing_long_notes_and_random() -> None:
 
 
 def test_bms_modes_encodings_and_rejections() -> None:
-    seven = parse_bms(_bms(["#BPM 140", "#00119:01", "#00116:01"]), "x.bme")
-    assert seven.key_mode == "7K+1S" and {n["lane"] for n in seven.notes} == {0, 7}
-    five_scratch = parse_bms(_bms(["#BPM 140", "#00111:01", "#00116:01"]), "x.bms")
-    assert five_scratch.key_mode == "7K+1S" and {n["lane"] for n in five_scratch.notes} == {0, 1}
+    # no 7 key mode and no scratch lane: a chart with keys 6 or 7 or a scratch is refused, one on keys 1-5 is 5K
+    with pytest.raises(FormatError, match="7키"):
+        parse_bms(_bms(["#BPM 140", "#00119:01", "#00116:01"]), "x.bme")
+    with pytest.raises(FormatError, match="7키"):
+        parse_bms(_bms(["#BPM 140", "#00111:01", "#00158:0101"]), "x.bme")  # a long note on key 6
+    with pytest.raises(FormatError, match="스크래치"):
+        parse_bms(_bms(["#BPM 140", "#00111:01", "#00116:01"]), "x.bms")
+    five = parse_bms(_bms(["#BPM 140", "#00111:01", "#00115:01"]), "x.bms")
+    assert five.key_mode == "5K" and {n["lane"] for n in five.notes} == {0, 4}
     with pytest.raises(FormatError, match="DP"):
         parse_bms(_bms(["#BPM 140", "#00111:01", "#00121:01"]), "x.bme")
     with pytest.raises(FormatError, match="PMS"):
@@ -149,25 +154,33 @@ def test_bms_modes_encodings_and_rejections() -> None:
 def test_bmson_slices_and_layout() -> None:
     doc = {
         "version": "1.0.0",
-        "info": {"title": "S", "artist": "A", "mode_hint": "beat-7k", "init_bpm": 120, "resolution": 240},
+        "info": {"title": "S", "artist": "A", "mode_hint": "beat-5k", "init_bpm": 120, "resolution": 240},
         "lines": [{"y": 0}, {"y": 960}],
         "bpm_events": [],
         "stop_events": [{"y": 1920, "duration": 240}],
         "sound_channels": [
             {"name": "stem.ogg", "notes": [{"x": 1, "y": 0, "l": 0, "c": False}, {"x": 2, "y": 480, "l": 0, "c": True}, {"x": 0, "y": 960, "l": 0, "c": True}]},
-            {"name": "bass.wav", "notes": [{"x": 8, "y": 0, "l": 960, "c": False}, {"x": 1, "y": 0, "l": 0, "c": False}]},
+            {"name": "bass.wav", "notes": [{"x": 5, "y": 0, "l": 960, "c": False}, {"x": 1, "y": 0, "l": 0, "c": False}]},
         ],
     }
     p = parse_bmson(json.dumps(doc).encode(), "s.bmson")
-    assert p.key_mode == "7K+1S" and p.sounds == ["stem.ogg", "bass.wav"]
+    assert p.key_mode == "5K" and p.sounds == ["stem.ogg", "bass.wav"]
     by_lane = {n["lane"]: n for n in p.notes}
-    assert by_lane[2]["so"] == pytest.approx(1000) and by_lane[2]["sl"] == pytest.approx(1000)  # continues the stem
-    assert by_lane[1]["sl"] == pytest.approx(1000) and "so" not in by_lane[1]
-    assert by_lane[0]["type"] == "hold" and by_lane[0]["endT"] == pytest.approx(2000)
+    assert by_lane[1]["so"] == pytest.approx(1000) and by_lane[1]["sl"] == pytest.approx(1000)  # continues the stem
+    assert by_lane[0]["sl"] == pytest.approx(1000) and "so" not in by_lane[0]
+    assert by_lane[4]["type"] == "hold" and by_lane[4]["endT"] == pytest.approx(2000)
     assert [(e["t"], p.sounds[e["snd"]], e.get("so")) for e in p.bgm] == [(0.0, "bass.wav", None), (2000.0, "stem.ogg", 2000.0)]
     assert p.timing["stops"][0]["durationMs"] == pytest.approx(500)
     with pytest.raises(FormatError):
         parse_bmson(json.dumps({**doc, "info": {**doc["info"], "mode_hint": "popn-9k"}}).encode(), "s.bmson")
+    # no 7 key mode and no scratch lane: beat-7k (the format's default too) and a beat-5k with a scratch are refused
+    with pytest.raises(FormatError, match="7키"):
+        parse_bmson(json.dumps({**doc, "info": {**doc["info"], "mode_hint": "beat-7k"}}).encode(), "s.bmson")
+    with pytest.raises(FormatError, match="7키"):
+        parse_bmson(json.dumps({**doc, "info": {k: v for k, v in doc["info"].items() if k != "mode_hint"}}).encode(), "s.bmson")
+    scratched = {**doc, "sound_channels": [*doc["sound_channels"], {"name": "", "notes": [{"x": 8, "y": 240, "l": 0, "c": False}]}]}
+    with pytest.raises(FormatError, match="스크래치"):
+        parse_bmson(json.dumps(scratched).encode(), "s.bmson")
 
 
 def test_osu_import_layouts_and_timing_points() -> None:
@@ -182,7 +195,7 @@ def test_osu_import_layouts_and_timing_points() -> None:
             "TitleUnicode:노래",
             "Version:Hard",
             "[Difficulty]",
-            "CircleSize:7",
+            "CircleSize:6",
             "[TimingPoints]",
             "1000,500,4,2,0,60,1,0",
             "1000,-50,4,2,0,60,0,0",  # inherited (scroll speed): ignored
@@ -194,13 +207,16 @@ def test_osu_import_layouts_and_timing_points() -> None:
         ]
     )
     p = parse_osu(text, "a.osu")
-    assert p.key_mode == "7K+1S" and p.title == "노래" and p.chart_name == "Hard" and p.dropped == 1
-    assert {(n["lane"], n["type"]) for n in p.notes} == {(1, "tap"), (7, "hold")}
+    assert p.key_mode == "6K" and p.title == "노래" and p.chart_name == "Hard" and p.dropped == 1
+    assert {(n["lane"], n["type"]) for n in p.notes} == {(0, "tap"), (5, "hold")}
     assert p.timing["offsetMs"] == 1000 and p.timing["tempoMap"] == [{"beat": 0.0, "bpm": 120.0}, {"beat": 6.5, "bpm": 150.0}]
     assert p.timing["meter"][:3] == [{"measure": 0, "beatsPerMeasure": 4}, {"measure": 1, "beatsPerMeasure": 2.5}, {"measure": 2, "beatsPerMeasure": 4}]
-    special = parse_osu(text.replace("CircleSize:7", "CircleSize:8").replace("Mode: 3", "Mode: 3\nSpecialStyle: 1"), "a.osu")
-    assert special.key_mode == "7K+1S"
-    assert parse_osu(text.replace("CircleSize:7", "CircleSize:8"), "a.osu").key_mode == "8K"
+    # 8 columns are 8K, a special style's too (its scratch column a key); there is no 7 key mode
+    special = parse_osu(text.replace("CircleSize:6", "CircleSize:8").replace("Mode: 3", "Mode: 3\nSpecialStyle: 1"), "a.osu")
+    assert special.key_mode == "8K"
+    assert parse_osu(text.replace("CircleSize:6", "CircleSize:8"), "a.osu").key_mode == "8K"
+    with pytest.raises(FormatError, match="7K"):
+        parse_osu(text.replace("CircleSize:6", "CircleSize:7"), "a.osu")
     with pytest.raises(FormatError):
         parse_osu(text.replace("Mode: 3", "Mode: 0"), "a.osu")
 
@@ -230,8 +246,8 @@ def bms_package() -> dict[str, bytes]:
     lines = ["#TITLE Test Song [ANOTHER]", "#ARTIST Synth", "#BPM 120", "#PLAYLEVEL 7", "#WAV01 kick.wav"]
     lines += [f"#WAV1{i} lead{i}.wav" for i in range(3)]
     for m in range(1, 9):
-        lines += [f"#{m:03d}01:01010101", f"#{m:03d}12:10001100", f"#{m:03d}19:00120012"]
-    files["song_another.bme"] = ("\n".join(lines) + "\n").encode("utf-8")
+        lines += [f"#{m:03d}01:01010101", f"#{m:03d}12:10001100", f"#{m:03d}15:00120012"]
+    files["song_another.bms"] = ("\n".join(lines) + "\n").encode("utf-8")
     return files
 
 
@@ -249,7 +265,7 @@ def test_import_bms_folder_renders_keysounds(client: TestClient) -> None:
     song = body["songs"][0]
     assert song["title"] == "Test Song" and song["status"] == "ready" and body["warnings"] == []
     charts = client.get(f"/api/songs/{song['id']}/charts").json()["charts"]
-    assert [c["kind"] for c in charts] == ["imported"] and charts[0]["keyMode"] == "7K+1S"
+    assert [c["kind"] for c in charts] == ["imported"] and charts[0]["keyMode"] == "5K"
     chart = client.get(f"/api/charts/{charts[0]['chartId']}").json()["chart"]
     assert "kick.wav" in chart["sounds"] and len(chart["bgm"]) == 32 and 0 < chart["meta"]["keysoundGain"] <= 1
     index = client.get(f"/api/songs/{song['id']}/keysounds.json").json()
@@ -304,23 +320,23 @@ def png_bytes() -> bytes:
 
 def test_a_bms_chart_is_named_by_its_difficulty_and_its_level_kept_apart() -> None:
     pkg = bms_package()
-    text = pkg["song_another.bme"].decode()
+    text = pkg["song_another.bms"].decode()
     # #PLAYLEVEL 7 with no #DIFFICULTY: named by the level; with one, by it alone (the level is beside it)
-    assert parse_bms(text.encode(), "a.bme").chart_name == "Lv.7"
-    named = parse_bms((text + "#DIFFICULTY 3\n").encode(), "a.bme")
+    assert parse_bms(text.encode(), "a.bms").chart_name == "Lv.7"
+    named = parse_bms((text + "#DIFFICULTY 3\n").encode(), "a.bms")
     assert named.chart_name == "HYPER" and named.level_hint == "7"
-    assert parse_bms((text + "#DIFFICULTY 3\n#SUBTITLE [SP ANOTHER]\n").encode(), "a.bme").chart_name == "[SP ANOTHER]"
+    assert parse_bms((text + "#DIFFICULTY 3\n#SUBTITLE [SP ANOTHER]\n").encode(), "a.bms").chart_name == "[SP ANOTHER]"
 
 
 def test_charts_name_their_pictures() -> None:
     pkg = bms_package()
-    text = pkg["song_another.bme"].decode() + "#STAGEFILE stage.bmp\n#BANNER banner.png\n"
-    assert parse_bms(text.encode(), "a.bme").images == ["stage.bmp", "banner.png"]
-    assert parse_bms(pkg["song_another.bme"], "a.bme").images == []
+    text = pkg["song_another.bms"].decode() + "#STAGEFILE stage.bmp\n#BANNER banner.png\n"
+    assert parse_bms(text.encode(), "a.bms").images == ["stage.bmp", "banner.png"]
+    assert parse_bms(pkg["song_another.bms"], "a.bms").images == []
     chart = made_chart(analysis(), "4K", "HARD", 2)
     osu = export_osu(chart, "audio.wav").replace("//Background and Video events", '//Background and Video events\n0,0,"bg 1.jpg",0,0')
     assert parse_osu(osu, "x.osu").images == ["bg 1.jpg"]
-    doc = export_bmson(made_chart(analysis(), "7K+1S", "HARD", 2), "song.ogg")
+    doc = export_bmson(made_chart(analysis(), "5K", "HARD", 2), "song.ogg")
     doc["info"].update(eyecatch_image="eye.png", banner_image="banner.png")
     assert parse_bmson(json.dumps(doc).encode(), "x.bmson").images == ["eye.png", "banner.png"]
 
@@ -328,7 +344,7 @@ def test_charts_name_their_pictures() -> None:
 def test_import_takes_the_stagefile_as_cover_and_keeps_the_files_level(client: TestClient) -> None:
     pkg = bms_package()
     # the chart names a .bmp that ships as a .png (as BMS packages do), and a banner it lacks
-    pkg["song_another.bme"] = pkg["song_another.bme"] + b"#STAGEFILE Stage.bmp\n#BANNER missing.png\n"
+    pkg["song_another.bms"] = pkg["song_another.bms"] + b"#STAGEFILE Stage.bmp\n#BANNER missing.png\n"
     pkg["stage.png"] = png_bytes()
     files = [("files", (name, data, "application/octet-stream")) for name, data in pkg.items()]
     body = client.post("/api/import", files=files, data={"paths": [f"Test/{n}" for n in pkg]}).json()

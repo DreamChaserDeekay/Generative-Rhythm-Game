@@ -80,7 +80,7 @@ describe('Mapperatorinator charts (the briefs of tiers not made yet)', () => {
 describe('the song select chart store', () => {
   it('keys a chart by all it is made of', () => {
     expect(chartKey(spec())).toBe(chartKey(spec()));
-    for (const other of [spec({ seed: 3 }), spec({ targetLevel: 9 }), spec({ params: { style: 'jack' } }), spec({ analysis: '2:null' }), spec({ keyMode: '7K+1S' }), spec({ difficulty: 'HARD' })]) {
+    for (const other of [spec({ seed: 3 }), spec({ targetLevel: 9 }), spec({ params: { style: 'jack' } }), spec({ analysis: '2:null' }), spec({ keyMode: '8K' }), spec({ difficulty: 'HARD' })]) {
       expect(chartKey(other)).not.toBe(chartKey(spec()));
     }
     // a new analysis or edited sections make other charts

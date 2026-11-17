@@ -129,7 +129,7 @@ export class EditorDoc {
     return this.replaceWith(set, moved);
   }
 
-  /** Mirror notes left-right inside `lanes` (key lanes; scratch/side lanes stay put). */
+  /** Mirror notes left-right inside `lanes` (key lanes; side lanes stay put). */
   mirror(ids: Iterable<number>, lanes: readonly number[]): EditResult {
     const set = new Set(ids);
     const map = new Map(lanes.map((lane, i) => [lane, lanes[lanes.length - 1 - i]]));

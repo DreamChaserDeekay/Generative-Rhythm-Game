@@ -4,9 +4,9 @@ import type { Tier } from './data';
 
 /** What the screens share. The settings are the game's own object, so the track shows them as the game would. */
 export const state: { settings: Settings; song: number; mode: KeyModeId; tier: Tier } = {
-  settings: { ...DEFAULT_SETTINGS, lastKeyMode: '7K+1S' },
+  settings: { ...DEFAULT_SETTINGS, lastKeyMode: '8K' },
   song: 4,
-  mode: '7K+1S',
+  mode: '8K',
   tier: 'HARD',
 };
 

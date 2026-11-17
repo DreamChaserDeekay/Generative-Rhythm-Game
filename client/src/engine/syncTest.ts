@@ -19,7 +19,6 @@ export const DEFAULT_SYNC_TEST: SyncTestSpec = { keyMode: '4K', bpm: 120, firstB
 export function buildSyncTestChart(spec: SyncTestSpec = DEFAULT_SYNC_TEST): Chart {
   const mode = keyModes[spec.keyMode];
   const keyLanes = mode.lanes.map((l, i) => ({ l, i })).filter(({ l }) => l.kind === 'key').map(({ i }) => i);
-  const scratch = mode.lanes.findIndex((l) => l.kind === 'scratch');
   const sides = mode.lanes.flatMap((l, i) => (l.kind === 'side' ? [i] : []));
   const timing = { offsetMs: spec.firstBeatMs, tempoMap: [{ beat: 0, bpm: spec.bpm }], meter: [{ measure: 0, beatsPerMeasure: 4 }] };
   const tempo = new TempoMap(timing);
@@ -37,7 +36,6 @@ export function buildSyncTestChart(spec: SyncTestSpec = DEFAULT_SYNC_TEST): Char
     if (b % 4 === 0) {
       tap(b, left[0]);
       tap(b, right[right.length - 1]);
-      if (scratch >= 0) tap(b, scratch);
       if (sides.length > 0) tap(b, sides[(b / 4) % sides.length]);
     } else {
       tap(b, left[b % left.length]);

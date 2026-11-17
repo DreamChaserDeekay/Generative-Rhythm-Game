@@ -23,13 +23,14 @@ from .common import (
     meter_from_lengths,
 )
 
-# BMS key columns: 0 = scratch, 1-7 = keys (player 1 side)
+# BMS key columns: 0 = scratch, 1-7 = keys (player 1 side). We have no scratch lane and no 7 key
+# mode: a chart with notes on column 0, 6 or 7 is refused, one on columns 1-5 only is a 5K chart.
 P1_KEYS = {"16": 0, "11": 1, "12": 2, "13": 3, "14": 4, "15": 5, "18": 6, "19": 7}
 P1_LN = {"56": 0, "51": 1, "52": 2, "53": 3, "54": 4, "55": 5, "58": 6, "59": 7}
 KEY_CHANNEL = {c: ch for ch, c in P1_KEYS.items()}
 LN_CHANNEL = {c: ch for ch, c in P1_LN.items()}
-# our lane index -> BMS column, for the key modes BMS players know
-LANE_COLUMNS = {"7K+1S": [0, 1, 2, 3, 4, 5, 6, 7], "5K": [1, 2, 3, 4, 5]}
+# our lane index -> BMS column, for the key mode of ours BMS players know
+LANE_COLUMNS = {"5K": [1, 2, 3, 4, 5]}
 DIFFICULTY_LEVEL = {"EASY": 1, "NORMAL": 2, "HARD": 3, "EXPERT": 4, "ELITE": 4, "MASTER": 5}
 DIFFICULTY_NAMES = {1: "BEGINNER", 2: "NORMAL", 3: "HYPER", 4: "ANOTHER", 5: "INSANE"}
 
@@ -57,11 +58,11 @@ def bms_total(note_count: int) -> float:
 
 
 def export_bms(chart: dict[str, Any], audio_name: str) -> tuple[str, str]:
-    """BMS text and the file extension (.bme for 7 keys)."""
+    """BMS text and the file extension."""
     meta, timing = chart["meta"], chart["timing"]
     key_mode = meta["keyMode"]
     if key_mode not in LANE_COLUMNS:
-        raise FormatError(f"BMS로는 {key_mode}를 내보낼 수 없습니다 (5K·7K+1S만, 다른 모드는 osu!mania를 쓰세요)")
+        raise FormatError(f"BMS로는 {key_mode}를 내보낼 수 없습니다 (5K만, 다른 모드는 osu!mania를 쓰세요)")
     columns = LANE_COLUMNS[key_mode]
     tempo = TempoMap(timing)
     ms0 = tempo.beat_ms(0.0)
@@ -157,8 +158,7 @@ def export_bms(chart: dict[str, Any], audio_name: str) -> tuple[str, str]:
             items = sorted(objects[(m, channel)])
             for line in _channel_lines(items, measure_beats * max_ms_per_beat, many=channel == "01"):
                 body.append(f"#{m:03d}{channel}:{line}")
-    ext = ".bme" if key_mode == "7K+1S" else ".bms"
-    return "\n".join(header + body) + "\n", ext
+    return "\n".join(header + body) + "\n", ".bms"
 
 
 def _resolution(fractions: list[float], measure_ms: float) -> int:
@@ -408,11 +408,10 @@ def parse_bms(data: bytes, source_name: str = "", seed: int = 0) -> ParsedChart:
 
     used = {r["column"] for r in raw}
     if used & {6, 7}:
-        key_mode, lane_of = "7K+1S", {c: c for c in range(8)}
-    elif 0 in used:
-        key_mode, lane_of = "7K+1S", {c: c for c in range(8)}  # 5 keys + scratch on the 7K+1S lanes
-    else:
-        key_mode, lane_of = "5K", {c: c - 1 for c in range(1, 6)}
+        raise FormatError("7키 채보는 지원하지 않습니다 (스크래치 없는 5키 채보만 가져올 수 있습니다)")
+    if 0 in used:
+        raise FormatError("스크래치가 있는 채보는 지원하지 않습니다 (스크래치 없는 5키 채보만 가져올 수 있습니다)")
+    key_mode, lane_of = "5K", {c: c - 1 for c in range(1, 6)}
 
     notes: list[dict[str, Any]] = []
     for r in raw:

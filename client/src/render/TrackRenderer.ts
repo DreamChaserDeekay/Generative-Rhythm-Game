@@ -419,7 +419,7 @@ export interface TrackRendererOptions {
   fitWidth?: number;
 }
 
-/** What a lane's notes are drawn as: the scratch's, a side lane's, or a key's by its colour (the families mark it). */
+/** What a lane's notes are drawn as: a side lane's, or a key's by its colour (the families mark it). */
 function noteKindOf(lane: Pick<LaneGeom, 'kind' | 'color'>): NoteMark {
   if (lane.kind !== 'key') return lane.kind;
   return lane.color === 'blue' || lane.color === 'gold' ? lane.color : 'white';
@@ -748,9 +748,9 @@ export function notesEndZ(judgeZ: number, offset: number): number {
   return Math.min(judgeZ, 0) + offset;
 }
 
-/** What a lane over the deck is: the scratch, a white key or another (PIANO's keys and cheek blocks follow them). */
+/** What a lane over the deck is: a white key or another (PIANO's keys and cheek blocks follow them). No key mode has a scratch lane (deckArt's 'scratch' is drawn for none). */
 function keyKind(lane: LaneGeom): KeyKind {
-  return lane.kind === 'scratch' ? 'scratch' : lane.color === 'white' ? 'white' : 'other';
+  return lane.color === 'white' ? 'white' : 'other';
 }
 
 /** Renders the SDVX-style track with Three.js. */
@@ -795,7 +795,7 @@ export class TrackRenderer {
   /** A plain bar's depth, and the notes' as drawn: the coin's and the stars' keep their shape at the judge line (see fitNoteDepth). */
   private readonly barDepth: number;
   private noteDepth: number;
-  /** Each lane's notes' depth: a key lane's noteDepth; the scratch's and a side lane's as keeps the families' shape (see laneDepthOf). */
+  /** Each lane's notes' depth: a key lane's noteDepth; a side lane's as keeps the families' shape (see laneDepthOf). */
   private laneDepths: number[];
   /** A side tap laid over the keys: deeper than a key tap (see SIDE_EDGE). */
   private sideNoteDepth: number;

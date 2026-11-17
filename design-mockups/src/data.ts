@@ -2,7 +2,7 @@ import type { Chart, ChartNote, KeyModeId, StemName } from '@game/engine/types';
 
 /** What tools/export_songs.py wrote: the game server's analysis and generated charts of the sample songs. */
 export const STEMS: StemName[] = ['drums', 'bass', 'vocals', 'other'];
-export const MODES: KeyModeId[] = ['4K', '4K+FX', '5K', '6K', '6K+FX', '7K+1S', '8K'];
+export const MODES: KeyModeId[] = ['4K', '4K+FX', '5K', '6K', '6K+FX', '8K'];
 export const TIERS = ['EASY', 'NORMAL', 'HARD', 'EXPERT', 'MASTER'] as const;
 export type Tier = (typeof TIERS)[number];
 export const TIER_SHORT: Record<Tier, string> = { EASY: 'EZ', NORMAL: 'NM', HARD: 'HD', EXPERT: 'EX', MASTER: 'MX' };

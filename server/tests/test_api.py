@@ -104,15 +104,15 @@ def test_upload_analyze_generate_and_score(client: TestClient) -> None:
     analysis = client.get(f"/api/songs/{song['id']}/analysis").json()
     assert analysis["tempo"]["constant"]
 
-    r = client.post(f"/api/songs/{song['id']}/charts", json={"keyMode": "7K+1S", "difficulty": "HARD"})
+    r = client.post(f"/api/songs/{song['id']}/charts", json={"keyMode": "8K", "difficulty": "HARD"})
     assert r.status_code == 200, r.text
     chart = r.json()["chart"]
     assert not r.json()["cached"]
     assert chart["meta"]["songId"] == song["id"] and chart["notes"]
     assert client.get(f"/api/songs/{song['id']}").json()["song"]["bpm"] == 128.0  # the stand-in model's timing
-    cached = client.post(f"/api/songs/{song['id']}/charts", json={"keyMode": "7K+1S", "difficulty": "HARD"}).json()
+    cached = client.post(f"/api/songs/{song['id']}/charts", json={"keyMode": "8K", "difficulty": "HARD"}).json()
     assert cached["cached"] and cached["chart"]["meta"]["chartId"] == chart["meta"]["chartId"]
-    fresh = client.post(f"/api/songs/{song['id']}/charts", json={"keyMode": "7K+1S", "difficulty": "HARD", "newSeed": True}).json()
+    fresh = client.post(f"/api/songs/{song['id']}/charts", json={"keyMode": "8K", "difficulty": "HARD", "newSeed": True}).json()
     assert fresh["chart"]["meta"]["chartId"] != chart["meta"]["chartId"]
     assert client.get(f"/api/charts/{chart['meta']['chartId']}").status_code == 200
 
@@ -415,3 +415,44 @@ def test_sketch_is_the_songs_sections_and_peaks(client: TestClient) -> None:
     assert sketch["beatsPerBar"] == 4 and sketch["previewMs"] == analysis["previewMs"]
     assert set(sketch["stems"]) == {"drums", "bass", "vocals", "other"}
     assert client.get("/api/songs/0000000000000000/sketch").status_code == 404
+
+
+def test_charts_and_records_of_a_key_mode_taken_out_stay_on_disk_and_are_not_listed(tmp_path) -> None:
+    """7K+1S was taken out (2026-11-17): a library that holds its charts, plays and replays opens as
+    before, without them. Nothing is deleted."""
+    import json
+    import sqlite3
+
+    data = tmp_path / "data"
+    with TestClient(create_app(data, client_dist=None, synchronous_jobs=True)) as c:
+        sid = c.post("/api/songs/demo", json={"bpm": 140, "bars": 8, "seed": 3}).json()["song"]["id"]
+        base = c.post(f"/api/songs/{sid}/charts", json={"keyMode": "8K", "difficulty": "NORMAL"}).json()["chart"]
+        kept = c.post(f"/api/songs/{sid}/charts/custom", json={"baseChartId": base["meta"]["chartId"], "name": "mine", "notes": base["notes"]})
+        assert kept.status_code == 201, kept.text
+        gone = c.post(f"/api/songs/{sid}/charts/custom", json={"baseChartId": base["meta"]["chartId"], "name": "old", "notes": base["notes"][:-1]})
+        kept_id, gone_id = kept.json()["chart"]["meta"]["chartId"], gone.json()["chart"]["meta"]["chartId"]
+        for cid in (kept_id, gone_id):
+            play = {"chartId": cid, "songId": sid, "score": 900000, "rate": 90.0, "maxCombo": 10, "lamp": "CLEAR", "judgementMode": "NORMAL", "breaks": 1}
+            assert c.post("/api/scores", json=play).status_code == 201
+    # the second one as a library from before has it: a chart of 7K+1S, in the database and in its file
+    path = data / "charts" / f"{gone_id}.json"
+    chart = json.loads(path.read_text(encoding="utf-8"))
+    chart["meta"]["keyMode"] = "7K+1S"
+    path.write_text(json.dumps(chart), encoding="utf-8")
+    db = sqlite3.connect(data / "library.sqlite3")
+    db.execute("UPDATE charts SET key_mode = '7K+1S' WHERE id = ?", (gone_id,))
+    db.commit()
+    db.close()
+    with TestClient(create_app(data, client_dist=None, synchronous_jobs=True)) as c:
+        assert "7K+1S" not in c.get("/api/health").json()["keyModes"]
+        saved = c.get(f"/api/songs/{sid}/charts").json()
+        assert [x["chartId"] for x in saved["charts"]] == [kept_id] and saved["retired"] == [{"keyMode": "7K+1S", "count": 1}]
+        for records in (c.get(f"/api/songs/{sid}/scores").json()["records"], c.get("/api/songs").json()["songs"][0]["records"], c.get(f"/api/songs/{sid}").json()["song"]["records"]):
+            assert [r["chartId"] for r in records] == [kept_id]
+        # it cannot be opened, exported or edited from, and no chart of the mode is made; its file is still there
+        r = c.get(f"/api/charts/{gone_id}")
+        assert r.status_code == 410 and "7K+1S" in r.json()["detail"]
+        assert c.get(f"/api/charts/{gone_id}/export", params={"format": "osu"}).status_code == 410
+        assert c.post(f"/api/songs/{sid}/charts/custom", json={"baseChartId": gone_id, "name": "x", "notes": base["notes"]}).status_code == 410
+        assert c.post(f"/api/songs/{sid}/charts", json={"keyMode": "7K+1S", "difficulty": "NORMAL"}).status_code == 400
+        assert path.exists() and c.get(f"/api/charts/{kept_id}").status_code == 200

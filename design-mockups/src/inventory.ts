@@ -158,11 +158,11 @@ const BINDS: Record<string, { get: (s: Settings) => number; bind: (v: number) =>
 const MODE_IDS = Object.keys(keyModes) as KeyModeId[];
 const BACKEND_KINDS: Record<string, string> = { stems: '스템 분리', beats: '비트·다운비트', pitch: '음높이·음 길이', structure: '곡 구조' };
 
-/** A key mode's lanes by their short names: S the scratch, L and R the side lanes, the keys numbered from 1. */
+/** A key mode's lanes by their short names: L and R the side lanes, the keys numbered from 1. */
 function laneNames(mode: KeyModeId): string[] {
   let key = 0;
   let side = 0;
-  return keyModes[mode].lanes.map((l) => (l.kind === 'scratch' ? 'S' : l.kind === 'side' ? (side++ === 0 ? 'L' : 'R') : String(++key)));
+  return keyModes[mode].lanes.map((l) => (l.kind === 'side' ? (side++ === 0 ? 'L' : 'R') : String(++key)));
 }
 const laneHex = (mode: KeyModeId) => laneColorsOf(state.settings, mode).map(hexString);
 

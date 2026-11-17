@@ -52,7 +52,7 @@ jobs:
       - name: As it is, then stopped at the music's end
         working-directory: server
         run: |
-          python -m rhythm_server mapper probe --audio "$RUNNER_TEMP/song/$SONG" --out "$RUNNER_TEMP/probe" --mode 7K+1S --difficulty HARD --pad 10
+          python -m rhythm_server mapper probe --audio "$RUNNER_TEMP/song/$SONG" --out "$RUNNER_TEMP/probe" --mode 8K --difficulty HARD --pad 10
           cp "$GRG_MAPPER_HOME/worker.log" "$RUNNER_TEMP/probe/worker-${{ matrix.model }}-${SONG%.mp3}.log" 2>/dev/null || true
       - uses: actions/upload-artifact@v5
         if: always()

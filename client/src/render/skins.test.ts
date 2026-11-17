@@ -17,17 +17,16 @@ describe('the track', () => {
   });
 
   it('colours the lanes by their colour in the key mode', () => {
-    const mode = keyModes['7K+1S'];
+    const mode = keyModes['5K'];
     const lanes = laneColorsFor(BASE_SKIN, mode);
-    expect(lanes[0]).toBe(hex('#ff5c8a'));
-    expect(lanes[1]).toBe(hex('#eaf6ff'));
-    expect(lanes[2]).toBe(hex('#4fc3ff'));
+    expect(lanes[0]).toBe(hex('#eaf6ff'));
+    expect(lanes[1]).toBe(hex('#4fc3ff'));
     // a lane colour the track does not set is LANE_COLORS'
     expect(laneColorsFor(BASE_SKIN, keyModes['4K+FX'])[0]).toBe(LANE_COLORS.sideL);
     // the white keys alike, the blue ones alike, the middle one gold
+    expect(lanes[4]).toBe(lanes[0]);
     expect(lanes[3]).toBe(lanes[1]);
-    expect(lanes[6]).toBe(lanes[2]);
-    expect(lanes[4]).toBe(hex('#ffc94f'));
+    expect(lanes[2]).toBe(hex('#ffc94f'));
   });
 
   it('draws the parts a player picks over it, everything else the track’s', () => {

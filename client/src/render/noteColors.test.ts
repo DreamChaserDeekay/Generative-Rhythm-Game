@@ -43,12 +43,8 @@ describe('note colour presets', () => {
 
   it('colour 좌우 손 by the hand that plays a lane: blues on the left, oranges on the right, the middle key white', () => {
     const hands = presetById('hands', [])!;
-    // 7K+1S: the scratch and keys 1–3 are the left hand's, 4 the middle, 5–7 the right hand's
-    const [scratch, k1, k2, k3, k4, k5, k6, k7] = hands.lanes['7K+1S'];
-    expect([k1, k3]).toEqual(['#cfe2ff', '#cfe2ff']);
-    expect([scratch, k2]).toEqual(['#4f8dff', '#4f8dff']);
-    expect(k4).toBe('#f4f4f4');
-    expect([k5, k7, k6]).toEqual(['#ffe0c4', '#ffe0c4', '#ff9a3c']);
+    // 5K: keys 1–2 are the left hand's, 3 the middle, 4–5 the right hand's
+    expect(hands.lanes['5K']).toEqual(['#cfe2ff', '#4f8dff', '#f4f4f4', '#ff9a3c', '#ffe0c4']);
     // 8K: the middle two keys are one of each hand
     expect(hands.lanes['8K'].slice(3, 5)).toEqual(['#4f8dff', '#ff9a3c']);
     expect(hands.lanes['6K+FX'][0]).toBe('#4f8dff');
@@ -67,15 +63,15 @@ describe('note colour presets', () => {
     const flat = BASE_SKIN;
     const first = newPreset([], lanesOf(flat, SKIN_COLORS, []));
     expect([first.id, first.name]).toEqual(['user-1', '내 색 1']);
-    expect(first.lanes['7K+1S']).toEqual(laneColorsFor(flat, keyModes['7K+1S']).map(hexString));
+    expect(first.lanes['6K+FX']).toEqual(laneColorsFor(flat, keyModes['6K+FX']).map(hexString));
     const second = newPreset([first, { ...first, id: 'user-4' }], lanesOf(flat, 'aurora', []));
     expect([second.id, second.name]).toEqual(['user-5', '내 색 5']);
     expect(second.lanes).toEqual(presetById('aurora', [])!.lanes);
-    const edited = withLaneColor(first, '7K+1S', 2, '#123456');
-    expect(edited.lanes['7K+1S'][2]).toBe('#123456');
-    expect(edited.lanes['7K+1S'].filter((c, i) => c !== first.lanes['7K+1S'][i])).toHaveLength(1);
+    const edited = withLaneColor(first, '6K+FX', 2, '#123456');
+    expect(edited.lanes['6K+FX'][2]).toBe('#123456');
+    expect(edited.lanes['6K+FX'].filter((c, i) => c !== first.lanes['6K+FX'][i])).toHaveLength(1);
     expect(edited.lanes['8K']).toBe(first.lanes['8K']);
-    expect(first.lanes['7K+1S'][2]).not.toBe('#123456');
+    expect(first.lanes['6K+FX'][2]).not.toBe('#123456');
   });
 
   it('keeps the player’s presets as saved, mending a lane without a colour and leaving out what is not a preset', () => {
@@ -87,7 +83,10 @@ describe('note colour presets', () => {
       ['user-3', '내 색 3'],
     ]);
     expect(kept[1].lanes['4K']).toEqual(['#000000', hexString(LANE_COLORS.blue), hexString(LANE_COLORS.blue), hexString(LANE_COLORS.white)]);
-    expect(kept[1].lanes['7K+1S']).toHaveLength(8);
+    expect(kept[1].lanes['6K+FX']).toHaveLength(8);
+    // a preset saved while there was a 6K+FX: kept, without that key mode's lanes
+    const old = sanitizePresets([{ ...good, lanes: { ...lanes, '6K+FX': new Array(8).fill('#abcdef') } }]);
+    expect(Object.keys(old[0].lanes)).toEqual(MODES);
     expect(sanitizePresets(Array.from({ length: 30 }, (_, i) => ({ ...good, id: `user-${i + 1}` })))).toHaveLength(MAX_USER_PRESETS);
     expect(sanitizePresets(undefined)).toEqual([]);
   });
@@ -105,7 +104,7 @@ describe('note colour presets', () => {
     expect(fromHsv({ h: 300, s: 0, v: 100 })).toBe('#ffffff');
     // every built-in colour comes back within a step of each channel
     for (const p of BUILTIN_PRESETS) {
-      for (const c of p.lanes['7K+1S']) {
+      for (const c of p.lanes['6K+FX']) {
         const back = parseInt(fromHsv(toHsv(c)).slice(1), 16);
         const n = parseInt(c.slice(1), 16);
         for (const shift of [16, 8, 0]) expect(Math.abs(((back >> shift) & 255) - ((n >> shift) & 255))).toBeLessThanOrEqual(3);

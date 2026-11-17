@@ -227,7 +227,7 @@ export function nextGradeText(next: { grade: string; short: number }, scoring: S
 }
 
 /**
- * A lane on Shift (4K+FX and 6K+FX on both, 7K+1S's scratch by default): R pressed while it is
+ * A lane on Shift (4K+FX and 6K+FX on both by default): R pressed while it is
  * held is a Shift+R, so there the result keeps R the lane order just played.
  */
 export function shiftIsLane(laneCodes: ReadonlySet<string>): boolean {

@@ -5,7 +5,6 @@ export const LANE_COLORS: Record<LaneColor, number> = {
   white: 0xeaf6ff,
   blue: 0x4fc3ff,
   gold: 0xffc94f,
-  scratch: 0xff5c8a,
   // the side lanes' colours vivid, as DJMAX's side tracks are (the user's, 2026-11-17: the lavender and the pale
   // orange were too faint): a hot pink on the left, a deep orange on the right
   sideL: 0xff2e9a,

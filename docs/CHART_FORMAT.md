@@ -13,8 +13,8 @@
     "songId": "a1b2c3d4e5f60718",
     "title": "Song Title",
     "artist": "Artist",
-    "keyMode": "7K+1S",
-    "lanes": ["SC", "1", "2", "3", "4", "5", "6", "7"],
+    "keyMode": "8K",
+    "lanes": ["1", "2", "3", "4", "5", "6", "7", "8"],
     "difficulty": "HARD",
     "level": 9,
     "rating": 9.02,
@@ -34,7 +34,7 @@
       "seed": 3735928559,
       "params": {
         "difficulty": "HARD", "targetLevel": null, "density": 1.0, "longNoteRatio": 0.15, "maxChord": 3,
-        "scratchRate": 0.06, "sideRate": 0.06, "style": "balanced", "rhythmSource": "auto",
+        "sideRate": 0.06, "style": "balanced", "rhythmSource": "auto",
         "instrumentMapping": 0.6, "repeatConsistency": 1.0
       }
     }
@@ -69,7 +69,7 @@
 | `chartId` | `c` + SHA-256 앞 20자. 생성 채보는 오디오 해시, 분석기 버전·보정값, 키 모드, 공개 파라미터, 시드, 생성기 버전으로, 편집·가져온 채보는 오디오 해시·키 모드·타이밍·노트·키음으로(같은 내용이면 같은 ID) 만든다. 기록은 이 값에 묶인다. |
 | `audioHash` | 업로드 원본의 `sha256:` 해시. |
 | `songId` | 서버 라이브러리의 곡 ID(원본 해시 앞 16자). |
-| `keyMode` / `lanes` | 키 모드와 레인 ID. `lane` 값은 이 배열의 인덱스다. 7K+1S에서 0번은 스크래치, FX 모드(4K+FX · 6K+FX)에서 처음(`FXL`)과 끝(`FXR`)은 사이드 트랙. 레인 종류는 `config/keymodes.json`의 `kind`. |
+| `keyMode` / `lanes` | 키 모드와 레인 ID. `lane` 값은 이 배열의 인덱스다. 키 모드는 4K · 4K+FX · 5K · 6K · 6K+FX · 8K이고, FX 모드(4K+FX · 6K+FX)에서 처음(`FXL`)과 끝(`FXR`)은 사이드 트랙. 레인 종류는 `config/keymodes.json`의 `kind`(`key` 건반 · `side` 사이드). 2026-11-17에 7K+1S 모드와 스크래치 레인(`kind: "scratch"`, 레인 ID `SC`)을 없앴다. 그 전에 만든 `keyMode: "7K+1S"` 채보가 보관함에 남아 있을 수 있고, 앱은 그 채보를 무시한다(목록에 넣지 않고 열지 않으며 파일은 지우지 않는다). |
 | `difficulty` / `level` / `rating` | 난이도(NORMAL · HARD · EXPERT · ELITE · MASTER), 정수 레벨(1–20, 생성기 0.9.38까지 만든 채보는 예전 1–15 척도), 소수 세부 난이도. 예전 채보에는 EASY나 DJMAX · EZ2ON의 난이도 이름(NM · MX · SHD 등)이 남아 있을 수 있다. |
 | `nps` | 평균·최대(1초 창) NPS와 2초 단위 NPS 그래프. |
 | `effectiveNps` | 난이도 산정기의 유효 NPS(동치·연타·롱잡 부담이 반영된 값). |
@@ -80,7 +80,7 @@
 | `keysound` | 채보 정보에 보이는 주 키음 스템(`stem`: drums · bass · vocals · other)과 그 스템을 따르는 노트 비율(`share`), 스템별 노트 비율(`shares`). 실제 키음은 클라이언트가 노트의 `src`로 노트마다 만든다(노트의 10% 이상이 따르는 스템). 분석에 스템 정보가 없으면 `null`(키음을 켜도 원곡 그대로 재생). |
 | `repeatConsistency` | 반복 구간에서 첫 등장과 같은 레인을 고른 슬롯 비율(0–1). 구간 엔진(0.5.0)에서는 복사한 노트 중 레인을 그대로 지킨 비율. 반복 구간이 없거나 옵션을 껐으면 `null`. |
 | `consistency` | 구간 일관성(생성기 0.5.0, `difficulty/consistency.py`, 0–1): 구간 안 한 루프 뒤 마디와의 노트 시각 겹침(`loopRhythm`)과 그중 같은 레인 비율(`loopLane`), 반복 구간과 첫 등장의 시각 겹침(`repeatSelect`)과 같은 레인 비율(`repeatLane`, 좌우 반전도 같다고 보면 `repeatLaneMirror`), 구간의 서로 다른 마디 비율(`barVariety`, 낮을수록 루프를 되풀이), 단타 레인 이동의 예측 불가능성(`laneEntropy`). 채보를 만든 구간 기준이다. 잴 수 없으면 항목이 `null`. |
-| `generator` | 생성기·분석기 버전, 시드, 사용자 파라미터(스타일·리듬 기준·밀도·롱노트 비율·최대 동치·스크래치·사이드 비율·악기별 레인 세기·반복 구간 일관성·반복의 악기 바꾸기 `repeatFocus`(생성기 0.9.46, 기본 켬), 기본 구간 엔진이 아니면 `patternEngine: "designer"`(악구·패턴) 또는 `"classic"`(이전 배치)). 생성 채보에만 있다. |
+| `generator` | 생성기·분석기 버전, 시드, 사용자 파라미터(스타일·리듬 기준·밀도·롱노트 비율·최대 동치·사이드 비율·악기별 레인 세기·반복 구간 일관성·반복의 악기 바꾸기 `repeatFocus`(생성기 0.9.46, 기본 켬), 기본 구간 엔진이 아니면 `patternEngine: "designer"`(악구·패턴) 또는 `"classic"`(이전 배치)). 생성 채보에만 있다. 2026-11-17 전에 만든 채보에는 스크래치 비율 `scratchRate`도 남아 있을 수 있다. |
 | `source` | 편집·가져온 채보의 출처: `{"kind": "edited", "from": 원본 chartId}` 또는 `{"kind": "imported", "format": "osu"\|"bms"\|"bmson", "file": 파일 이름}`. 없으면 생성 채보. |
 | `chartName` | 편집·가져온 채보의 이름(osu! Version, BMS #SUBTITLE, 없으면 #DIFFICULTY의 이름(HYPER 등), 그것도 없으면 "Lv.#PLAYLEVEL", 에디터에서 정한 이름). 파일이 매긴 레벨(BMS #PLAYLEVEL, bmson `level`)은 이름에 넣지 않고 라이브러리(`charts.source_level`)에 그대로 남겨, 저장된 채보 목록과 기록이 `sourceLevel`로 우리 레벨 옆에 보인다. `difficulty`는 우리 레벨 산정으로 정한 프리셋 이름(Lv.1–6 NORMAL … 13–15 MASTER)이다. |
 | `keysoundGain` | 가져온 키음 채보: 키음을 모두 섞어도 클리핑하지 않게 하는 게인. BGM과 노트 소리에 같이 곱한다. |
@@ -214,8 +214,8 @@ SDVX식 카메라 연출 신호. 생성기가 구간 에너지에서 만들며, 
 |---|---|---|---|
 | 4K · 5K · 6K · 8K | 열 0…n−1 | — (5K만: 11–15) | — (5K만: 1–5, `beat-5k`) |
 | 4K+FX · 6K+FX | 열 0…n−1(양 끝이 사이드), `Tags`에 `grg-mode:6K+FX` | — | — |
-| 7K+1S | 8열, `SpecialStyle: 1`(0열 = 스크래치) | 스크래치 16, 1–5번 11–15, 6–7번 18–19 (롱노트 5x) | 스크래치 8, 1–7번 1–7 (`beat-7k`) |
 
+- **키 모드**: BMS·bmson으로는 5K만 내보내고(BMS 확장자는 `.bms`), 그 밖의 키 모드는 osu!mania로만 내보낸다. osu!mania는 언제나 `SpecialStyle: 0`으로 쓴다. 가져올 때 osu!mania는 4·5·6·8키를 같은 키 모드로 받고(8키는 `SpecialStyle`이어도 8K: 그 스크래치 열은 다른 열과 같은 건반), 7키는 거절한다. BMS는 1–5번 키(채널 11–15, 롱노트 51–55)에만 노트가 있고 스크래치(채널 16 · 56)가 없는 채보를 5K로 받고, 6·7번 키에 노트가 있거나 스크래치 노트가 있는 채보, PMS · DP는 거절한다. bmson은 스크래치(x = 8)가 없는 `beat-5k`와 `popn-5k`를 5K로 받고, `beat-7k`(`mode_hint`가 없는 파일도 형식의 기본값이라 같음)와 스크래치가 있는 `beat-5k`는 거절한다. 2026-11-17까지는 7K+1S 모드가 이 채보들을 받았다.
 - **시간**: 우리 `t`와 osu!·BMS·bmson의 시간 0은 모두 음원 파일의 처음이다. osu!는 시각을 정수 ms로 쓴다. 첫 박(`offsetMs`)이 0보다 늦으면 BMS는 그 길이의 첫 마디(채널 02)를, bmson은 그만큼의 펄스를 앞에 넣어 이후 마디가 우리 마디선과 맞게 한다. 디코더에 따라 MP3 앞부분 지연이 다를 수 있어 내보내기에 `offsetMs`(±5000ms) 보정을 둔다.
 - **템포**: BMS는 #BPMxx(채널 08), bmson은 `bpm_events`, osu!는 빨간 타이밍 포인트. osu!는 STOP이 없어 STOP 끝에 타이밍 포인트를 다시 둔다(시각은 정확, 스크롤만 다름). BMS #STOP 값은 4/4 마디의 1/192 단위다.
 - **롱노트**: BMS는 LNTYPE 1(채널 5x의 시작·끝 쌍)으로 쓰고, 읽을 때는 #LNOBJ도 받는다. bmson은 `l`(펄스 길이), osu!는 타입 128.

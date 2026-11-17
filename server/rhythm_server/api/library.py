@@ -21,7 +21,7 @@ import soundfile as sf
 
 from .. import audio_io
 from ..analysis.stems import STEM_NAMES
-from ..config import SAMPLE_RATE, load_config
+from ..config import SAMPLE_RATE, key_modes, load_config
 from ..chart.keysounds import default_seed
 
 SCHEMA = """
@@ -495,7 +495,9 @@ class Library:
 
     def list_charts(self, song_id: str, kinds: tuple[str, ...] = SAVED_CHART_KINDS) -> list[dict[str, Any]]:
         """Saved (edited / imported) charts of a song, newest first: the format of an imported one
-        (the generator column holds it) and the level its file gives it."""
+        (the generator column holds it) and the level its file gives it. Those of a key mode the game
+        no longer has are left out (retired_charts counts them): their files stay."""
+        modes = key_modes()
         marks = ",".join("?" for _ in kinds)
         with self._lock:
             rows = self._db.execute(
@@ -508,8 +510,21 @@ class Library:
                 "format": r["generator_version"] if r["generator_version"] in CHART_FORMATS else None, "sourceLevel": r["source_level"],
             }
             for r in rows
-            if self.chart_path(r["id"]).exists()
+            if r["key_mode"] in modes and self.chart_path(r["id"]).exists()
         ]  # fmt: skip
+
+    def retired_charts(self, song_id: str, kinds: tuple[str, ...] = SAVED_CHART_KINDS) -> list[dict[str, Any]]:
+        """A song's saved charts of key modes the game no longer has (7K+1S, taken out 2026-11-17),
+        counted by key mode: kept on disk, not listed and not playable."""
+        modes = key_modes()
+        marks = ",".join("?" for _ in kinds)
+        with self._lock:
+            rows = self._db.execute(f"SELECT id, key_mode FROM charts WHERE song_id = ? AND kind IN ({marks})", (_checked(SONG_ID, song_id), *kinds)).fetchall()
+        counts: dict[str, int] = {}
+        for r in rows:
+            if r["key_mode"] not in modes and self.chart_path(r["id"]).exists():
+                counts[r["key_mode"]] = counts.get(r["key_mode"], 0) + 1
+        return [{"keyMode": mode, "count": n} for mode, n in sorted(counts.items())]
 
     def chart_song(self, chart_id: str) -> str | None:
         with self._lock:
@@ -580,7 +595,9 @@ class Library:
         rules (None: none), plays and the last one; for a generated chart the generator that
         made it and whether it is the default pattern of its tier (no target level). With
         by_mode, the same bests of the plays under each judgement mode too (byMode), which a play
-        is compared with (HARD and MAX JUDGEMENT score lower; the library's list leaves them out)."""
+        is compared with (HARD and MAX JUDGEMENT score lower; the library's list leaves them out).
+        The plays of a chart of a key mode the game no longer has are no record (they stay in the database)."""
+        key_mode_ids = key_modes()
         query = (
             "SELECT s.*, c.key_mode, c.difficulty, c.level, c.seed, c.kind, c.name, c.system, c.source_level, c.generator_version, g.audio_hash"
             " FROM scores s JOIN charts c ON c.id = s.chart_id JOIN songs g ON g.id = s.song_id"
@@ -592,6 +609,8 @@ class Library:
         for r in rows:
             cur = best.get(r["chart_id"])
             if cur is None:
+                if r["key_mode"] not in key_mode_ids:
+                    continue
                 if (r["system"] or self._chart_system(r["chart_id"])) != GRG_SYSTEM:
                     continue
                 best[r["chart_id"]] = cur = {

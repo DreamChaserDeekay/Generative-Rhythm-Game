@@ -143,16 +143,16 @@ test('a pad works the settings: the d-pad moves the focus, ←→ change a row, 
 test('입력 확인 under a key mode lights its lanes, names any button, counts the turntable lane’s scratches, and closes with Esc or Start held', async ({ page }) => {
   const errors = trackErrors(page);
   const pad = await plugPad(page);
-  // 7K+1S: the turntable on axis 0, the keys on buttons 2–7 and 10; the longest 정지 판정, so a
+  // 6K+FX: the turntable on axis 0 (the left side lane), the other lanes on buttons 2–7 and 10; the longest 정지 판정, so a
   // slow machine's gaps between the steps below are not taken for a stop
   const lanes = ['Pad:TT0', 'Pad:B2', 'Pad:B3', 'Pad:B4', 'Pad:B5', 'Pad:B6', 'Pad:B7', 'Pad:B10'];
-  await page.addInitScript((l) => localStorage.setItem('grg.settings.v1', JSON.stringify({ padBindings: { '7K+1S': l }, turntableReleaseMs: 300 })), lanes);
+  await page.addInitScript((l) => localStorage.setItem('grg.settings.v1', JSON.stringify({ padBindings: { '6K+FX': l }, turntableReleaseMs: 300 })), lanes);
   await page.goto('/');
   await page.getByTestId('open-settings').click();
   await page.getByTestId('settings-tab-pad').click();
   // (the key modes are tabs: the mode's controls and its input check are under its own)
-  await page.getByTestId('pad-mode-7K+1S').click();
-  const open = page.getByTestId('pad-test-7K+1S');
+  await page.getByTestId('pad-mode-6K+FX').click();
+  const open = page.getByTestId('pad-test-6K+FX');
   await open.click();
   await expect(open).toHaveText('입력 확인 닫기');
   const strip = page.getByTestId('pad-test');

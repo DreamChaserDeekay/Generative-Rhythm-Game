@@ -42,12 +42,12 @@ const byHand = (lane: LaneConfig): string => (lane.hand === 'T' ? '#f4f4f4' : HA
 /** The presets that come with the game, after 기본. None repeats 기본's lane colours. */
 export const BUILTIN_PRESETS: ColorPreset[] = [
   // K/DA's music videos by lane role: POP/STARS violet, gold, neon magenta and cyan; FIRESTARTER scarlet, ivory, amber, hot pink and orchid
-  preset('kda-popstars', 'K/DA (POP/STARS)', byRole({ white: '#efe8ff', blue: '#9a6cff', gold: '#f5c56a', scratch: '#ff3fae', sideL: '#2ee8ff', sideR: '#ff3fae' })),
-  preset('kda-firestarter', 'K/DA (FIRESTARTER)', byRole({ white: '#ffeade', blue: '#ff2b3b', gold: '#ffb45e', scratch: '#ff2f7e', sideL: '#e48cff', sideR: '#ff2f7e' })),
+  preset('kda-popstars', 'K/DA (POP/STARS)', byRole({ white: '#efe8ff', blue: '#9a6cff', gold: '#f5c56a', sideL: '#2ee8ff', sideR: '#ff3fae' })),
+  preset('kda-firestarter', 'K/DA (FIRESTARTER)', byRole({ white: '#ffeade', blue: '#ff2b3b', gold: '#ffb45e', sideL: '#e48cff', sideR: '#ff2f7e' })),
   // greens, teal and violet: 기본 has no greens
-  preset('aurora', '오로라', byRole({ white: '#d4fff0', blue: '#2ee0a0', gold: '#c7a2ff', scratch: '#27d4e8', sideL: '#27d4e8', sideR: '#c7a2ff' })),
+  preset('aurora', '오로라', byRole({ white: '#d4fff0', blue: '#2ee0a0', gold: '#c7a2ff', sideL: '#27d4e8', sideR: '#c7a2ff' })),
   // warm colours alone, no blue light: for play in a dark room
-  preset('amber', '앰버', byRole({ white: '#fff0d8', blue: '#ff7a29', gold: '#ffcd45', scratch: '#ff4f3a', sideL: '#ffb347', sideR: '#ff4f3a' })),
+  preset('amber', '앰버', byRole({ white: '#fff0d8', blue: '#ff7a29', gold: '#ffcd45', sideL: '#ffb347', sideR: '#ff4f3a' })),
   // the hand that plays a lane, in blue and orange: a pair colour-blind eyes tell apart too
   preset('hands', '좌우 손', byHand),
 ];

@@ -1,6 +1,6 @@
 """Builds the notes and long notes drawn with the image model (assets-src/styles/longs/<long>.jpg, made by
-make_long_notes.py): the taps into client/public/media/notes/<note>.png ("notes/<note>": the key lanes' tap and the
-scratch's, a row each, NOTE_W × NOTE_H), the long note into client/public/media/longs/<long>.png ("longs/<long>"),
+make_long_notes.py): the tap into client/public/media/notes/<note>.png ("notes/<note>": the key lanes' tap, NOTE_W × NOTE_H; the sheets
+have a scratch's tap beside it, of when there was a scratch lane, which is not built), the long note into client/public/media/longs/<long>.png ("longs/<long>"),
 listed in client/public/media/manifest.json (its other entries are kept). The long note is in the layout of the concept sets' long.png (build_styles.py): 512 × 256,
 body idle | body held | end idle | end held, 128 wide, the body a tile that repeats along the note, the ends
 `end` px deep, as tint pictures (red how much of the lane colour shows, green how far it is lifted toward white).
@@ -52,8 +52,8 @@ def solid(v: np.ndarray, box: tuple[slice, slice]) -> tuple[slice, slice]:
     return slice(ys.start + rows[0], ys.start + rows[-1] + 1), slice(xs.start + cols[0], xs.start + cols[-1] + 1)
 
 
-#: the taps' layout in media/notes/<note>.png (styleArt.ts: ART_NOTE): the key lanes' tap in the first row, the
-#: scratch's in the second, each NOTE_W × NOTE_H at the row's top + NOTE_TOP
+#: the tap's layout in media/notes/<note>.png (styleArt.ts: ART_NOTE): the key lanes' tap, NOTE_W × NOTE_H at
+#: NOTE_TOP of a picture NOTE_ROW deep
 NOTE_W, NOTE_H, NOTE_ROW, NOTE_TOP = 1024, 224, 256, 16
 #: each long note's tap style (the skin's note)
 NOTE_OF = {"solid": "flat"}
@@ -75,18 +75,18 @@ def level(rgba: np.ndarray, mid: int, length: int) -> np.ndarray:
 
 
 def build_taps(long: str, v: np.ndarray, below: int) -> dict:
-    """The two taps above the rails (key, scratch) as tint pictures, each stretched to NOTE_W × NOTE_H."""
-    key, scratch = sorted(blobs(v[:below], 0.15, 2), key=lambda b: b[1].start)
-    atlas = np.zeros((2 * NOTE_ROW, NOTE_W, 4), np.float32)
-    for row, (ys, xs) in enumerate([key, scratch]):
-        # all of its outline (the fire's flames rise off it: not "mostly lit" rows)
-        tap = v[ys, xs]
-        alpha = shape_alpha(tap)
-        rgba = tint(unpremultiply(tap, alpha), alpha, gain=GAIN, lift=0.74, white=0.8)
-        paste(atlas, resize_premultiplied(rgba, NOTE_W, NOTE_H), 0, row * NOTE_ROW + NOTE_TOP)
+    """The key lanes' tap above the rails (the left of the two there: the right one is the scratch's, not built) as a
+    tint picture, stretched to NOTE_W × NOTE_H."""
+    ys, xs = sorted(blobs(v[:below], 0.15, 2), key=lambda b: b[1].start)[0]
+    atlas = np.zeros((NOTE_ROW, NOTE_W, 4), np.float32)
+    # all of its outline (the fire's flames rise off it: not "mostly lit" rows)
+    tap = v[ys, xs]
+    alpha = shape_alpha(tap)
+    rgba = tint(unpremultiply(tap, alpha), alpha, gain=GAIN, lift=0.74, white=0.8)
+    paste(atlas, resize_premultiplied(rgba, NOTE_W, NOTE_H), 0, NOTE_TOP)
     note = NOTE_OF.get(long, long)
     save_rgba(atlas, MEDIA / "notes" / f"{note}.png")
-    return {f"notes/{note}": {"file": f"notes/{note}.png", "bundle": "notes", "size": [NOTE_W, 2 * NOTE_ROW]}}
+    return {f"notes/{note}": {"file": f"notes/{note}.png", "bundle": "notes", "size": [NOTE_W, NOTE_ROW]}}
 
 
 def build(long: str) -> dict:

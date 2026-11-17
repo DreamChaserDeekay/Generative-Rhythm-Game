@@ -328,7 +328,7 @@ test('the key settings: the key modes as tabs with one mode’s keys under them;
   await expect(hints).toContainText('바꾸기');
   // a tab per key mode, the one last played picked: its keys alone are on the screen
   const tabs = page.getByTestId('keys-modes').getByRole('tab');
-  await expect(tabs).toHaveText(['4K', '4K+FX', '5K', '6K', '6K+FX', '7K+1S', '8K']);
+  await expect(tabs).toHaveText(['4K', '4K+FX', '5K', '6K', '6K+FX', '8K']);
   await expect(page.getByTestId('keys-mode-4K')).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByTestId('keys-4K')).toBeVisible();
   await expect(page.locator('[data-testid^="keys-"].opt-block')).toHaveCount(1);
@@ -347,18 +347,18 @@ test('the key settings: the key modes as tabs with one mode’s keys under them;
   await expect(page.getByTestId('keys-4K')).toHaveCount(0);
   await expect(page.getByTestId('key-4K+FX-0')).toHaveText('L-Shift');
   // a click picks any; the play keys under the modes stay whichever is picked
-  await page.getByTestId('keys-mode-7K+1S').click();
-  await expect(page.getByTestId('keys-7K+1S')).toBeVisible();
+  await page.getByTestId('keys-mode-8K').click();
+  await expect(page.getByTestId('keys-8K')).toBeVisible();
   await expect(page.locator('[data-testid^="keys-"].opt-block')).toHaveCount(1);
   await expect(page.getByTestId('play-keys')).toBeVisible();
   // the mode picked here is the one the 게임패드 tab shows too
   await settingsTab(page, 'pad');
-  await expect(page.getByTestId('pad-mode-7K+1S')).toHaveAttribute('aria-selected', 'true');
-  await expect(page.getByTestId('pad-7K+1S')).toBeVisible();
+  await expect(page.getByTestId('pad-mode-8K')).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByTestId('pad-8K')).toBeVisible();
   await expect(page.locator('[data-testid^="pad-"].opt-block')).toHaveCount(1);
   await page.getByTestId('pad-mode-4K').click();
   await expect(page.getByTestId('pad-4K-0')).toBeVisible();
-  await expect(page.getByTestId('pad-7K+1S-0')).toHaveCount(0);
+  await expect(page.getByTestId('pad-8K-0')).toHaveCount(0);
   await settingsTab(page, 'keys');
   await expect(page.getByTestId('keys-mode-4K')).toHaveAttribute('aria-selected', 'true');
   // ↓ from the tabs to the keys, ←→ along the lanes, ↓ to the second key and the buttons, then the play keys

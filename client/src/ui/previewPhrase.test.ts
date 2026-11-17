@@ -20,12 +20,12 @@ describe('settings preview phrase', () => {
       const own = notes.filter((n) => n.lane === lane);
       own.slice(1).forEach((n, i) => expect(n.beat).toBeGreaterThan(own[i].endBeat ?? own[i].beat));
     });
-    // every key lane is played, and the scratch and side lanes too
+    // every key lane is played, and the side lanes too
     expect(new Set(notes.map((n) => n.lane)).size).toBe(mode.lanes.length);
   });
 
   it('is in time order', () => {
-    const notes = previewPhrase(keyModes['7K+1S']);
+    const notes = previewPhrase(keyModes['6K+FX']);
     notes.slice(1).forEach((n, i) => expect(n.beat).toBeGreaterThanOrEqual(notes[i].beat));
   });
 });

@@ -29,7 +29,7 @@ describe('which songs the song select lists', () => {
 
   it('keeps the bests of this key mode and the five tiers apart from the rest', () => {
     // records of the removed EASY tier and the DJMAX and EZ2ON difficulty systems
-    const other = song('a', 'A', [record('NORMAL', 900_000, 'CLEAR', { keyMode: '7K+1S' }), record('EASY', 900_000, 'CLEAR'), record('MX', 900_000, 'CLEAR'), record('SHD', 900_000, 'CLEAR')]);
+    const other = song('a', 'A', [record('NORMAL', 900_000, 'CLEAR', { keyMode: '8K' }), record('EASY', 900_000, 'CLEAR'), record('MX', 900_000, 'CLEAR'), record('SHD', 900_000, 'CLEAR')]);
     expect(recordsOn(other, '4K')).toEqual([]);
   });
 
@@ -38,7 +38,7 @@ describe('which songs the song select lists', () => {
     const s = song('a', 'A', [imported]);
     expect(recordsOn(s, '4K')).toEqual([]);
     expect(savedRecordsOn(s, '4K')).toEqual([imported]);
-    expect(savedRecordsOn(s, '7K+1S')).toEqual([]);
+    expect(savedRecordsOn(s, '8K')).toEqual([]);
     const both = song('b', 'B', [imported, record('HARD', 900_000, 'CLEAR', { kind: 'generated' })]);
     expect(recordOf(both, 'cbms')).toBe(imported);
     expect(recordOf(both, 'cnone')).toBeNull();

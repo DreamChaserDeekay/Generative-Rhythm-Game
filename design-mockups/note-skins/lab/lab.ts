@@ -94,8 +94,8 @@ function asWhite(src: HTMLCanvasElement): HTMLCanvasElement {
 }
 
 /**
- * One style's notes as its code draws them, for a light grey lane, on black: its key tap (left) and its scratch tap
- * (right) along the top, as they look on the screen (the pictures are drawn NOTE_STRETCH times deeper than they look),
+ * One style's notes as its code draws them, for a light grey lane, on black: its key tap (left; the sheets sent
+ * before 2026-11-17 had the scratch's tap at its right, of when there was a scratch lane) along the top, as they look on the screen (the pictures are drawn NOTE_STRETCH times deeper than they look),
  * and under them its long note idle (left) and held (right), two rails standing upright, each closed at both ends.
  */
 (window as unknown as { labLongRef: (long: LongStyle, note: NS) => string }).labLongRef = (long, note) => {
@@ -116,9 +116,7 @@ function asWhite(src: HTMLCanvasElement): HTMLCanvasElement {
   };
   // the taps, 440 × 96 on the screen (their pictures 1.7 times deeper)
   const [tw, th] = [440, 96];
-  (['white', 'scratch'] as const).forEach((mark, i) => {
-    g.drawImage(piece(tw, Math.round(th * 1.7), (c, w, h) => NOTE_PAINT[note](c, w, h, mark)), i === 0 ? 40 : 544, 110, tw, th);
-  });
+  g.drawImage(piece(tw, Math.round(th * 1.7), (c, w, h) => NOTE_PAINT[note](c, w, h, 'white')), 40, 110, tw, th);
   [false, true].forEach((held, i) => {
     const x = i === 0 ? 232 : 592;
     const body = held && paint.held ? paint.held.body : paint.body;

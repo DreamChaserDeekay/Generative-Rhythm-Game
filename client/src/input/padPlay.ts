@@ -33,7 +33,7 @@ export class PadPlayControls {
   /** Controls pressed with Start held: their release is not a lane's either. */
   private readonly taken = new Set<string>();
 
-  /** `laneButtons`: the pad controls of the key lanes in order (scratch and side lanes left out). */
+  /** `laneButtons`: the pad controls of the key lanes in order (side lanes left out). */
   constructor(buttons: Readonly<Record<PadPlayButton, string | null>>, laneButtons: readonly (string | null)[]) {
     this.buttons = buttons;
     this.laneButtons = laneButtons;

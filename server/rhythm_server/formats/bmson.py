@@ -15,16 +15,17 @@ from .bms import LEAD_IN_MIN_MS
 from .common import FormatError, ParsedChart, choke_slices, difficulty_label, drop_conflicts, measures, meter_from_lengths
 
 RESOLUTION = 960
-# our lane index -> bmson x, per key mode (x 8 is the scratch in beat-* modes)
-LANE_X = {"7K+1S": [8, 1, 2, 3, 4, 5, 6, 7], "5K": [1, 2, 3, 4, 5]}
-MODE_HINT = {"7K+1S": "beat-7k", "5K": "beat-5k"}
+# our lane index -> bmson x, per key mode (x 8 is the scratch in beat-* modes, which we have no lane for)
+LANE_X = {"5K": [1, 2, 3, 4, 5]}
+MODE_HINT = {"5K": "beat-5k"}
+SCRATCH_X = 8
 
 
 def export_bmson(chart: dict[str, Any], audio_name: str) -> dict[str, Any]:
     meta, timing = chart["meta"], chart["timing"]
     key_mode = meta["keyMode"]
     if key_mode not in LANE_X:
-        raise FormatError(f"bmson으로는 {key_mode}를 내보낼 수 없습니다 (5K·7K+1S만, 다른 모드는 osu!mania를 쓰세요)")
+        raise FormatError(f"bmson으로는 {key_mode}를 내보낼 수 없습니다 (5K만, 다른 모드는 osu!mania를 쓰세요)")
     lane_x = LANE_X[key_mode]
     tempo = TempoMap(timing)
     ms0 = tempo.beat_ms(0.0)
@@ -90,16 +91,18 @@ def export_bmson(chart: dict[str, Any], audio_name: str) -> dict[str, Any]:
 
 
 def _layout(mode_hint: str, xs: set[int]) -> tuple[str, dict[int, int]]:
+    """Our key mode and the lane of every bmson x. A chart without a mode_hint is a beat-7k one (the
+    format's default), which we have no key mode for, as we have none for a scratch."""
     hint = (mode_hint or "beat-7k").lower()
     if hint == "beat-7k":
-        return "7K+1S", {8: 0, **{x: x for x in range(1, 8)}}
+        raise FormatError("7키 채보(beat-7k)는 지원하지 않습니다 (스크래치 없는 5키 채보만 가져올 수 있습니다)")
     if hint == "beat-5k":
-        if 8 in xs:
-            return "7K+1S", {8: 0, **{x: x for x in range(1, 6)}}
+        if SCRATCH_X in xs:
+            raise FormatError("스크래치가 있는 채보는 지원하지 않습니다 (스크래치 없는 5키 채보만 가져올 수 있습니다)")
         return "5K", {x: x - 1 for x in range(1, 6)}
     if hint == "popn-5k":
         return "5K", {x: x - 1 for x in range(1, 6)}
-    raise FormatError(f"bmson 모드 {mode_hint}는 지원하지 않습니다 (beat-5k·beat-7k·popn-5k만)")
+    raise FormatError(f"bmson 모드 {mode_hint}는 지원하지 않습니다 (beat-5k·popn-5k만)")
 
 
 def parse_bmson(data: bytes, source_name: str = "") -> ParsedChart:

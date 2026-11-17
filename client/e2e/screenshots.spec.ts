@@ -53,21 +53,21 @@ def tone(f, dur, decay, amp, harmonics=3):
     return np.stack([x, x], 1)
 sf.write(out / "kick.wav", tone(52, 0.35, 0.09, 0.9, 1), SR)
 sf.write(out / "hat.wav", (np.random.default_rng(1).normal(0, 0.15, (3000, 2)) * np.exp(-np.arange(3000) / 500)[:, None]).astype(np.float32), SR)
-notes = [261.6, 293.7, 329.6, 392.0, 440.0, 523.3, 587.3]
+notes = [261.6, 293.7, 329.6, 392.0, 440.0]
 for i, f in enumerate(notes):
     sf.write(out / f"key{i}.wav", tone(f, 0.5, 0.25, 0.35), SR)
 lines = ["#PLAYER 1", "#TITLE Keysound Sketch [ANOTHER]", "#ARTIST GRG synth", "#GENRE TEST", "#BPM 140", "#PLAYLEVEL 9",
-         "#WAV01 kick.wav", "#WAV02 hat.wav"] + [f"#WAV1{i} key{i}.wav" for i in range(7)]
-lanes = ["11", "12", "13", "14", "15", "18", "19"]
+         "#WAV01 kick.wav", "#WAV02 hat.wav"] + [f"#WAV1{i} key{i}.wav" for i in range(5)]
+lanes = ["11", "12", "13", "14", "15"]
 rng = np.random.default_rng(5)
 for m in range(1, 17):
     lines += [f"#{m:03d}01:0100010001000100", f"#{m:03d}01:0000020000000200"]
     cells = [["00"] * 8 for _ in lanes]
     for step in range(8):
-        for k in rng.choice(7, size=1 + int(rng.random() < 0.3), replace=False):
-            cells[k][step] = f"1{(k + step) % 7}"
+        for k in rng.choice(5, size=1 + int(rng.random() < 0.3), replace=False):
+            cells[k][step] = f"1{(k + step) % 5}"
     lines += [f"#{m:03d}{lane}:" + "".join(c) for lane, c in zip(lanes, cells)]
-(out / "sketch_another.bme").write_text("\\n".join(lines) + "\\n", encoding="utf-8")
+(out / "sketch_another.bms").write_text("\\n".join(lines) + "\\n", encoding="utf-8")
 `;
 
 interface ChartNoteLite {
@@ -134,7 +134,7 @@ function laneIds(keyMode: string): string[] {
 
 /**
  * A chart of the tests' own for the showcase, in a key mode: from the third bar on, a long note of two beats at the
- * head of every bar, a few lanes on with each bar (so the scratch and the side lanes get theirs), and a tap on every
+ * head of every bar, a few lanes on with each bar (so the side lanes get theirs), and a tap on every
  * half beat in a lane the long note is not in, stepping up the lanes in one bar and down in the next.
  */
 function showcaseNotes(keyMode: string): (ChartNoteLite & { beat: number; endBeat?: number })[] {
@@ -177,7 +177,7 @@ async function serveShowcase(page: Page): Promise<void> {
       if (song?.title !== SHOWCASE) return route.fallback();
       if (route.request().method() !== 'POST') return route.fulfill({ json: { charts: [] } });
       const body = JSON.parse(route.request().postData() ?? '{}') as { keyMode?: string; difficulty?: string; brief?: boolean };
-      const keyMode = body.keyMode ?? '7K+1S';
+      const keyMode = body.keyMode ?? '8K';
       const difficulty = body.difficulty ?? 'NORMAL';
       const notes = showcaseNotes(keyMode);
       const durationMs = Math.round((SHOWCASE_BARS * 4 * 60_000) / SHOWCASE_BPM);
@@ -355,7 +355,7 @@ test('song select with a generated chart, and the analysis view', async ({ page 
   ]) {
     expect((await page.request.post('/api/songs/demo', { data: demo })).ok()).toBe(true);
   }
-  await selectShowcase(page, '7K+1S', 'EXPERT');
+  await selectShowcase(page, '8K', 'EXPERT');
   await levelsKnown(page);
   await page.mouse.move(0, 0);
   await shot(page, '01-song-select');
@@ -378,11 +378,11 @@ test('song select with a generated chart, and the analysis view', async ({ page 
   await page.getByTestId('toggle-analysis').click();
 });
 
-test('play: 7K+1S', async ({ page }) => {
-  await settings(page, { lastKeyMode: '7K+1S', hiSpeed: 3.6 });
-  await selectShowcase(page, '7K+1S', 'EXPERT');
+test('play: 8K', async ({ page }) => {
+  await settings(page, { lastKeyMode: '8K', hiSpeed: 3.6 });
+  await selectShowcase(page, '8K', 'EXPERT');
   await autoplayFor(page, 15_500);
-  await shot(page, '03-play-7k');
+  await shot(page, '03-play-8k');
 });
 
 test('play: background video and camera effects', async ({ page }) => {
@@ -432,8 +432,8 @@ test('play: 6K+FX side notes of dots over half the keys', async ({ page }) => {
 });
 
 test('play: the flat PLANE camera, with the judge counter and a pacemaker', async ({ page }) => {
-  await settings(page, { lastKeyMode: '7K+1S', cameraPreset: 'PLANE', hiSpeed: 3.6, judgeCounter: true, pacemaker: '98' });
-  await selectShowcase(page, '7K+1S', 'EXPERT');
+  await settings(page, { lastKeyMode: '8K', cameraPreset: 'PLANE', hiSpeed: 3.6, judgeCounter: true, pacemaker: '98' });
+  await selectShowcase(page, '8K', 'EXPERT');
   await autoplayFor(page, 15_500);
   await shot(page, '20-play-plane');
 });
@@ -453,10 +453,10 @@ test('play: the hits of the four old sets and of the piano, with the plain notes
     [{ note: 'flat', side: 'bar', deck: 'standard', hit: 'neon' }, '31-hit-neon'],
     [{ note: 'flat', side: 'bar', deck: 'piano', hit: 'piano' }, '32-hit-piano'],
   ] as const) {
-    await settings(page, { lastKeyMode: '7K+1S', parts, cameraPreset: 'SDVX', hiSpeed: 3, fever: 'OFF' });
-    await selectShowcase(page, '7K+1S', 'EXPERT');
+    await settings(page, { lastKeyMode: '8K', parts, cameraPreset: 'SDVX', hiSpeed: 3, fever: 'OFF' });
+    await selectShowcase(page, '8K', 'EXPERT');
     // just after a note is hit while a long note is held in another lane: the hit and the hold both show
-    await autoplayAt(page, await hitMoment(page, '7K+1S', 'EXPERT'));
+    await autoplayAt(page, await hitMoment(page, '8K', 'EXPERT'));
     await shot(page, name);
   }
 });
@@ -468,10 +468,10 @@ test('play: the default skin, what a player starts with', async ({ page }) => {
   const songs = (await (await page.request.get('/api/songs')).json()).songs as { title: string }[];
   if (!songs.some((s) => s.title === SHOWCASE)) await page.request.post('/api/songs/demo', { data: { bpm: 150, bars: 24, seed: 21 } });
   // its row of keys over the plain panel with its light strip, the score, MAX COMBO and SPEED beside the
-  // gear and the rate under the judgement: the keys and the scratch; the side notes over half the keys;
+  // gear and the rate under the judgement: eight keys; the side notes over half the keys;
   // four keys in FEVER
   for (const [keyMode, more, name] of [
-    ['7K+1S', { fever: 'OFF' }, '47-default-7k'],
+    ['8K', { fever: 'OFF' }, '47-default-8k'],
     ['6K+FX', { fever: 'OFF' }, '48-default-6kfx'],
     ['4K', {}, '49-default-4k-fever'],
   ] as const) {
@@ -492,9 +492,9 @@ test('play: the crystal skin', async ({ page }) => {
   const songs = (await (await page.request.get('/api/songs')).json()).songs as { title: string }[];
   if (!songs.some((s) => s.title === SHOWCASE)) await page.request.post('/api/songs/demo', { data: { bpm: 150, bars: 24, seed: 21 } });
   const parts = { note: 'prism', side: 'bar', deck: 'prism', hit: 'prism' };
-  // the keys and the scratch; the side notes over half the keys; four keys in FEVER
+  // eight keys; the side notes over half the keys; four keys in FEVER
   for (const [keyMode, more, name] of [
-    ['7K+1S', { fever: 'OFF' }, '50-crystal-7k'],
+    ['8K', { fever: 'OFF' }, '50-crystal-8k'],
     ['6K+FX', { fever: 'OFF' }, '51-crystal-6kfx'],
     ['4K', {}, '52-crystal-4k-fever'],
   ] as const) {
@@ -516,9 +516,9 @@ test('play: the sky skin', async ({ page }) => {
   const songs = (await (await page.request.get('/api/songs')).json()).songs as { title: string }[];
   if (!songs.some((s) => s.title === SHOWCASE)) await page.request.post('/api/songs/demo', { data: { bpm: 150, bars: 24, seed: 21 } });
   const parts = { note: 'sky', side: 'bar', deck: 'sky', hit: 'sky' };
-  // the keys and the scratch; the side notes over half the keys; four keys in FEVER
+  // eight keys; the side notes over half the keys; four keys in FEVER
   for (const [keyMode, more, name] of [
-    ['7K+1S', { fever: 'OFF' }, '53-sky-7k'],
+    ['8K', { fever: 'OFF' }, '53-sky-8k'],
     ['6K+FX', { fever: 'OFF' }, '54-sky-6kfx'],
     ['4K', {}, '55-sky-4k-fever'],
   ] as const) {
@@ -540,9 +540,9 @@ test('play: the Firestarter skin', async ({ page }) => {
   const songs = (await (await page.request.get('/api/songs')).json()).songs as { title: string }[];
   if (!songs.some((s) => s.title === SHOWCASE)) await page.request.post('/api/songs/demo', { data: { bpm: 150, bars: 24, seed: 21 } });
   const parts = { note: 'fire', side: 'bar', deck: 'fire', hit: 'fire' };
-  // the keys and the scratch; the side notes over half the keys; four keys in FEVER
+  // eight keys; the side notes over half the keys; four keys in FEVER
   for (const [keyMode, more, name] of [
-    ['7K+1S', { fever: 'OFF' }, '56-fire-7k'],
+    ['8K', { fever: 'OFF' }, '56-fire-8k'],
     ['6K+FX', { fever: 'OFF' }, '57-fire-6kfx'],
     ['4K', {}, '58-fire-4k-fever'],
   ] as const) {
@@ -567,13 +567,13 @@ test('play: the AI companies’ skins', async ({ page }) => {
   if (!songs.some((s) => s.title === SHOWCASE)) await page.request.post('/api/songs/demo', { data: { bpm: 150, bars: 24, seed: 21 } });
   // the stickers over the gear's near corners and the mark the notes are cut in are the build's pictures
   for (const [skin, name] of [
-    ['gpt', '59-gpt-7k'],
-    ['gemini', '60-gemini-7k'],
-    ['grok', '61-grok-7k'],
-    ['claude', '62-claude-7k'],
+    ['gpt', '59-gpt-8k'],
+    ['gemini', '60-gemini-8k'],
+    ['grok', '61-grok-8k'],
+    ['claude', '62-claude-8k'],
   ] as const) {
-    await settings(page, { lastKeyMode: '7K+1S', parts: { note: skin, side: 'bar', deck: skin, hit: skin }, cameraPreset: 'SDVX', hiSpeed: 3, fever: 'OFF' });
-    await selectShowcase(page, '7K+1S', 'EXPERT');
+    await settings(page, { lastKeyMode: '8K', parts: { note: skin, side: 'bar', deck: skin, hit: skin }, cameraPreset: 'SDVX', hiSpeed: 3, fever: 'OFF' });
+    await selectShowcase(page, '8K', 'EXPERT');
     // Shift+Enter starts the play in AUTO
     await autoplay(page);
     await expect(page.getByTestId('play-screen')).toBeVisible();
@@ -591,9 +591,9 @@ test('play: the skins after the reference panels', async ({ page }) => {
   await page.goto('/');
   const songs = (await (await page.request.get('/api/songs')).json()).songs as { title: string }[];
   if (!songs.some((s) => s.title === SHOWCASE)) await page.request.post('/api/songs/demo', { data: { bpm: 150, bars: 24, seed: 21 } });
-  for (const [skin, name] of [['aqua', '63-aqua-7k'], ['steel', '64-steel-7k'], ['noir', '66-noir-7k'], ['wire', '68-wire-7k'], ['astral', '69-astral-7k']] as const) {
-    await settings(page, { lastKeyMode: '7K+1S', parts: { note: skin, side: 'bar', deck: skin, hit: skin }, cameraPreset: 'SDVX', hiSpeed: 3, fever: 'OFF' });
-    await selectShowcase(page, '7K+1S', 'EXPERT');
+  for (const [skin, name] of [['aqua', '63-aqua-8k'], ['steel', '64-steel-8k'], ['noir', '66-noir-8k'], ['wire', '68-wire-8k'], ['astral', '69-astral-8k']] as const) {
+    await settings(page, { lastKeyMode: '8K', parts: { note: skin, side: 'bar', deck: skin, hit: skin }, cameraPreset: 'SDVX', hiSpeed: 3, fever: 'OFF' });
+    await selectShowcase(page, '8K', 'EXPERT');
     // Shift+Enter starts the play in AUTO
     await autoplay(page);
     await expect(page.getByTestId('play-screen')).toBeVisible();
@@ -608,7 +608,7 @@ test('play: the four hits of no set, each with side notes and a gear picked', as
   test.setTimeout(300_000);
   await showcaseReady(page);
   for (const [parts, keyMode, name] of [
-    [{ note: 'flat', side: 'bar', deck: 'standard', hit: 'flash' }, '7K+1S', '22-hit-flash'],
+    [{ note: 'flat', side: 'bar', deck: 'standard', hit: 'flash' }, '8K', '22-hit-flash'],
     [{ note: 'flat', side: 'bar', deck: 'piano', hit: 'flare' }, '8K', '23-hit-flare'],
     [{ note: 'flat', side: 'dots', deck: 'standard', hit: 'bubbles' }, '6K+FX', '24-hit-bubbles'],
     [{ note: 'flat', side: 'dots', deck: 'piano', hit: 'grid' }, '6K+FX', '25-hit-grid'],
@@ -633,8 +633,8 @@ test('play: the default gear and the piano, each with its HUD (gauge, score pane
     ['standard', '33-gear-standard'],
     ['piano', '40-gear-piano'],
   ] as const) {
-    await settings(page, { lastKeyMode: '7K+1S', parts: { note: 'flat', side: 'bar', deck, hit: 'flash' }, cameraPreset: 'SDVX', hiSpeed: 3.2 });
-    await selectShowcase(page, '7K+1S', 'EXPERT');
+    await settings(page, { lastKeyMode: '8K', parts: { note: 'flat', side: 'bar', deck, hit: 'flash' }, cameraPreset: 'SDVX', hiSpeed: 3.2 });
+    await selectShowcase(page, '8K', 'EXPERT');
     await autoplayFor(page, 15_500);
     await expect(page.locator('.hud')).toHaveAttribute('data-gear', deck);
     await shot(page, name);
@@ -645,10 +645,10 @@ test('result of a good play: a record beaten, the offset fix', async ({ page }) 
   // two plays of the showcase by hand
   test.setTimeout(420_000);
   await watchSources(page);
-  await settings(page, { lastKeyMode: '7K+1S' });
-  await selectShowcase(page, '7K+1S', 'EXPERT');
-  const notes = await showcaseChart(page, '7K+1S', 'EXPERT');
-  const keys = ['ShiftLeft', 'KeyS', 'KeyD', 'KeyF', 'Space', 'KeyJ', 'KeyK', 'KeyL'];
+  await settings(page, { lastKeyMode: '8K' });
+  await selectShowcase(page, '8K', 'EXPERT');
+  const notes = await showcaseChart(page, '8K', 'EXPERT');
+  const keys = ['KeyA', 'KeyS', 'KeyD', 'KeyF', 'KeyJ', 'KeyK', 'KeyL', 'Semicolon'];
   const result = page.getByTestId('result-screen');
   // a first try, short of the clear
   await playByHand(page, notes, keys, { meanMs: 16, sdMs: 36, missRate: 0.15, seed: 20261017 });
@@ -668,8 +668,8 @@ test('result of a good play: a record beaten, the offset fix', async ({ page }) 
 });
 
 test('chart editor', async ({ page }) => {
-  await settings(page, { lastKeyMode: '7K+1S' });
-  await selectShowcase(page, '7K+1S', 'EXPERT');
+  await settings(page, { lastKeyMode: '8K' });
+  await selectShowcase(page, '8K', 'EXPERT');
   await songInfo(page);
   await page.getByTestId('edit-chart').click();
   await expect(page.getByTestId('editor-screen')).toBeVisible();
@@ -690,7 +690,7 @@ test('importing a keysounded BMS folder', async ({ page }) => {
   await songInfo(page);
   await expect(page.getByTestId('chart-source')).toContainText('키음');
   // the imported chart is chosen on its own key mode
-  await expect(page.getByRole('button', { name: '7K+1S', exact: true })).toHaveClass(/active/);
+  await expect(page.getByRole('button', { name: '5K', exact: true })).toHaveClass(/active/);
   await page.mouse.move(0, 0);
   await shot(page, '09-import');
 });

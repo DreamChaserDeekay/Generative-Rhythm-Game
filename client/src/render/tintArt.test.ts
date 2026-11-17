@@ -32,7 +32,7 @@ describe('the notes’ depth along the track', () => {
     expect(noteDepthOf('claude', bar, 0.6, 1)).toBe(bar);
   });
 
-  it('keeps the marks’ shape in the wider scratch lane and the narrower side lanes; the bars stay as deep', () => {
+  it('keeps the marks’ shape in a wider lane and the narrower side lanes; the bars stay as deep', () => {
     const mark = noteDepthOf('gpt', bar, 0.84, 1.54);
     expect(laneDepthOf('gpt', mark, 1.6, bar)).toBeCloseTo(mark * 1.6, 9);
     expect(laneDepthOf('grok', 1.3, 0.75, bar)).toBeCloseTo(1.3 * 0.75, 9);
@@ -63,7 +63,7 @@ describe('the Firestarter skin’s notes', () => {
     expect([LONG_PAINT.fire.width, LONG_PAINT.fire.endDepth, LONG_PAINT.fire.tile]).toEqual([LONG_PAINT.solid.width, LONG_PAINT.solid.endDepth, LONG_PAINT.solid.tile]);
     expect(LONG_PAINT.fire.held).toBeDefined();
     for (const part of [LONG_PAINT.fire.body, LONG_PAINT.fire.end, LONG_PAINT.fire.held!.body, LONG_PAINT.fire.held!.end]) expect(() => part(recorder().g, 64, 64)).not.toThrow();
-    for (const mark of ['white', 'blue', 'gold', 'scratch', 'side'] as const) expect(() => NOTE_PAINT.fire(recorder().g, 300, 96, mark)).not.toThrow();
+    for (const mark of ['white', 'blue', 'gold', 'side'] as const) expect(() => NOTE_PAINT.fire(recorder().g, 300, 96, mark)).not.toThrow();
   });
 });
 
@@ -77,7 +77,7 @@ describe('the AI companies’ notes: the company’s mark, a picture the player 
     return { g, calls };
   };
 
-  it('the notes of the skins after the reference panels are bars, each with a long note cut straight across and a mark on the scratch’s', () => {
+  it('the notes of the skins after the reference panels are bars, each with a long note cut straight across, drawn alike in every lane', () => {
     const LONGS = { aqua: 'aqua', steel: 'steel', noir: 'noir', wire: 'wire', astral: 'astral' } as const;
     for (const style of ['aqua', 'steel', 'noir', 'wire', 'astral'] as const) {
       expect(isBarNote(style), style).toBe(true);
@@ -90,13 +90,15 @@ describe('the AI companies’ notes: the company’s mark, a picture the player 
       expect(long.endDepth, style).toBeLessThanOrEqual(0.2);
       expect(long.held, style).toBeDefined();
       for (const part of [long.body, long.end, long.held!.body, long.held!.end]) expect(() => part(recorder().g, 64, 64)).not.toThrow();
-      // the scratch's note is told from a key's by something drawn on it
-      const [key, scratch] = [recorder(), recorder()];
+      // a bar is the same in every lane (its colour tells them apart)
+      const key = recorder();
       NOTE_PAINT[style](key.g, 96, 40, 'white');
-      NOTE_PAINT[style](scratch.g, 96, 40, 'scratch');
       expect(key.calls.length, style).toBeGreaterThan(8);
-      expect(scratch.calls, style).not.toEqual(key.calls);
-      for (const mark of ['blue', 'gold', 'side'] as const) expect(() => NOTE_PAINT[style](recorder().g, 96, 40, mark)).not.toThrow();
+      for (const mark of ['blue', 'gold', 'side'] as const) {
+        const other = recorder();
+        NOTE_PAINT[style](other.g, 96, 40, mark);
+        expect(other.calls, `${style} ${mark}`).toEqual(key.calls);
+      }
     }
   });
 
@@ -182,22 +184,6 @@ describe('the sky skin’s notes', () => {
       NOTE_PAINT.sky(other.g, 300, 96, mark);
       expect(other.calls, mark).toEqual(calls);
     }
-  });
-
-  it('mark the scratch with a pair of wings over the same bar, one the mirror of the other', () => {
-    const key = recorder();
-    NOTE_PAINT.sky(key.g, 480, 96, 'white');
-    const scratch = recorder();
-    NOTE_PAINT.sky(scratch.g, 480, 96, 'scratch');
-    // the bar first, as a key's, then the wings
-    expect(scratch.calls.slice(0, key.calls.length)).toEqual(key.calls);
-    const wings = scratch.calls.slice(key.calls.length);
-    const flips = wings.filter((c) => c[0] === 'scale') as [string, number, number][];
-    expect(flips.map(([, x]) => x)).toEqual([-1, 1]);
-    for (const [, , y] of flips) expect(y).toBeCloseTo(1.7, 6);
-    // each wing a shade under it and the wing itself: one closed outline with its feathers' curves
-    expect(wings.filter((c) => c[0] === 'fill')).toHaveLength(4);
-    expect(wings.filter((c) => c[0] === 'quadraticCurveTo').length).toBeGreaterThanOrEqual(4 * 5);
   });
 });
 

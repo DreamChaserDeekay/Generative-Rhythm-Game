@@ -466,13 +466,13 @@ test('the list: page keys, Home / End, ↑↓ wrap on a fresh press, F2 a random
     await expect(sort).toContainText(label);
   }
 
-  // Shift alone changes the folder on 4K, never on 7K+1S (its scratch), where F6 does
+  // Shift alone changes the folder on 4K, never on 6K+FX (its side lanes), where F6 does
   await expect(page.getByTestId('hint-folder')).toContainText('Shift');
   await page.keyboard.press('Shift');
   await expect(page.getByTestId('folder-favorites')).toHaveAttribute('aria-pressed', 'true');
   await page.keyboard.press('F6');
   await expect(page.getByTestId('folder-unplayed')).toHaveAttribute('aria-pressed', 'true');
-  await page.getByRole('button', { name: '7K+1S', exact: true }).click();
+  await page.getByRole('button', { name: '6K+FX', exact: true }).click();
   await expect(page.getByTestId('hint-folder')).toContainText('F6');
   await page.keyboard.press('Shift');
   await page.waitForTimeout(200);
@@ -771,7 +771,7 @@ test('an imported chart is an entry after the difficulties (←→, kept for the
   await expect(page.getByTestId('analysis-status')).toHaveCount(0, { timeout: 60_000 });
   // its stage picture is the cover; on its own key mode it is chosen, after the four difficulties
   await expect(page.locator('.hero-art img')).toBeVisible();
-  await expect(page.getByRole('button', { name: '7K+1S', exact: true })).toHaveClass(/active/);
+  await expect(page.getByRole('button', { name: '5K', exact: true })).toHaveClass(/active/);
   const saved = page.getByTestId('saved-chart');
   await expect(saved).toHaveCount(1);
   await expect(saved).toHaveClass(/active/);
@@ -968,7 +968,7 @@ test('the chosen one of many imported charts stays in view, the key modes say wh
     songId: song.id,
     name: `Imported BMS [${name}]`,
     kind: 'imported',
-    keyMode: '7K+1S',
+    keyMode: '6K+FX',
     difficulty: 'HARD',
     level: 3 + i * 3,
     noteCount: 500 + i * 300,
@@ -994,11 +994,11 @@ test('the chosen one of many imported charts stays in view, the key modes say wh
   );
   await page.route((url) => /^\/api\/charts\/c\d{20}$/.test(url.pathname), (route) => route.fulfill({ status: 404, json: { detail: 'e2e' } }));
   await page.addInitScript(() => {
-    if (!localStorage.getItem('grg.settings.v1')) localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '7K+1S', lastDifficulty: 'MASTER' }));
+    if (!localStorage.getItem('grg.settings.v1')) localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '6K+FX', lastDifficulty: 'MASTER' }));
   });
   await page.goto('/');
   // the key modes with charts of the song say how many
-  await expect(page.getByTestId('mode-saved-7K+1S')).toHaveText('5');
+  await expect(page.getByTestId('mode-saved-6K+FX')).toHaveText('5');
   await expect(page.getByTestId('mode-saved-4K')).toHaveText('1');
   await expect(page.getByTestId('mode-saved-8K')).toHaveCount(0);
 
@@ -1193,7 +1193,7 @@ test('a song taken out of the library takes what was kept for it; a chosen chart
     lastKeyMode: '4K',
     lastDifficulty: 'HARD',
     patterns: { [hd]: 'c' + 'e'.repeat(20), [`${b}|4K|GRG|NORMAL`]: 5 },
-    chartPicks: { [`${a}|7K+1S`]: 'c' + 'f'.repeat(20) },
+    chartPicks: { [`${a}|8K`]: 'c' + 'f'.repeat(20) },
     songOffsets: { [a]: 12, [b]: -3 },
   };
   await page.addInitScript((s) => {
@@ -1364,6 +1364,6 @@ for i, f in enumerate([261.6, 329.6, 392.0]):
 lines = ["#TITLE E2E Cover Keysound [ANOTHER]", "#ARTIST Synth", "#BPM 124", "#PLAYLEVEL 6", "#STAGEFILE stage.bmp", "#WAV01 kick.wav"]
 lines += [f"#WAV1{i} lead{i}.wav" for i in range(3)]
 for m in range(1, 7):
-    lines += [f"#{m:03d}01:01010101", f"#{m:03d}12:10001100", f"#{m:03d}19:00120012"]
-(out / "e2e_another.bme").write_text("\\n".join(lines) + "\\n", encoding="utf-8")
+    lines += [f"#{m:03d}01:01010101", f"#{m:03d}12:10001100", f"#{m:03d}15:00120012"]
+(out / "e2e_another.bms").write_text("\\n".join(lines) + "\\n", encoding="utf-8")
 `;

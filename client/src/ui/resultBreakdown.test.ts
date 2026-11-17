@@ -195,9 +195,9 @@ describe('result breakdown', () => {
   });
 
   it('knows the key modes whose lanes take Shift by default (R there stays R)', () => {
-    const modes: KeyModeId[] = ['4K', '4K+FX', '5K', '6K', '6K+FX', '7K+1S', '8K'];
+    const modes: KeyModeId[] = ['4K', '4K+FX', '5K', '6K', '6K+FX', '8K'];
     const lanes = (mode: KeyModeId) => new Set([...bindingsFor(DEFAULT_SETTINGS, mode), ...secondBindingsFor(DEFAULT_SETTINGS, mode).filter((c): c is string => c !== null)]);
-    expect(modes.filter((m) => shiftIsLane(lanes(m)))).toEqual(['4K+FX', '6K+FX', '7K+1S']);
+    expect(modes.filter((m) => shiftIsLane(lanes(m)))).toEqual(['4K+FX', '6K+FX']);
     // a lane moved onto Shift by the player counts too
     expect(shiftIsLane(new Set(['KeyD', 'KeyF', 'ShiftRight', 'KeyK']))).toBe(true);
   });

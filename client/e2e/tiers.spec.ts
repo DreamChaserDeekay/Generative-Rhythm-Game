@@ -65,11 +65,11 @@ test('a song without a MASTER leaves its cell empty and plays its ELITE, and the
       const songId = new URL(route.request().url()).pathname.split('/')[3];
       if (songId === songs[1].id && body.difficulty === 'MASTER') return route.fulfill({ status: 404, json: { detail: '이 곡에는 MASTER 채보가 없습니다' } });
       const level = ({ NORMAL: 3, HARD: 7, EXPERT: 11, ELITE: 15, MASTER: 19 } as Record<string, number>)[body.difficulty];
-      const meta = { chartId: `c${songId.slice(-4)}${'b'.repeat(14)}${body.difficulty.slice(0, 2).toLowerCase()}`, songId, keyMode: '7K+1S', difficulty: body.difficulty, level, noteCount: 100 * level, durationMs: 60_000, nps: { avg: 5, peak: 9, graph: [1, 2] }, rating: level, generator: { seed: 7, version: 'now' } };
+      const meta = { chartId: `c${songId.slice(-4)}${'b'.repeat(14)}${body.difficulty.slice(0, 2).toLowerCase()}`, songId, keyMode: '8K', difficulty: body.difficulty, level, noteCount: 100 * level, durationMs: 60_000, nps: { avg: 5, peak: 9, graph: [1, 2] }, rating: level, generator: { seed: 7, version: 'now' } };
       return route.fulfill({ json: body.brief ? { meta, cached: true } : { chart: { meta, timing, notes: [], sections: [] }, cached: true } });
     },
   );
-  await page.addInitScript(() => localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '7K+1S', lastDifficulty: 'MASTER' })));
+  await page.addInitScript(() => localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '8K', lastDifficulty: 'MASTER' })));
   await page.goto('/');
   const plates = page.getByTestId('difficulty-row').getByRole('button');
   const cells = (i: number) => page.locator(`[data-song-id="${songs[i].id}"] .tier-level`);
