@@ -47,7 +47,7 @@ export function flyJacket(jacket: HTMLElement, from: Box, rest: readonly HTMLEle
   for (const el of rest) el.animate([{ opacity: 0 }, { opacity: 1 }], timing);
 }
 
-/** How long the start card takes to give way to the play: the jacket into the track's far end, the card's colour into the play's. */
+/** How long the start card takes to give way to the play: the jacket onto the song plate's (or into the track), the card's colour into the play's. */
 export const INTO_TRACK_MS = 700;
 
 /**
@@ -60,28 +60,77 @@ export function intoTrackTransform(from: Box, to: { x: number; y: number }, scal
 }
 
 /**
- * The start card gives way to the play (it has started under it): its jacket goes off into the
- * track's far end (`to`, px on the screen), what stands around it goes at once, and its colour
- * (the card's ground and the song's backdrop) melts into the play's. Transforms and opacity only;
- * `done` comes when it is over, at once for a player who asked for less motion.
+ * The jacket on the play's song plate (Hud's .hud-jacket), when it is there to land on: shown,
+ * laid out with a size, not hidden by the plate's own styles.
  */
-export function flyIntoTrack(card: HTMLElement, to: { x: number; y: number } | null, done: () => void): void {
+export function landingOf(target: HTMLElement | null): HTMLElement | null {
+  if (!target || !target.isConnected) return null;
+  const box = target.getBoundingClientRect();
+  if (box.width <= 1 || box.height <= 1) return null;
+  for (let el: HTMLElement | null = target; el; el = el.parentElement) {
+    const style = getComputedStyle(el);
+    if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') return null;
+  }
+  return target;
+}
+
+/**
+ * The start card gives way to the play (it has started under it), once: what stands around its
+ * jacket goes at once, and its colour (the card's ground and the song's backdrop) melts into the
+ * play's. Its jacket goes to `hud`, the jacket on the play's song plate, and lands on it to the
+ * pixel: the plate's own is hidden until then and takes over as it lands, so no two pictures show
+ * at once. With no plate to land on it goes off into the track's far end (`to`, px on the screen)
+ * instead. Transforms and opacity only; where it goes is left on it (data-into, and data-into-hud
+ * when it lands on the plate). `done` comes when it is over, at once for a player who asked for
+ * less motion (the plate's jacket simply shows).
+ */
+export function flyIntoTrack(card: HTMLElement, to: { x: number; y: number } | null, done: () => void, hud: HTMLElement | null = null): void {
   // once (an effect run twice in development must not start it again from where it is)
   if (card.dataset.leaving !== undefined) return;
   card.dataset.leaving = '';
   const jacket = card.querySelector<HTMLElement>('.loading-jacket');
+  const landing = landingOf(hud);
   const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
   if (reduced || typeof card.animate !== 'function') {
     done();
     return;
   }
-  const easeIn = 'cubic-bezier(0.55, 0, 0.75, 0.2)';
   const fade = (el: Element, ms: number, delay = 0) => (el as HTMLElement).animate([{ opacity: 1 }, { opacity: 0 }], { duration: ms, delay, easing: 'ease-out', fill: 'forwards' });
   for (const el of card.querySelectorAll('.loading-text, .loading-status, .loading-keys')) fade(el, 160);
   for (const el of card.querySelectorAll('.backdrop')) fade(el, INTO_TRACK_MS - 100, 100);
   const ground = getComputedStyle(card).backgroundColor;
   const clear = ground.replace(/^rgba?\(([^,]+),([^,]+),([^,)]+).*$/, 'rgba($1,$2,$3,0)');
   const melt = card.animate([{ backgroundColor: ground }, { backgroundColor: clear }], { duration: INTO_TRACK_MS - 100, delay: 100, easing: 'ease-in-out', fill: 'forwards' });
+  let left = 2;
+  const one = () => {
+    if (--left === 0) done();
+  };
+  melt.onfinish = one;
+  melt.oncancel = one;
+  if (jacket && landing) {
+    // onto the plate's jacket: from its box on the card to the plate's, its corner leading
+    const from = jacket.getBoundingClientRect();
+    const onto = landing.getBoundingClientRect();
+    const end = flightTransform(onto, from);
+    jacket.dataset.into = end;
+    jacket.dataset.intoHud = '';
+    landing.style.visibility = 'hidden';
+    const flight = jacket.animate(
+      [
+        { transformOrigin: '0 0', transform: 'none' },
+        { transformOrigin: '0 0', transform: end },
+      ],
+      { duration: INTO_TRACK_MS, easing: 'cubic-bezier(0.45, 0, 0.2, 1)', fill: 'forwards' },
+    );
+    const land = () => {
+      landing.style.removeProperty('visibility');
+      jacket.style.visibility = 'hidden';
+      one();
+    };
+    flight.onfinish = land;
+    flight.oncancel = land;
+    return;
+  }
   if (jacket && to) {
     const from = jacket.getBoundingClientRect();
     // where it goes, left on it (data-into)
@@ -92,11 +141,10 @@ export function flyIntoTrack(card: HTMLElement, to: { x: number; y: number } | n
         { transformOrigin: '50% 50%', transform: intoTrackTransform(from, to, 0.35), opacity: 1, offset: 0.55 },
         { transformOrigin: '50% 50%', transform: intoTrackTransform(from, to), opacity: 0 },
       ],
-      { duration: INTO_TRACK_MS, easing: easeIn, fill: 'forwards' },
+      { duration: INTO_TRACK_MS, easing: 'cubic-bezier(0.55, 0, 0.75, 0.2)', fill: 'forwards' },
     );
   } else if (jacket) fade(jacket, INTO_TRACK_MS - 200);
-  melt.onfinish = done;
-  melt.oncancel = done;
+  one();
 }
 
 /**
