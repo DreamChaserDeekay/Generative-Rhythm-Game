@@ -41,8 +41,9 @@ function laneStems(chart: Chart): (StemName | null)[] {
  * defaults), the loading under them, and at the foot of the screen the keys that play its lanes,
  * each over the colour of the instrument the lane follows most. Started from the song select, the
  * jacket comes over from where it stood there (jacketFlight.ts). Once the play has started under it,
- * it gives way (`leaving`): its jacket goes off into the track's far end (`leaving.to`, px on the
- * screen; null: it only fades) and its colour melts into the play's, then `onGone`.
+ * it gives way (`leaving`): its jacket lands on the play's song plate (`leaving.hud`), or with no
+ * plate to land on goes off into the track's far end (`leaving.to`, px on the screen; null: it
+ * only fades), and its colour melts into the play's, then `onGone`.
  */
 export function LoadingCard({
   request,
@@ -56,7 +57,7 @@ export function LoadingCard({
   settings: Settings;
   text: string;
   onCancel: () => void;
-  leaving?: { to: { x: number; y: number } | null } | null;
+  leaving?: { to: { x: number; y: number } | null; hud: HTMLElement | null } | null;
   onGone?: () => void;
 }) {
   const { chart, song } = request;
@@ -88,7 +89,7 @@ export function LoadingCard({
     if (!leaving || !el || left.current) return;
     left.current = true;
     el.setAttribute('inert', '');
-    flyIntoTrack(el, leaving.to, () => onGone?.());
+    flyIntoTrack(el, leaving.to, () => onGone?.(), leaving.hud);
   }, [leaving, onGone]);
 
   return (
