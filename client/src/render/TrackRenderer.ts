@@ -23,7 +23,7 @@ import { activeTrail, setActiveTrail, Trail } from './trail';
 import { disposeSkinArt, flipbookBlend, flipbookOffset, hitFrame, type Flipbook, type MediaEffects, type SkinArt } from './skinArt';
 import { hex, laneColorsFor, type Skin, type SkinStyle } from './skins';
 import { beatClock, DECK_PICTURE_PX, GEAR_LIGHTS, GearLightLayer, type BeatClock } from './gearLights';
-import { artPartsOf, borderLookOf, gearArtOf, HIT_SLOTS, isArtHit, longPaintOf, NOTE_WIDTH, notePaintOf, platePaintOf, type StyleImages } from './styleArt';
+import { artPartsOf, borderLookOf, ledSpritesOf, sideBarArtOf, gearArtOf, HIT_SLOTS, isArtHit, longPaintOf, NOTE_WIDTH, notePaintOf, platePaintOf, type StyleImages } from './styleArt';
 import {
   DOTS_ACROSS,
   DOTS_LONG,
@@ -2176,11 +2176,16 @@ export class TrackRenderer {
       const h = part === 'body' ? (dots ? w : 8) : Math.max(8, Math.round((w * { tap: this.sideNoteDepth, end: SIDE_END, flash: SIDE_FLASH }[part]) / across));
       const key = this.geometry.lanes.find((l) => l.kind === 'key');
       const cols = Math.max(8, Math.round((across / (key?.width ?? 1)) * DOTS_ACROSS));
+      // drawn from their pictures where they loaded (styleArt's ART_SIDES): the bar's parts, the dots' LEDs laid out here
+      const led = dots ? ledSpritesOf(this.images) : undefined;
+      const bar = dots || part === 'flash' ? undefined : sideBarArtOf(this.images);
       const paint = dots
-        ? { tap: sideDotsTap(SIDE_EDGE / this.sideNoteDepth, cols), body: sideDotsBody(cols), end: sideDotsEnd(cols) }[part as Exclude<SidePart, 'flash'>]
-        : part === 'tap'
-          ? sideTap(SIDE_EDGE / this.sideNoteDepth)
-          : SIDE_PICTURES[part];
+        ? { tap: sideDotsTap(SIDE_EDGE / this.sideNoteDepth, cols, led), body: sideDotsBody(cols, led), end: sideDotsEnd(cols, led) }[part as Exclude<SidePart, 'flash'>]
+        : bar
+          ? bar[part as Exclude<SidePart, 'flash'>]
+          : part === 'tap'
+            ? sideTap(SIDE_EDGE / this.sideNoteDepth)
+            : SIDE_PICTURES[part];
       texture = this.own(paintTexture(w, h, paint));
       if (part === 'body') texture.wrapT = THREE.RepeatWrapping;
       this.sideTextures.set(part, texture);

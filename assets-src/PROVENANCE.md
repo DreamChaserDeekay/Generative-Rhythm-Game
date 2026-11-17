@@ -3069,3 +3069,40 @@
 - `scripts/assets/build_styles.py`에서 세트의 노트 · 롱노트 · 사이드 단계(메카의 `mecha_notes` · `mecha_long` · `mecha_side`, 나머지 세트의 사이드와 크리스털의 네 갈래 별 `gem_star`)를 뺐습니다. 고친 스크립트를 저장소 밖 사본(지운 원본 없이)에서 돌려 남은 파일 20개(타격 효과 18장과 레코드 · 캡슐)가 저장소의 것과 바이트까지 같고, 매니페스트에서 빠지는 것이 위 10개뿐임을 확인했습니다. `build_long_notes.py` · `make_long_notes.py`의 목록에서도 여섯을 뺐습니다.
 - 저장된 설정이 지운 노트를 가리키면 기본 노트로 열립니다.
 - 피아노 세트의 노트 · 롱노트 · 사이드 원본(`assets-src/styles/piano/`)은 2026-11-05에 노트를 뺄 때 남겨 둔 그대로입니다(이번 요청의 범위 밖).
+
+## 건반 위 사이드 노트를 그림으로 (`styles/side`, 2026-11-17)
+
+사용자 요청(조정 세션 경유): "기본 사이드노트랑 도트 매트릭스 사이드노트도 gemini 이미지 생성으로 다시 만들어줘". 건반 레인의 절반을 덮는 사이드 노트 두 가지(설정 → 노트 → 사이드 노트: 기본 'bar', 도트 매트릭스 'dots')를 앞의 단노트 · 롱노트와 같은 방식으로, 지금의 코드 그림을 "지킬 모습"으로 보내 질감만 올려 다시 그렸습니다.
+
+- 모델 `gemini-nano-banana-2.1`(1:1 · 2K), `scripts/assets/make_side_notes.py`(`make bar|dots` · `pick`). 받은 것은 `assets-src/styles/side/_tries/`(저장소 밖)와 `record.json`, 고른 것은 `assets-src/styles/side/<side>.jpg`(1536 px, JPEG 95).
+- 보낸 그림: `assets-src/styles/side/refs/<side>.jpg`(`design-mockups/note-skins/lab/siderefs.mjs`). 'bar'는 건반 위에 놓이는 단노트와 롱노트 한 토막(양끝 띠)을 화면 비율로, 'dots'는 LED 점 여섯 개씩 켜진 줄과 꺼진 줄. 다른 게임의 그림이나 로고는 보내지 않음.
+- 게임 그림(`scripts/assets/build_side_notes.py`): `client/public/media/side/bar.png`(1024×512: 단노트 · 롱노트 몸통 · 끝 띠), `side/dots.png`(256×128: 켜진 점 · 꺼진 점, 각 128 정사각). 점은 게임이 예전처럼 줄지어 놓음(건반 레인 수만큼). 옅은 회색 레인 위의 빛으로 그린 것을 레인 색의 틴트 그림으로 되돌리되(알파 = 값 ÷ 0.72), 부분마다 밝기를 참고 그림의 같은 부분에 맞춤(받은 롱노트 몸통이 참고보다 밝아 건반 노트를 더 가렸을 것). 롱노트 몸통은 열마다 평균을 내 길이 방향으로 같게(사선 반사가 타일마다 끊기지 않게).
+- 비용: 2회, 약 $0.13.
+- 판정 때의 빛 띠(flash)는 코드 그림 그대로(빛 효과라 그림으로 바꿀 이득이 없음).
+
+### 프롬프트
+
+각 설명 뒤에 공통 꼬리:
+
+  > Colour: neutral greys and white only, with no hue at all, because the game tints everything with the lane colour; glowing parts are near white. Strictly orthographic, straight top-down, no perspective, every edge straight and level. Pure black background (#000000) around everything, no shadow cast onto it, no glow spreading onto the black beyond a thin rim. No text, letters, numbers, logos or watermarks.
+
+
+### `styles/side/bar.jpg` (기본)
+
+- bar-1: 2026-11-17 05:59:43 +0000 · 3,909,747바이트 · sha256 앞 16자리 `fa37042d6f5f0bf9` · 고름
+- 저장한 JPEG: 385,908바이트 · sha256 앞 16자리 `c226f2e4dc06c40c`
+- 프롬프트:
+
+  > The attached picture shows the SIDE NOTE of a commercial PC keyboard rhythm game, as the game draws it now in flat code-drawn graphics, for a lane whose colour is a light neutral grey. It is a wide, flat bar laid OVER the key lanes, so the key notes under it must stay readable: it is a see-through panel. Top: the side note's tap: a translucent bar with a bright band along its top edge and along its bottom edge and bright short ends, the middle between the bands half see-through (shown mid grey). Below: a stretch of the side note's long note: a bright end band at its top and at its bottom, between them the body, mostly see-through (shown dark grey) with a thin bright line down each side.
+  >
+  > Draw this same sheet again as production game art at the finish level of a top commercial rhythm game: the SAME design, a panel of clear tinted acrylic light. Keep exactly: the layout, every part's place and size, the thickness of the bright bands and lines, and HOW BRIGHT EACH PART IS: the see-through parts stay as dark as shown (they let the notes under them show), the bands as bright as shown. Add nothing: no parts, marks, rivets or patterns that are not in the picture. Only raise the finish: crisp polished edges on the bright bands, a faint glassy sheen and the subtlest texture in the see-through parts. Along the long note's body, between its end bands, everything looks the same from top to bottom (it repeats seamlessly). The tap's bottom edge meets the judgement line: keep it perfectly straight and crisp.
+
+### `styles/side/dots.jpg` (도트 매트릭스)
+
+- dots-1: 2026-11-17 06:00:12 +0000 · 2,895,310바이트 · sha256 앞 16자리 `96d87a9e38dd873f` · 고름
+- 저장한 JPEG: 246,350바이트 · sha256 앞 16자리 `9f6091034904ba30`
+- 프롬프트:
+
+  > The attached picture shows the dots of an LED dot-matrix panel, as a commercial PC keyboard rhythm game draws them now in flat code-drawn graphics, for a lane whose colour is a light neutral grey: its side notes are rows of these dots laid over the key lanes. Top row: six LED dots lit (bright). Bottom row: six LED dots dim (unlit, faint).
+  >
+  > Draw this same sheet again as production game art at the finish level of a top commercial rhythm game: the SAME layout, each dot at the same place and size, perfectly round. Make each a real LED dot seen straight on: a small domed lens with a crisp rim, the lit ones glowing near white in the middle with a tight soft glow just round the lens, the dim ones a dark, faintly visible lens with a small glint. All six of a row alike. Keep how bright each row is: the lit row bright, the dim row faint. Add nothing: no panel, grid lines or housing between the dots; the black between them stays black.

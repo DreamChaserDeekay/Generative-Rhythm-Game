@@ -47,7 +47,7 @@ async function readoutsInPlace(page: Page): Promise<void> {
 }
 
 /**
- * The widest run of FXL's colour (the default palette's purple) along a row of the play's track
+ * The widest run of FXL's colour (the default palette's hot pink) along a row of the play's track
  * above the judge line, and its middle, as shares of the screen's width: a side note in a lane of
  * its own is a narrow one at the track's edge; laid over the keys, a bar across their left half.
  */
@@ -68,7 +68,7 @@ async function sideBar(page: Page): Promise<{ width: number; middle: number }> {
       for (let x = 0; x < width; x++) {
         const i = (y * width + x) * 4;
         const [r, gr, b] = [px[i], px[i + 1], px[i + 2]];
-        run = b > 120 && b - r > 25 && r - gr > 15 ? run + 1 : 0;
+        run = r > 150 && r - gr > 70 && b - gr > 30 ? run + 1 : 0;
         if (run / width > widest.width) Object.assign(widest, { width: run / width, middle: (x - run / 2) / width });
       }
     }
@@ -389,7 +389,7 @@ test('note colours: a preset, a lane set by hue, typed in or dragged in a copy o
   await expect(page.getByTestId('opt-color-preset')).toHaveAttribute('data-value', 'skin');
   await expect(page.getByTestId('opt-color-preset')).toContainText('기본');
   // the track's colours: the left side lane and the white keys of 6K+FX
-  expect((await shown()).slice(0, 2)).toEqual(['#b07bff', '#eaf6ff']);
+  expect((await shown()).slice(0, 2)).toEqual(['#ff2e9a', '#eaf6ff']);
 
   // a preset: its colours on the gear at once, the lanes of the key mode shown
   await chooseSetting(page, 'opt-color-preset', 'aurora');

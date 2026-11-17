@@ -12,10 +12,12 @@ import {
   NOTE_STRETCH,
   type HitStyle,
   type LongPaint,
+  type LedSprites,
   type LongStyle,
   type NoteMark,
   type NotePaint,
   type NoteStyle,
+  type SideStyle,
   type Paint,
 } from './tintArt';
 
@@ -114,6 +116,7 @@ export function styleImageIds(style: SkinStyle): string[] {
     if (ART_NOTES.includes(style.note)) ids.push(`notes/${style.note}`);
     if (ART_LONGS[LONG_OF[style.note]] !== undefined) ids.push(`longs/${LONG_OF[style.note]}`);
   }
+  if (ART_SIDES.includes(style.side)) ids.push(`side/${style.side}`);
   ids.push(...Object.values(GEAR_PICTURES[style.deck]));
   return ids;
 }
@@ -265,6 +268,35 @@ export const ART_NOTES: readonly NoteStyle[] = ['flat', 'prism', 'sky', 'fire', 
 export const ART_MATERIALS: readonly NoteStyle[] = ['gpt', 'gemini', 'grok', 'claude'];
 /** media/notes/<note>.png's rows: 1024 × 224 a tap, its ends and its middle (the scratch's mark) kept as drawn. */
 const ART_NOTE: SlabLayout = { row: 256, top: 16, w: 1024, h: 224, cuts: [212, 332, 692, 812] };
+
+/**
+ * The side notes laid over half the keys drawn again with the image model (scripts/assets/make_side_notes.py and
+ * build_side_notes.py): 'bar' its tap, its long note's body and its end band (media/side/bar.png), 'dots' an LED dot
+ * lit and dim (media/side/dots.png; the code lays them out in rows, as many as the key lanes take). Take a name out
+ * to have its code drawing back; a picture that did not load is drawn in code too. The flash of their hits is code's.
+ */
+export const ART_SIDES: readonly SideStyle[] = ['bar', 'dots'];
+/** media/side/bar.png's parts: (y, rows) in its 1024 × 512 (build_side_notes.py). */
+const SIDE_ART = { tap: [0, 176], body: [192, 128], end: [336, 64] } as const;
+
+/** The bar laid over the keys from its picture: its tap, its long note's body and end, each its part of the picture stretched over w × h. */
+export function sideBarArtOf(images: StyleImages): Record<'tap' | 'body' | 'end', Paint> | undefined {
+  const image = ART_SIDES.includes('bar') ? images['side/bar'] : undefined;
+  if (!image) return undefined;
+  const part =
+    ([y, rows]: readonly [number, number]): Paint =>
+    (g, w, h) => {
+      g.imageSmoothingQuality = 'high';
+      g.drawImage(image, 0, y, 1024, rows, 0, 0, w, h);
+    };
+  return { tap: part(SIDE_ART.tap), body: part(SIDE_ART.body), end: part(SIDE_ART.end) };
+}
+
+/** The LED dots from their picture (media/side/dots.png: lit and dim, 128 square, the lens 48 from the middle). */
+export function ledSpritesOf(images: StyleImages): LedSprites | undefined {
+  const image = ART_SIDES.includes('dots') ? images['side/dots'] : undefined;
+  return image ? { image, size: 128, lens: 48 / 64 } : undefined;
+}
 
 /** A bar drawn from its picture (ART_NOTES): a key's (and a side lane's) from its first row, the scratch's from its second. */
 function artTap(image: ArtImage, code: NotePaint): NotePaint {

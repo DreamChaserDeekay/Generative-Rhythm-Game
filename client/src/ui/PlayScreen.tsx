@@ -43,8 +43,8 @@ export function PlayScreen({ request, settings, onSettingsChange, onFinish, onQu
   const [paused, setPaused] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  // the start card giving way once the play has started: where its jacket goes (the track's far end, px)
-  const [cardLeaving, setCardLeaving] = useState<{ to: { x: number; y: number } | null } | null>(null);
+  // the start card giving way once the play has started: where its jacket goes (the song plate's jacket, else the track's far end, px)
+  const [cardLeaving, setCardLeaving] = useState<{ to: { x: number; y: number } | null; hud: HTMLElement | null } | null>(null);
   // set with the controller, and read by the loading's Esc at the key: the effect that lets go of
   // that key runs only after the next paint, and an Esc meanwhile belongs to the play (it pauses)
   const started = useRef(false);
@@ -105,11 +105,12 @@ export function PlayScreen({ request, settings, onSettingsChange, onFinish, onQu
         );
         controllerRef.current = controller;
         started.current = true;
-        // the card stays over the play a moment longer: its jacket goes into the track's far end
+        // the card stays over the play a moment longer: its jacket lands on the song plate's
         const box = canvasRef.current.getBoundingClientRect();
         const end = controller.trackEndOnScreen();
         const to = box.width > 0 && Number.isFinite(end.x) && Number.isFinite(end.y) ? { x: box.left + end.x * box.width, y: box.top + end.y * box.height } : null;
-        setCardLeaving({ to });
+        // its jacket lands on the song plate's (the HUD's, laid out by now), else goes into the track
+        setCardLeaving({ to, hud: hudRef.current.querySelector<HTMLElement>('.hud-jacket') });
         setLoading(false);
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : String(e));

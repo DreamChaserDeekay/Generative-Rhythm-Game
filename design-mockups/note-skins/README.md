@@ -23,6 +23,9 @@
 | `art/play-*.jpg` | 스킨 9개의 플레이 화면 |
 | `art/longs-and-taps-art.jpg`, `art/taps-play-size-art.jpg` | 23개 스타일을 한 장에(그림 판) |
 | `art/sent-and-made.jpg` | 보낸 참고 그림(위)과 고른 그림(아래) |
+| `art/side-close-ups.jpg` | 건반 위 사이드 노트(기본 · 도트 매트릭스) 판정선 근처, 코드 · 그림 (2026-11-17) |
+| `art/side-play-bar.jpg`, `art/side-play-dots.jpg` | 그 플레이 화면: 4K+FX · 6K+FX × SDVX · LOW · PLANE |
+| `art/side-sent-and-made.jpg` | 사이드 노트에 보낸 참고 그림과 받은 그림 |
 
 ## 다시 찍기 (`lab/`)
 
@@ -35,6 +38,8 @@ node shoot.mjs <출력 폴더> sheet|taps|zoom|heads|play [스타일,…]
 python3 sheet.py <출력 폴더> longs.png      # sheet-*.png를 한 장으로
 python3 tapsheet.py <출력 폴더> taps.png    # taps-*.png를 한 장으로
 node refs.mjs <폴더>                      # 이미지 모델에 보낼 참고 그림(코드 단노트 · 롱노트)
+node siderefs.mjs <폴더>                  # 사이드 노트의 참고 그림
+node shoot.mjs <출력 폴더> side           # 사이드 노트(기본 · 도트) 확대와 플레이 화면
 ```
 
 `client`의 `node_modules`가 있어야 합니다. 브라우저는 미리 설치된 Playwright의 Chromium(SwiftShader)을 씁니다.

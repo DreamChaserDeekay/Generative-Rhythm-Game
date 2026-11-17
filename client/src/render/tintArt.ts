@@ -1759,12 +1759,14 @@ export function sideTap(edge: number): Paint {
     g.save();
     roundRect(g, 0, 0, w, h, h * 0.15);
     g.clip();
-    g.fillStyle = ink(1, 0, 0.55);
+    // as strong as the key notes' colours (the user's, 2026-11-17: the side notes were too pale): the middle 0.8 of
+    // the colour, the bands the colour itself
+    g.fillStyle = ink(1, 0, 0.8);
     g.fillRect(0, 0, w, h);
-    g.fillStyle = ink(1, 0.3);
+    g.fillStyle = ink(1, 0.1);
     g.fillRect(0, 0, w, band);
     g.fillRect(0, h - band, w, band);
-    g.fillStyle = ink(1, 0.2, 0.9);
+    g.fillStyle = ink(1, 0.1);
     g.fillRect(0, 0, side, h);
     g.fillRect(w - side, 0, side, h);
     g.restore();
@@ -1780,15 +1782,15 @@ export const SIDE_PICTURES: Record<Exclude<SidePart, 'tap'>, Paint> = {
   // fainter than a tap, bright down its sides
   body: (g, w, h) => {
     const side = Math.max(2, Math.round(w * 0.008));
-    g.fillStyle = ink(1, 0, 0.26);
+    g.fillStyle = ink(1, 0, 0.5);
     g.fillRect(0, 0, w, h);
-    g.fillStyle = ink(1, 0.2, 0.9);
+    g.fillStyle = ink(1, 0.1);
     g.fillRect(0, 0, side, h);
     g.fillRect(w - side, 0, side, h);
   },
   // a bright band where it starts and where it ends
   end: (g, w, h) => {
-    g.fillStyle = ink(1, 0.3);
+    g.fillStyle = ink(1, 0.1);
     g.fillRect(0, 0, w, h);
   },
   // light across the half: a white-hot core on the judge line (SIDE_FLASH_LINE down) in a bright bar,
@@ -1843,9 +1845,18 @@ export const DOTS_ACROSS = 5;
  * A row of `cols` dots across a picture `w` wide at `y`, round on the screen (NOTE_STRETCH times
  * longer along), `size` of the pitch across, no deeper than `room` (px along).
  */
-function dotRow(g: CanvasRenderingContext2D, w: number, cols: number, y: number, fill: string, size = 0.32, room = Infinity): void {
+function dotRow(g: CanvasRenderingContext2D, w: number, cols: number, y: number, fill: string, size = 0.32, room = Infinity, led?: LedDot): void {
   const p = w / cols;
   const r = Math.min(p * size, room / 2 / NOTE_STRETCH);
+  if (led) {
+    // the LED's picture, its lens r across (round on the screen), its glow round it
+    const [dw, dh] = [r * led.reach * 2, r * led.reach * 2 * NOTE_STRETCH];
+    g.save();
+    g.globalAlpha = led.alpha;
+    for (let c = 0; c < cols; c++) g.drawImage(led.image, led.sx, 0, led.size, led.size, (c + 0.5) * p - dw / 2, y - dh / 2, dw, dh);
+    g.restore();
+    return;
+  }
   g.fillStyle = fill;
   g.beginPath();
   for (let c = 0; c < cols; c++) {
@@ -1855,6 +1866,28 @@ function dotRow(g: CanvasRenderingContext2D, w: number, cols: number, y: number,
   }
   g.fill();
 }
+
+/**
+ * LED dots drawn from a picture (media/side/dots.png, made with the image model: styleArt's ART_SIDES): a lit one and a
+ * dim one, `size` px square each side by side, the lens `lens` of the cell's half from its middle; `lit` true for the
+ * bright rows (a note's time), the dim one for the rest, `alpha` how much of it (the code's dots' alphas, for the dim
+ * one as a share of its own 0.75).
+ */
+export interface LedSprites {
+  image: CanvasImageSource;
+  size: number;
+  lens: number;
+}
+interface LedDot {
+  image: CanvasImageSource;
+  sx: number;
+  size: number;
+  /** How far the picture reaches for its lens: the cell's half over the lens radius. */
+  reach: number;
+  alpha: number;
+}
+const ledDot = (led: LedSprites | undefined, lit: boolean, alpha = 1): LedDot | undefined =>
+  led && { image: led.image, sx: lit ? 0 : led.size, size: led.size, reach: 1 / led.lens, alpha: Math.min(1, alpha) };
 
 /** A side lane's tap as dots: three rows on a faint dark plate, the middle one (its time) bright. */
 export const dotsNote: Paint = (g, w, h) => {
@@ -1886,31 +1919,31 @@ export const DOTS_LONG: LongPaint = {
  * A side tap laid over the keys as dots (see sideTap), `cols` across: a bright row in the band
  * along each edge (what shows past a key note at its time), fainter rows between.
  */
-export function sideDotsTap(edge: number, cols: number): Paint {
+export function sideDotsTap(edge: number, cols: number, led?: LedSprites): Paint {
   return (g, w, h) => {
     const band = Math.max(2, Math.round(h * edge));
     const pitch = (w / cols) * NOTE_STRETCH;
     g.fillStyle = ink(0, 0, 0.3);
     roundRect(g, 0, 0, w, h, h * 0.15);
     g.fill();
-    for (const y of [band / 2, h - band / 2]) dotRow(g, w, cols, y, ink(1, 0.45), 0.3, band);
+    for (const y of [band / 2, h - band / 2]) dotRow(g, w, cols, y, ink(1, 0.15), 0.3, band, ledDot(led, true));
     const inner = h - band;
     const n = Math.max(0, Math.round(inner / pitch) - 1);
-    for (let i = 1; i <= n; i++) dotRow(g, w, cols, band / 2 + (inner * i) / (n + 1), ink(1, 0, 0.6), 0.3, inner / (n + 1));
+    for (let i = 1; i <= n; i++) dotRow(g, w, cols, band / 2 + (inner * i) / (n + 1), ink(1, 0, 0.9), 0.3, inner / (n + 1), ledDot(led, false, 0.9 / 0.75));
   };
 }
 
 /** A side long note's body over the keys as dots: faint rows, as many as fit the picture evenly (it repeats). */
-export function sideDotsBody(cols: number): Paint {
+export function sideDotsBody(cols: number, led?: LedSprites): Paint {
   return (g, w, h) => {
     const rows = Math.max(1, Math.round(h / ((w / cols) * NOTE_STRETCH)));
-    for (let i = 0; i < rows; i++) dotRow(g, w, cols, ((i + 0.5) * h) / rows, ink(1, 0, 0.42), 0.3, h / rows);
+    for (let i = 0; i < rows; i++) dotRow(g, w, cols, ((i + 0.5) * h) / rows, ink(1, 0, 0.75), 0.3, h / rows, ledDot(led, false));
   };
 }
 
 /** Its head and end over the keys as dots: one bright row. */
-export function sideDotsEnd(cols: number): Paint {
-  return (g, w, h) => dotRow(g, w, cols, h / 2, ink(1, 0.45), 0.3, h);
+export function sideDotsEnd(cols: number, led?: LedSprites): Paint {
+  return (g, w, h) => dotRow(g, w, cols, h / 2, ink(1, 0.15), 0.3, h, ledDot(led, true));
 }
 
 // ---------- hit effects: flipbooks drawn here, lying flat on the track at the judge line ----------
