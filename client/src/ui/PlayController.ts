@@ -914,6 +914,15 @@ export class PlayController {
         // a play that failed halfway: the notes run down to a standstill with the song, and no key is held any more
         const failed = this.ending?.failed ?? false;
         const drawMs = this.ending && failed ? tapeStopTime(this.ending.songMs, perfNow - this.ending.at, TAPE_MS, this.rate) : songNow;
+        // (the camera's move and the start's or the end's staging each on its own: should one throw, the track is drawn without it)
+        let camera: CameraPoseFx | undefined;
+        let stage: StageFrame | undefined;
+        guard('frame:camera', () => {
+          camera = this.cameraAt(songNow, perfNow);
+        });
+        guard('frame:stage', () => {
+          stage = this.stageAt(songNow, perfNow);
+        });
         this.renderer.render(
           {
             timeMs: drawMs + this.visualOffset(),
@@ -923,8 +932,8 @@ export class PlayController {
             keyDown: (lane) => !failed && session.isKeyDown(lane),
             barTimes: this.barTimes,
             fever: { active: session.fever.active, multiplier: session.fever.multiplier, remaining: session.fever.remaining(judgeNow) },
-            camera: this.cameraAt(songNow, perfNow),
-            stage: this.stageAt(songNow, perfNow),
+            camera,
+            stage,
           },
           perfNow,
         );
