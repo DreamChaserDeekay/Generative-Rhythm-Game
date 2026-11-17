@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { GEAR_STYLES, paintDeck, PANEL_MARKS, type DeckMark, type DeckSpec } from './deckArt';
 import { beatClock, DECK_PICTURE_PX, GEAR_LIGHTS, type BeatClock } from './gearLights';
 
-/** The deck pictures' rows (2048 across, the SDVX 16:9 room: build_gears.py). */
+/** The rows every deck's lights lie in (deck picture px, 2048 across: the shallowest deck's picture has as many). */
 const PICTURE_ROWS = 541;
 
 /** A 2D context that takes every call and does nothing (a paint's marks are what is read). */

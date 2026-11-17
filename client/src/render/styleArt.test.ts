@@ -357,20 +357,46 @@ describe.each(GEAR_STYLES.filter((gear) => !['prism', 'sky', 'fire', 'gpt', 'gem
     expect(Object.keys(gearArtOf(gear, images)).sort()).toEqual(Object.keys(GEAR_PICTURES[gear]).sort());
   });
 
-  it('draws its deck in code on every row the game has: its picture was painted over 7K+1S’s row', () => {
-    // a small preview's, SDVX's, FLAT's, the flattest perspective camera's, the plane camera's
+  it('lays its whole deck from its picture on the perspective cameras, as long along the track as they flatten it', () => {
+    const [pw, ph] = manifest.textures[deck].size;
+    // the picture shows the deck as deep as SDVX's camera does on a 16:9 screen
+    expect([pw, ph]).toEqual([2048, 827]);
+    // a small preview's, SDVX's, FLAT's, the flattest camera it is drawn on
     for (const [room, stretch] of [
       [96, 1.1],
-      [192, 1.25],
+      [240, 1.2],
       [320, 1.25],
       [140, 2],
-      [912, 3.25],
     ]) {
+      const spec = deckSpec(room, stretch);
       const { g, draws } = recorder();
-      platePaintOf(style, images)(g, deckSpec(room, stretch));
-      expect(draws, `${room}`).toEqual([]);
+      platePaintOf(style, images)(g, spec);
+      // the picture alone: nothing drawn over it
+      expect(draws.map((d) => d.id).every((id) => id === deck), `${room}`).toBe(true);
+      const [whole, ...rest] = draws;
+      expect([whole.x, whole.y, whole.w]).toEqual([0, 0, spec.width]);
+      // painted from SDVX's camera on a 16:9 screen (a 1.2 stretch): longer on a camera flattening it more
+      expect(whole.h / whole.w).toBeCloseTo(((ph / pw) * stretch) / 1.2, 9);
+      // the keys run on in the picture's last row where the screen shows more of them
+      if (whole.h < spec.depth) {
+        expect(rest).toHaveLength(1);
+        expect([rest[0].sy, rest[0].sh, rest[0].x, rest[0].w]).toEqual([ph - 1, 1, 0, spec.width]);
+        expect(rest[0].y).toBeCloseTo(whole.h, 9);
+        expect(rest[0].y + rest[0].h).toBeCloseTo(spec.depth, 9);
+      } else expect(rest).toEqual([]);
     }
-    expect(deck).toBe(`${gear}/deck`);
+    // the plane camera sees the deck from too far off the angle it was painted from: there it is drawn in code
+    const plane = recorder();
+    platePaintOf(style, images)(plane.g, deckSpec(912, 3.25));
+    expect(plane.draws).toEqual([]);
+    // and so is a row of lanes it was not painted over (4K's four keys), on any camera
+    const four = recorder();
+    platePaintOf(style, images)(four.g, { ...deckSpec(240, 1.2), lanes: (['white', 'other', 'other', 'white'] as const).map((kind, i) => ({ left: (i * 8 * 73.65) / 4, width: (8 * 73.65) / 4, kind })) });
+    expect(four.draws).toEqual([]);
+    // without its picture the same gear is drawn in code
+    const code = recorder();
+    platePaintOf(style, {})(code.g, deckSpec(240, 1.2));
+    expect(code.draws).toEqual([]);
   });
 
   it('frames the track in its own frame, as wide as it is, with a look of its own in FEVER', () => {

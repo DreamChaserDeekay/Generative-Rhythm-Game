@@ -744,7 +744,7 @@ export interface DeckKey {
 }
 
 /** Where PIANO's deck picture has its keys (px of the picture, `width` across): the white keys from under the lip, the black keys' near ends (build_gears.py lays it flat). */
-const PIANO_PICTURE_KEYS = { width: 2048, top: 26, blackEnd: 299 } as const;
+const PIANO_PICTURE_KEYS = { width: 2048, top: 26, blackEnd: 463 } as const;
 
 /**
  * The keys of `style`'s deck that go down with their lanes (none but PIANO's white keys), where the
@@ -3242,8 +3242,8 @@ export const DECK_PICTURE_FLATTEST = 2;
  * keys): its picture is laid only on a deck whose lanes are those, any other row drawn in code.
  */
 const PICTURE_ROWS: Partial<Record<GearStyle, (s: Pick<DeckSpec, 'lanes' | 'sides'>) => boolean>> = {
-  // its picture was painted over 7K+1S's row (the scratch lane's cheek block, then seven white keys), a row no key mode has
-  piano: () => false,
+  // 8K: eight white keys from wall to wall
+  piano: (s) => s.sides.length === 0 && s.lanes.length === 8 && s.lanes.every((l) => !l.side),
 };
 
 /** Whether a gear's deck is laid from its picture: one loaded, a camera near the picture's angle, and a row of lanes it was painted for. */

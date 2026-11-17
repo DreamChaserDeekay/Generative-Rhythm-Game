@@ -190,7 +190,7 @@ describe('the decks of the gears a player picks', () => {
         expect(keys.map((k) => k.lane)).toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
         // where the keys start: under the plate's lip, or as the picture drew them (26 of its 2048 px, laid as long as the camera flattens it)
         const top = pictured ? ((26 * s.width) / 2048) * (stretch / 1.2) : 3.2 * stretch + 1.2;
-        const blackEnd = pictured ? ((299 * s.width) / 2048) * (stretch / 1.2) : top - 0.6 + (room - top) * 0.58;
+        const blackEnd = pictured ? ((463 * s.width) / 2048) * (stretch / 1.2) : top - 0.6 + (room - top) * 0.58;
         keys.forEach((k, i) => {
           const lane = s.lanes[k.lane];
           expect(k.box.x).toBeCloseTo(lane.left + 0.55, 9);
@@ -620,17 +620,19 @@ describe('the decks of the gears a player picks', () => {
     expect(level).toBeLessThan(0.01);
   });
 
-  it('lays a deck picture only where it was painted for: a camera near its angle, and PIANO’s on no row the game has (it was painted for 7K+1S)', () => {
-    const deck = { width: 2048, height: 541 } as Picture;
+  it('lays a deck picture only where it was painted for: a camera near its angle, and PIANO’s only on 8K’s row of eight keys', () => {
+    const deck = { width: 2048, height: 827 } as Picture;
     for (const gear of GEAR_STYLES) {
-      for (const mode of ['4K', '5K', '8K', '6K+FX'] as KeyModeId[]) {
-        const s = spec(155.55, 1.2, mode);
-        expect(deckFromPicture(gear, s, { deck }), `${gear} ${mode}`).toBe(gear !== 'piano');
+      for (const mode of ['4K', '4K+FX', '5K', '6K', '6K+FX', '8K'] as KeyModeId[]) {
+        const s = spec(240, 1.2, mode);
+        expect(deckFromPicture(gear, s, { deck }), `${gear} ${mode}`).toBe(gear !== 'piano' || mode === '8K');
         expect(deckFromPicture(gear, s, {}), `${gear} ${mode} without its picture`).toBe(false);
         expect(deckFromPicture(gear, spec(912, DECK_PICTURE_FLATTEST + 0.1, mode), { deck }), `${gear} ${mode} on the plane camera`).toBe(false);
       }
       // side lanes laid over the keys: the six key lanes share the deck, not the picture's row
-      expect(deckFromPicture(gear, { ...spec(155.55, 1.2, '6K+FX'), lanes: deckLanes('6K+FX', 'half') }, { deck })).toBe(gear !== 'piano');
+      expect(deckFromPicture(gear, { ...spec(240, 1.2, '6K+FX'), lanes: deckLanes('6K+FX', 'half') }, { deck })).toBe(gear !== 'piano');
+      // 6K+FX with a place for each side lane has eight lanes too, two of them cheek blocks: not the picture's row
+      expect(deckLanes('6K+FX')).toHaveLength(8);
     }
   });
 

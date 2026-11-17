@@ -192,13 +192,15 @@ def cut_keyed(a: np.ndarray, size: int) -> np.ndarray:
 
 def deck_flat(src: Path, meta: dict, width_px: int = 2048, inset: float = 1.5) -> np.ndarray:
     """A gear's deck laid flat from its generation (see the module's doc): `width_px` texels across the
-    deck (`meta["width"]` plane px, sampled `inset` plane px clear of the walls' foot), as many along it
-    as `meta["room"]` plane px down from the deck's top edge (`meta["top"]` under the judge line) take;
-    `meta["h"]`: row-major 3×3 homography from deck plane px (across from the track's middle, toward
-    the camera from the judge line) to the generation's px."""
+    deck (`meta["width"]` plane px, sampled `inset` plane px clear of the walls' foot; `meta["inset"]`
+    where the deck has its own: the piano's 0, its keys' gaps lying on the lanes' boundaries from wall
+    to wall), as many along it as `meta["room"]` plane px down from the deck's top edge (`meta["top"]`
+    under the judge line) take; `meta["h"]`: row-major 3×3 homography from deck plane px (across from
+    the track's middle, toward the camera from the judge line) to the generation's px."""
     img = load(src)
     h = np.array(meta["h"], dtype=np.float64).reshape(3, 3)
     width, top, room = meta["width"], meta["top"], meta["room"]
+    inset = meta.get("inset", inset)
     k = width_px / width
     rows = int(round(room * k))
     u = (np.arange(width_px) + 0.5) / k
