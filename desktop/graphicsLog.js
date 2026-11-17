@@ -1,15 +1,19 @@
 // What the app writes down when its graphics are lost (graphics.log beside server.log, see main.js):
 // which process went and why, what the page's WebGL canvases went through, whether the server was
 // making a chart then (its model works on the GPU the game is drawn with), and a picture of the
-// window afterwards. Kept apart from main.js so that it runs under node --test: the clock, the
-// file, the server and the window are handed in.
+// window afterwards. And when a play's picture stands still though nothing was lost (no process
+// ends, no context goes): the stalls the page tells of once its frames go on (page-stall), a page
+// whose frames do not come back (page-hung: the page's pulse stopped), and the page's own errors
+// (page-error). Kept apart from main.js so that it runs under node --test: the clock, the file,
+// the server and the window are handed in.
 const fs = require('node:fs');
 const path = require('node:path');
 
 const LOG_NAME = 'graphics.log';
 /** Past this size the log starts over (the old one is kept as graphics.log.1). */
 const MAX_LOG_BYTES = 256 * 1024;
-const SHOT_PREFIX = 'graphics-lost-';
+/** The pictures' names: graphics-lost-… after a loss, graphics-hung-… of a page whose frames stopped. */
+const SHOT_KINDS = ['lost', 'hung'];
 /** How many pictures of the window are kept: the newest. */
 const SHOTS_KEPT = 5;
 /** The window is pictured this long after the page's graphics came back … */
@@ -20,7 +24,18 @@ const GIVE_UP_MS = 6000;
 const QUIET_MS = 30_000;
 /** How many lines the page may have written in a minute (a page gone wrong must not fill the disk). */
 const PAGE_LINES_PER_MINUTE = 30;
-const PAGE_EVENTS = ['webglcontextlost', 'webglcontextrestored'];
+const PAGE_EVENTS = ['webglcontextlost', 'webglcontextrestored', 'page-stall', 'page-error'];
+/** A stall's whole story (the frames before it, the window, the server, the card's memory) is written this often at most; the others are a line. */
+const STALL_FULL_EVERY_MS = 10_000;
+/** The states of a play its pulse tells (client/src/render/frameWatch.ts); 'off': no play. Its picture moves in the first two. */
+const PLAY_STATES = ['running', 'ending', 'paused', 'done', 'off'];
+/** The pulse of a play that runs missing this long: the page is hung. Looked at this often. */
+const HUNG_MS = 2000;
+const HUNG_CHECK_MS = 500;
+/** A page still hung is said to be so again after this long, and this long (ms since its last pulse). */
+const HUNG_STILL_MS = [10_000, 60_000];
+/** How many lines of the page's errors a run may write (each error once, then its count now and then). */
+const PAGE_ERROR_LINES = 120;
 /** The parts of Chromium's GPU feature status that say whether the game is still drawn by the graphics card. */
 const FEATURES = ['gpu_compositing', 'webgl', 'webgl2', '2d_canvas', 'rasterization'];
 
@@ -72,6 +87,8 @@ const word = (value) => (typeof value === 'string' ? value.replace(/[^\w -]/g, '
 /** How much of what the page says of its canvas is written down: so many values, each so long. */
 const PAGE_VALUES = 24;
 const PAGE_VALUE_LENGTH = 120;
+/** The values that may be longer: an error's message and where it was thrown from. */
+const PAGE_LONG_VALUES = { message: 300, stack: 900 };
 /**
  * What the page did in the seconds before a loss (client/src/render/trail.ts keeps it on the canvas): its
  * frames' lengths and what happened in them, each a line of its own, this long at most.
@@ -80,10 +97,12 @@ const TRAIL_KEYS = ['trailFrames', 'trailEvents'];
 const TRAIL_LENGTH = 1600;
 
 /**
- * What the page tells of a WebGL canvas (preload.js), cleaned; null when it is nothing of the kind.
+ * What the page tells of a WebGL canvas (preload.js), of a play's frames that stood still or of an
+ * error of its own (client/src/render/frameWatch.ts), cleaned; null when it is nothing of the kind.
  * `about` is what the page keeps on the canvas for this log (its data- attributes: the stage of the
- * play, the song's time, the skin, what the renderer holds, …) and the kind of background video:
- * written down as it comes, a line's worth of it.
+ * play, the song's time, the skin, what the renderer holds, …) and the kind of background video, or
+ * what it measured of a stall, or an error's message and stack: written down as it comes, a line's
+ * worth of it.
  */
 function pageRecord(raw) {
   if (!raw || typeof raw !== 'object' || !PAGE_EVENTS.includes(raw.type)) return null;
@@ -95,7 +114,7 @@ function pageRecord(raw) {
   for (const [key, value] of told) {
     if (typeof value !== 'string' || value === '') continue;
     if (TRAIL_KEYS.includes(key)) trail[key] = clean(value, TRAIL_LENGTH);
-    else if (Object.keys(about).length < PAGE_VALUES && /^[A-Za-z][A-Za-z0-9]{0,23}$/.test(key)) about[key] = clean(value, PAGE_VALUE_LENGTH);
+    else if (Object.keys(about).length < PAGE_VALUES && /^[A-Za-z][A-Za-z0-9]{0,23}$/.test(key)) about[key] = clean(value, PAGE_LONG_VALUES[key] ?? PAGE_VALUE_LENGTH);
   }
   return { type: raw.type, canvas: word(raw.canvas), about, trail };
 }
@@ -295,14 +314,27 @@ function chromiumLines(tail, fromMs, toMs, most = 16) {
     .map(({ more: _more, ...line }) => line);
 }
 
-function shotName(date) {
-  return `${SHOT_PREFIX}${date.getFullYear()}${two(date.getMonth() + 1)}${two(date.getDate())}-${two(date.getHours())}${two(date.getMinutes())}${two(date.getSeconds())}.jpg`;
+function shotName(date, kind = 'lost') {
+  return `graphics-${kind}-${date.getFullYear()}${two(date.getMonth() + 1)}${two(date.getDate())}-${two(date.getHours())}${two(date.getMinutes())}${two(date.getSeconds())}.jpg`;
 }
 
-/** Of a folder's file names, the pictures to delete: all but the newest `keep` (their names sort by time). */
+/** Of a folder's file names, the pictures to delete: all but the newest `keep` (the time in their names sorts them, whatever their kind). */
 function staleShots(names, keep = SHOTS_KEPT) {
-  const shots = names.filter((name) => /^graphics-lost-\d{8}-\d{6}\.jpg$/.test(name)).sort();
+  const time = (name) => name.slice(-'20261113-210406.jpg'.length);
+  const shots = names.filter((name) => new RegExp(`^graphics-(${SHOT_KINDS.join('|')})-\\d{8}-\\d{6}\\.jpg$`).test(name)).sort((a, b) => (time(a) < time(b) ? -1 : time(a) > time(b) ? 1 : 0));
   return shots.slice(0, Math.max(0, shots.length - keep));
+}
+
+/**
+ * The page's answer to the app asking whether it still runs (main.js's pageProbe: its document's state, the
+ * frames its play has drawn, and how long a frame of its own took to come, 'none' for none): a page whose
+ * thread is stuck does not answer; one that answers but gets no frame is held up further on (the
+ * compositor, the graphics process, the card).
+ */
+function probeFields(answer, tookMs) {
+  const a = answer && typeof answer === 'object' ? answer : null;
+  if (!a || a.failed) return { answered: 'no', why: (a && a.failed) || 'no answer', waitedMs: tookMs };
+  return { answered: 'yes', tookMs, visibility: short(a.visibility), focus: yesNo(a.focus), frames: short(a.frames), raf: short(a.raf) };
 }
 
 function pruneShots(dir, keep = SHOTS_KEPT) {
@@ -351,11 +383,19 @@ const STACK_VALUE = 2600;
  *   registry() → Promise of reg's answers by REGISTRY_KEYS' names,
  *   events(log, query) → Promise of wevtutil's answer ({ ok, text } | { ok: false, error }),
  *   chromium() → Promise of the end of Chromium's own log,
- *   dump(sinceMs) → Promise of the crash dump written since ({ file, summary } | null).
+ *   dump(sinceMs) → Promise of the crash dump written since ({ file, summary } | null),
+ *   audible() → whether the page is making sound now,
+ *   probe() → Promise of the page's own word that it still runs ({ visibility, focus, frames }).
  * A loss (the GPU process gone, or a WebGL canvas of the page losing its context) is written down
  * as it comes; the first of a run of them also asks the server what it is making and how full the
  * graphics card's memory is, reads what Windows, Chromium and the crash dump say of it, and pictures
  * the window once the page's graphics are back (or did not come back).
+ * A picture that stands still with nothing lost: the page tells of its play's frames stopping for a
+ * while once they go on (page-stall, with what it measured and the frames before; the server and the
+ * card's memory are asked now and then), and sends a pulse while a play goes on; a pulse that stops
+ * while a play runs is a page that is hung (page-hung: the window, whether there is sound, the
+ * server, the card's memory, whether the page still answers, and a picture of the window), until it
+ * comes back (page-resumed). The page's errors are written as it tells them (page-error).
  */
 function graphicsWatch(io) {
   /** The loss being followed up: { webgl: 'none' | 'lost' | 'back', until, off, picturing } */
@@ -368,6 +408,17 @@ function graphicsWatch(io) {
   let features = null;
   /** What the window and the screens were seen to do of late: [{ at, what }], the newest last. */
   let seen = [];
+  /** The play's pulse: when it last came, the play's state and the song's time then. */
+  let pulse = { at: 0, state: 'off', songMs: undefined };
+  /** The pulse stopped while a play ran: { since (the last pulse), away, told, still (when it is said again) }. */
+  let hung = null;
+  let hungQuietUntil = 0;
+  /** The look at the pulse that is due, and when the last one was made. */
+  let watchOff = null;
+  let checkedAt = 0;
+  let stallToldAt = -Infinity;
+  let errorLines = 0;
+  let unresponsiveAt = null;
   const log = (event, fields, limit) => io.write(entry(io.now(), event, fields, limit));
   const sameFeatures = (now) => FEATURES.every((key) => features[key] === now[key]);
   const ms = () => io.now().getTime();
@@ -471,6 +522,25 @@ function graphicsWatch(io) {
     incident.off = io.later(picture, Math.max(0, Math.min(delay, incident.until - ms())));
   };
 
+  /** What the window and the screens did in the seconds before `at`: "-2100ms blur", the newest last. */
+  const seenBefore = (at) => seen.filter((s) => at - s.at <= SEEN_BEFORE_MS).map((s) => `${s.at - at}ms ${s.what}`);
+
+  /** What is asked when the picture is gone or stands still: the server (its model works on the same card) and the card's memory. */
+  const around = () => {
+    Promise.resolve()
+      .then(() => io.queue())
+      .then(
+        (answer) => log('server', queueFields(answer)),
+        (e) => log('server', queueFields({ ok: false, error: String((e && e.message) || e) })),
+      );
+    Promise.resolve()
+      .then(() => io.memory())
+      .then(
+        (answer) => log('gpu-memory', memoryFields(answer)),
+        (e) => log('gpu-memory', memoryFields({ ok: false, error: String((e && e.message) || e) })),
+      );
+  };
+
   const lost = (webgl) => {
     if (incident) {
       if (webgl === 'lost' && !incident.picturing) {
@@ -484,20 +554,9 @@ function graphicsWatch(io) {
     incident = { webgl, until: at + 2 * GIVE_UP_MS, off: null, picturing: false };
     arm(GIVE_UP_MS);
     // what the window and the screens did in the seconds before it (a screen changing its mode, the window losing the keyboard)
-    const before = seen.filter((s) => at - s.at <= SEEN_BEFORE_MS).map((s) => `${s.at - at}ms ${s.what}`);
+    const before = seenBefore(at);
     if (has('window') || before.length) log('window', { ...(has('window') ? io.window() : {}), before }, 600);
-    Promise.resolve()
-      .then(() => io.queue())
-      .then(
-        (answer) => log('server', queueFields(answer)),
-        (e) => log('server', queueFields({ ok: false, error: String((e && e.message) || e) })),
-      );
-    Promise.resolve()
-      .then(() => io.memory())
-      .then(
-        (answer) => log('gpu-memory', memoryFields(answer)),
-        (e) => log('gpu-memory', memoryFields({ ok: false, error: String((e && e.message) || e) })),
-      );
+    around();
     if (has('events') || has('chromium') || has('dump')) {
       io.later(() => {
         void Promise.all([chromiumLog(at), windowsEvents(), crashDump(at)]).catch(() => {});
@@ -509,6 +568,75 @@ function graphicsWatch(io) {
     if (!incident || incident.picturing || incident.webgl !== 'lost') return;
     incident.webgl = 'back';
     arm(SETTLE_MS);
+  };
+
+  const moving = () => pulse.state === 'running' || pulse.state === 'ending';
+  const audible = () => (has('audible') ? yesNo(io.audible()) : undefined);
+
+  /**
+   * A play's frames stood still for a while and go on (the page tells, frameWatch.ts): a line of what it
+   * measured, and, not more often than every few seconds, the frames before it, what the window did, what
+   * the server was making and how full the card's memory is.
+   */
+  const stalled = (record) => {
+    const now = ms();
+    log('page-stall', { canvas: record.canvas || undefined, ...record.about });
+    if (now - stallToldAt < STALL_FULL_EVERY_MS) return;
+    stallToldAt = now;
+    if (record.trail.trailFrames) log('page-frames', { frames: record.trail.trailFrames }, TRAIL_LENGTH);
+    if (record.trail.trailEvents) log('page-events', { events: record.trail.trailEvents }, TRAIL_LENGTH);
+    const before = seenBefore(now);
+    if (has('window') || before.length) log('window', { ...(has('window') ? io.window() : {}), before }, 600);
+    around();
+  };
+
+  /** An error of the page (once each, then its count now and then: the page sees to that); a run writes so many. */
+  const pageError = (record) => {
+    errorLines += 1;
+    if (errorLines > PAGE_ERROR_LINES) {
+      if (errorLines === PAGE_ERROR_LINES + 1) log('page-error', { dropped: 'too many errors this run' });
+      return;
+    }
+    log('page-error', record.about, PAGE_LONG_VALUES.stack);
+  };
+
+  /**
+   * The pulse of a play that runs has stopped: the page's frames do not come (its thread stuck, or the
+   * picture held up on its way to the screen), and it cannot tell of that itself. Written down with what
+   * is known from here; a window put away (minimized, hidden) draws nothing and is the player's doing.
+   */
+  const hang = (now, silent) => {
+    const win = has('window') ? io.window() : {};
+    const away = win.minimized === 'yes' || win.visible === 'no';
+    const told = !away && now >= hungQuietUntil;
+    hung = { since: pulse.at, away, told, still: [...HUNG_STILL_MS] };
+    if (!told) return;
+    hungQuietUntil = now + QUIET_MS;
+    log('page-hung', { silentMs: silent, state: pulse.state, songMs: pulse.songMs, audible: audible(), ...win, errors: errorLines || undefined, before: seenBefore(now) }, 600);
+    around();
+    if (has('probe')) void ask('probe').then((answer) => log('page-probe', probeFields(answer, ms() - now)));
+    Promise.resolve()
+      .then(() => io.shot(shotName(io.now(), 'hung')))
+      .then(
+        (file) => log('picture', { file, hung: 'yes' }),
+        (e) => log('picture', { failed: String((e && e.message) || e), hung: 'yes' }),
+      );
+  };
+
+  const check = () => {
+    watchOff = null;
+    if (!moving()) return;
+    const now = ms();
+    // the app's own clock stood still (the PC slept): that is no word on the page
+    if (now - checkedAt > HUNG_CHECK_MS + HUNG_MS) pulse.at = now;
+    checkedAt = now;
+    const silent = now - pulse.at;
+    if (!hung && silent >= HUNG_MS) hang(now, silent);
+    else if (hung && hung.told && hung.still.length && silent >= hung.still[0]) {
+      hung.still.shift();
+      log('page-hung', { still: 'yes', silentMs: silent, audible: audible() });
+    }
+    watchOff = io.later(check, HUNG_CHECK_MS);
   };
 
   /** Whether the page may write another line this minute; the first one over the limit is said to be dropped. */
@@ -574,11 +702,51 @@ function graphicsWatch(io) {
       // (a GPU process that ended as it should, one Chromium started to ask the card something, is no loss)
       if (gpu && details.reason !== 'clean-exit') lost('none');
     },
-    renderGone: (details) => log('render-process-gone', goneFields(details)),
+    renderGone(details) {
+      log('render-process-gone', goneFields(details));
+      // (no page, no pulse: nothing to wait for)
+      pulse = { at: ms(), state: 'off', songMs: undefined };
+      hung = null;
+    },
+    /**
+     * The play's pulse (frameWatch.ts sends it every half second and when the play's state changes, after a
+     * frame of the play ran to its end): { state, songMs }. While the state is one the picture moves in, a
+     * pulse missing for HUNG_MS is written down as a page that is hung; the next pulse as its coming back.
+     */
+    pulse(raw) {
+      const state = raw && typeof raw === 'object' && PLAY_STATES.includes(raw.state) ? raw.state : null;
+      if (!state) return;
+      const now = ms();
+      if (hung) {
+        if (!hung.away) log('page-resumed', { afterMs: now - hung.since, state, told: hung.told ? undefined : 'no' });
+        hung = null;
+      }
+      pulse = { at: now, state, songMs: Number.isFinite(raw.songMs) ? Math.round(raw.songMs) : undefined };
+      if (moving() && !watchOff) {
+        checkedAt = now;
+        watchOff = io.later(check, HUNG_CHECK_MS);
+      }
+    },
+    /** The page went (a reload, another address): its play with it. */
+    pageLeft() {
+      pulse = { at: ms(), state: 'off', songMs: undefined };
+      hung = null;
+    },
+    /** Electron's own word on the window: its page does not answer the system's messages, or does again. */
+    unresponsive() {
+      unresponsiveAt = ms();
+      log('window-unresponsive', { state: pulse.state, silentMs: moving() ? ms() - pulse.at : undefined, audible: audible(), ...(has('window') ? io.window() : {}) });
+    },
+    responsive() {
+      log('window-responsive', { afterMs: unresponsiveAt === null ? undefined : ms() - unresponsiveAt });
+      unresponsiveAt = null;
+    },
     page(raw) {
       const record = pageRecord(raw);
       if (!record || !pageMayWrite()) return;
-      if (record.type === 'webglcontextlost') {
+      if (record.type === 'page-stall') stalled(record);
+      else if (record.type === 'page-error') pageError(record);
+      else if (record.type === 'webglcontextlost') {
         lostAt = ms();
         log(record.type, { canvas: record.canvas, ...record.about });
         // what the page did in the seconds before (render/trail.ts): its frames, then what happened in them
@@ -597,13 +765,19 @@ module.exports = {
   AFTERMATH_MS,
   FEATURES,
   GIVE_UP_MS,
+  HUNG_CHECK_MS,
+  HUNG_MS,
+  HUNG_STILL_MS,
   LOG_NAME,
   MAX_LOG_BYTES,
+  PAGE_ERROR_LINES,
   PAGE_LINES_PER_MINUTE,
+  PLAY_STATES,
   QUIET_MS,
   REGISTRY_KEYS,
   SETTLE_MS,
   SHOTS_KEPT,
+  STALL_FULL_EVERY_MS,
   TRAIL_LENGTH,
   appendLine,
   chromiumLines,
@@ -618,6 +792,7 @@ module.exports = {
   logEvents,
   memoryFields,
   pageRecord,
+  probeFields,
   pruneShots,
   queueFields,
   registryFields,

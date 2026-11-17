@@ -19,6 +19,7 @@ import { InputManager } from '../input/InputManager';
 import { PadPlayControls, type PadPlayAction } from '../input/padPlay';
 import { laneTakes, playActionsOf, type PlayAction } from '../input/playKeys';
 import { CameraFx, type CameraPoseFx } from '../render/cameraFx';
+import { guard } from '../render/frameWatch';
 import { hexString } from '../render/noteColors';
 import { GRADE_COLORS } from '../render/palette';
 import type { SkinArt } from '../render/skinArt';
@@ -864,88 +865,113 @@ export class PlayController {
     this.hudVersion = this.renderer.hudVersion;
   }
 
+  /**
+   * A frame of the play. Its parts run each on its own (render/frameWatch.ts's guard): one that throws is
+   * written down for the desktop app's log and the others run all the same, so that a part gone wrong does
+   * not hold the whole picture still while the song goes on. At its end the renderer is told the frame is
+   * done: the frames are watched from there (a stall, a picture that does not come back).
+   */
   private readonly frame = (perfNow: number): void => {
     this.raf = requestAnimationFrame(this.frame);
+    // (when the frame's work begins: later than its time when something else held the page first)
+    const startedAt = performance.now();
     this.engine.clock.sample();
     const songNow = this.engine.songTimeAtPerf(perfNow);
     const judgeNow = songNow - this.inputOffset();
     const session = this.session;
-    if (this.pad) for (const action of this.padControls.tick(perfNow)) this.padAction(action);
 
-    if (this.state === 'running') {
-      if (this.auto) {
-        for (const i of this.auto.take(judgeNow)) this.input.injectAt(i.lane, i.down, i.timeMs);
-        this.scheduleAutoKeysounds(songNow);
-      }
-      if (this.replayer && !this.replayer.done) {
-        // only the recorded calls, in the recorded order: the same result whatever the frame rate
-        this.replayer.feed(session, judgeNow, (lane, t) => this.pressSound(lane, t));
-      } else if (this.recorder) {
-        this.recorder.update(judgeNow);
-      } else {
-        session.update(judgeNow);
-      }
-      const tail = (this.practice ? PRACTICE_END_MS : END_AFTER_LAST_NOTE_MS) * this.rate;
-      if (session.finished && judgeNow > this.lastNoteEndMs + tail) this.beginEnding(perfNow, false);
-    }
-    if (this.state === 'ending' && this.ending) {
-      if (!this.ending.shown && perfNow >= this.ending.lampAt) this.showLamp();
-      this.wave(perfNow);
-      if (perfNow >= this.finishAtPerf) this.finish();
-    }
+    guard('frame:logic', () => {
+      if (this.pad) for (const action of this.padControls.tick(perfNow)) this.padAction(action);
 
-    // A paused picture stays still and is drawn again only after a change (under the pause menu's
-    // former backdrop blur, drawing it every frame ran at a few frames per second without a GPU).
-    if (this.state !== 'paused' || this.redrawPaused) {
-      this.redrawPaused = false;
-      // a play that failed halfway: the notes run down to a standstill with the song, and no key is held any more
-      const failed = this.ending?.failed ?? false;
-      const drawMs = this.ending && failed ? tapeStopTime(this.ending.songMs, perfNow - this.ending.at, TAPE_MS, this.rate) : songNow;
-      this.renderer.render(
-        {
-          timeMs: drawMs + this.visualOffset(),
-          scroll: this.scroll,
-          notes: session.notes,
-          heldNote: (lane) => (failed ? null : session.heldNoteIndex(lane)),
-          keyDown: (lane) => !failed && session.isKeyDown(lane),
-          barTimes: this.barTimes,
-          fever: { active: session.fever.active, multiplier: session.fever.multiplier, remaining: session.fever.remaining(judgeNow) },
-          camera: this.cameraAt(songNow, perfNow),
-          stage: this.stageAt(songNow, perfNow),
-        },
-        perfNow,
-      );
-      // the HUD lying on the track follows the camera's tilt and zoom
-      if (this.renderer.hudVersion !== this.hudVersion) {
-        this.hudVersion = this.renderer.hudVersion;
-        this.hud.movePlane(this.renderer.hudPlane());
+      if (this.state === 'running') {
+        if (this.auto) {
+          for (const i of this.auto.take(judgeNow)) this.input.injectAt(i.lane, i.down, i.timeMs);
+          this.scheduleAutoKeysounds(songNow);
+        }
+        if (this.replayer && !this.replayer.done) {
+          // only the recorded calls, in the recorded order: the same result whatever the frame rate
+          this.replayer.feed(session, judgeNow, (lane, t) => this.pressSound(lane, t));
+        } else if (this.recorder) {
+          this.recorder.update(judgeNow);
+        } else {
+          session.update(judgeNow);
+        }
+        const tail = (this.practice ? PRACTICE_END_MS : END_AFTER_LAST_NOTE_MS) * this.rate;
+        if (session.finished && judgeNow > this.lastNoteEndMs + tail) this.beginEnding(perfNow, false);
       }
-    }
-    // (what is behind a play that failed halfway stands still with it)
-    this.background.update(songNow, this.state === 'running' || (this.state === 'ending' && !this.ending?.failed), perfNow);
-    this.hud.update(perfNow, {
-      score: this.scoreValue(),
-      sub: this.subValue(),
-      maxCombo: session.maxCombo,
-      gauge: session.gauge.value,
-      fever: {
-        gauge: session.fever.gauge,
-        active: session.fever.active,
-        multiplier: session.fever.multiplier,
-        remaining: session.fever.remaining(judgeNow),
-        ready: session.fever.ready,
-      },
-      pace: this.pace(),
-      progress: (songNow - this.runStartMs) / Math.max(1, this.lastNoteEndMs - this.runStartMs),
-      remainingMs: (this.lastNoteEndMs - songNow) / this.rate,
-      // the tempo heard: a slowed practice slows it too
-      bpm: Math.round(this.bpmNow(songNow) * this.rate),
-      // shown where it has a key (or a pad button) to work it
-      skip: this.skipLabel !== null && this.canSkip(songNow),
-      breaks: session.breakCount,
-      fast: session.fastCount,
-      slow: session.slowCount,
+      if (this.state === 'ending' && this.ending) {
+        if (!this.ending.shown && perfNow >= this.ending.lampAt) this.showLamp();
+        this.wave(perfNow);
+        if (perfNow >= this.finishAtPerf) this.finish();
+      }
     });
+
+    guard('frame:track', () => {
+      // A paused picture stays still and is drawn again only after a change (under the pause menu's
+      // former backdrop blur, drawing it every frame ran at a few frames per second without a GPU).
+      if (this.state !== 'paused' || this.redrawPaused) {
+        this.redrawPaused = false;
+        // a play that failed halfway: the notes run down to a standstill with the song, and no key is held any more
+        const failed = this.ending?.failed ?? false;
+        const drawMs = this.ending && failed ? tapeStopTime(this.ending.songMs, perfNow - this.ending.at, TAPE_MS, this.rate) : songNow;
+        // (the camera's move and the start's or the end's staging each on its own: should one throw, the track is drawn without it)
+        let camera: CameraPoseFx | undefined;
+        let stage: StageFrame | undefined;
+        guard('frame:camera', () => {
+          camera = this.cameraAt(songNow, perfNow);
+        });
+        guard('frame:stage', () => {
+          stage = this.stageAt(songNow, perfNow);
+        });
+        this.renderer.render(
+          {
+            timeMs: drawMs + this.visualOffset(),
+            scroll: this.scroll,
+            notes: session.notes,
+            heldNote: (lane) => (failed ? null : session.heldNoteIndex(lane)),
+            keyDown: (lane) => !failed && session.isKeyDown(lane),
+            barTimes: this.barTimes,
+            fever: { active: session.fever.active, multiplier: session.fever.multiplier, remaining: session.fever.remaining(judgeNow) },
+            camera,
+            stage,
+          },
+          perfNow,
+        );
+        // the HUD lying on the track follows the camera's tilt and zoom
+        if (this.renderer.hudVersion !== this.hudVersion) {
+          this.hudVersion = this.renderer.hudVersion;
+          this.hud.movePlane(this.renderer.hudPlane());
+        }
+      }
+    });
+    // (what is behind a play that failed halfway stands still with it)
+    guard('frame:background', () => this.background.update(songNow, this.state === 'running' || (this.state === 'ending' && !this.ending?.failed), perfNow));
+    guard('frame:hud', () =>
+      this.hud.update(perfNow, {
+        score: this.scoreValue(),
+        sub: this.subValue(),
+        maxCombo: session.maxCombo,
+        gauge: session.gauge.value,
+        fever: {
+          gauge: session.fever.gauge,
+          active: session.fever.active,
+          multiplier: session.fever.multiplier,
+          remaining: session.fever.remaining(judgeNow),
+          ready: session.fever.ready,
+        },
+        pace: this.pace(),
+        progress: (songNow - this.runStartMs) / Math.max(1, this.lastNoteEndMs - this.runStartMs),
+        remainingMs: (this.lastNoteEndMs - songNow) / this.rate,
+        // the tempo heard: a slowed practice slows it too
+        bpm: Math.round(this.bpmNow(songNow) * this.rate),
+        // shown where it has a key (or a pad button) to work it
+        skip: this.skipLabel !== null && this.canSkip(songNow),
+        breaks: session.breakCount,
+        fast: session.fastCount,
+        slow: session.slowCount,
+      }),
+    );
+    this.renderer.frameDone(perfNow, this.state, startedAt);
   };
 
   private scoreValue(): number {

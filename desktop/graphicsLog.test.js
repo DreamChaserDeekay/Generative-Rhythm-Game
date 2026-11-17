@@ -7,9 +7,13 @@ const test = require('node:test');
 const {
   AFTERMATH_MS,
   GIVE_UP_MS,
+  HUNG_CHECK_MS,
+  HUNG_MS,
+  PAGE_ERROR_LINES,
   PAGE_LINES_PER_MINUTE,
   QUIET_MS,
   SETTLE_MS,
+  STALL_FULL_EVERY_MS,
   TRAIL_LENGTH,
   appendLine,
   chromiumLines,
@@ -24,6 +28,7 @@ const {
   logEvents,
   memoryFields,
   pageRecord,
+  probeFields,
   pruneShots,
   queueFields,
   registryFields,
@@ -576,4 +581,199 @@ test('what cannot be read of a loss is a line that says so', async () => {
     u.events().filter((line) => /^(chromium|driver|crash)/.test(line)).sort(),
     ['chromium  found=none', 'crash-dump  file=reports/x.dmp why="not read"', 'crash-events  found=none sinceMs=120000', 'driver-events  found=none sinceMs=120000'],
   );
+});
+
+const STALL = {
+  type: 'page-stall',
+  canvas: 'play-canvas',
+  about: { gapMs: '3120', workMs: '4', timerMs: '104', ticks: '30', state: 'running', songMs: '83210', trailFrames: 'n=180 med=6.9 max=7.4 last=6.9,6.9', trailEvents: '-2100 fever:off>x2' },
+};
+
+/** The clock goes on `ms` in the steps the watcher looks at the pulse in (a timer due is run at its time, not later). */
+async function wait(w, ms) {
+  for (let left = ms; left > 0; left -= HUNG_CHECK_MS) await w.advance(Math.min(HUNG_CHECK_MS, left));
+}
+
+test('a play’s frames that stood still: what the page measured, then the frames before, the window, the server and the card’s memory', async () => {
+  const w = world({ window: () => ({ fullScreen: 'yes', focused: 'yes', size: '1920x1080' }) });
+  w.watch.seen('blur');
+  await w.advance(700);
+  w.watch.page(STALL);
+  await w.advance(0);
+  assert.deepEqual(w.events(), [
+    'page-stall  canvas=play-canvas gapMs=3120 workMs=4 timerMs=104 ticks=30 state=running songMs=83210',
+    'page-frames  frames="n=180 med=6.9 max=7.4 last=6.9,6.9"',
+    'page-events  events="-2100 fever:off>x2"',
+    'window  fullScreen=yes focused=yes size=1920x1080 before="-700ms blur"',
+    'server  making=c0ffee waiting=3 loaded=yes',
+    'gpu-memory  vram="7421/8192MB 97%"',
+  ]);
+  // more of them soon after: a line each, the rest not asked again
+  w.watch.page({ ...STALL, about: { ...STALL.about, gapMs: '410' } });
+  await w.advance(STALL_FULL_EVERY_MS - 1);
+  w.watch.page({ ...STALL, about: { ...STALL.about, gapMs: '520' } });
+  await w.advance(0);
+  assert.deepEqual(w.events().slice(6), [
+    'page-stall  canvas=play-canvas gapMs=410 workMs=4 timerMs=104 ticks=30 state=running songMs=83210',
+    'page-stall  canvas=play-canvas gapMs=520 workMs=4 timerMs=104 ticks=30 state=running songMs=83210',
+  ]);
+  assert.equal(w.asked, 1);
+  // and the whole of it again once that time is over
+  await w.advance(1);
+  w.watch.page(STALL);
+  await w.advance(0);
+  assert.equal(w.asked, 2);
+  assert.equal(w.events().filter((line) => line.startsWith('page-frames')).length, 2);
+  // a frame that worked long says which of its parts did (the longest first): the line as the page sends it
+  const own = world();
+  own.watch.page({
+    type: 'page-stall',
+    canvas: 'play-canvas',
+    about: { gapMs: '2210', lateMs: '0', workMs: '2204', slow: 'frame:track=2201 track:draw=2196', timerMs: '2209', ticks: '0', longTask: 'n=1 max=2203', state: 'running', songMs: '41200' },
+  });
+  assert.equal(
+    own.events()[0],
+    'page-stall  canvas=play-canvas gapMs=2210 lateMs=0 workMs=2204 slow="frame:track=2201 track:draw=2196" timerMs=2209 ticks=0 longTask="n=1 max=2203" state=running songMs=41200',
+  );
+});
+
+test('the page’s errors: its message and where it was thrown from as they come, long as they are; a run writes so many', () => {
+  const w = world();
+  const stack = `drawNotes@assets/index-abc.js:1:${'9'.repeat(40)} < render@assets/index-abc.js:1:5120 < frame@assets/index-abc.js:1:9001`;
+  w.watch.page({ type: 'page-error', about: { id: '1', count: '1', where: 'track:notes', message: "Cannot read properties of undefined (reading 'width')", at: 'assets/index-abc.js:1:4022', stack } });
+  w.watch.page({ type: 'page-error', about: { id: '1', count: '100', where: 'track:notes' } });
+  assert.deepEqual(w.events(), [
+    `page-error  id=1 count=1 where=track:notes message="Cannot read properties of undefined (reading 'width')" at=assets/index-abc.js:1:4022 stack="${stack}"`,
+    'page-error  id=1 count=100 where=track:notes',
+  ]);
+  // a message and a stack are cut at their own lengths, nothing else of the page's is as long
+  const long = pageRecord({ type: 'page-error', about: { message: 'm'.repeat(999), stack: 's'.repeat(2000), where: 'w'.repeat(999) } });
+  assert.deepEqual([long.about.message.length, long.about.stack.length, long.about.where.length], [300, 900, 120]);
+  assert.equal(pageRecord({ type: 'page-stall', about: {} }).type, 'page-stall');
+  // a page that throws something new without end
+  const many = world();
+  for (let i = 0; i < PAGE_ERROR_LINES + 40; i++) {
+    many.watch.page({ type: 'page-error', about: { id: String(i), count: '1', message: `error ${i}` } });
+    if (i % 20 === 19) many.advance(60_000);
+  }
+  assert.equal(many.lines.length, PAGE_ERROR_LINES + 1);
+  assert.equal(many.events().at(-1), 'page-error  dropped="too many errors this run"');
+});
+
+test('a play’s pulse that stops while it runs: the page is hung, told with the window, the sound, the server, the card, the page’s answer and a picture; then its coming back', async () => {
+  const w = world({
+    window: () => ({ fullScreen: 'yes', focused: 'yes', size: '1920x1080' }),
+    audible: () => true,
+    probe: async () => ({ visibility: 'visible', focus: true, frames: 5120, raf: 'none' }),
+  });
+  w.watch.pulse({ state: 'running', songMs: 61234.4 });
+  await wait(w, HUNG_MS - HUNG_CHECK_MS);
+  w.watch.pulse({ state: 'running', songMs: 62734.4 });
+  await wait(w, HUNG_MS - HUNG_CHECK_MS);
+  assert.deepEqual(w.lines, []);
+  await wait(w, HUNG_CHECK_MS);
+  assert.equal(w.events()[0], 'page-hung  silentMs=2000 state=running songMs=62734 audible=yes fullScreen=yes focused=yes size=1920x1080');
+  // (what is asked of the world answers in its own time: the lines' order among themselves is no matter)
+  assert.deepEqual(w.events().slice(1).sort(), [
+    'gpu-memory  vram="7421/8192MB 97%"',
+    'page-probe  answered=yes tookMs=0 visibility=visible focus=yes frames=5120 raf=none',
+    'picture  file=graphics-hung-20261113-210408.jpg hung=yes',
+    'server  making=c0ffee waiting=3 loaded=yes',
+  ]);
+  assert.deepEqual(w.shots, ['graphics-hung-20261113-210408.jpg']);
+  // its frames go on a second later
+  await w.advance(1000);
+  w.watch.pulse({ state: 'running', songMs: 65000 });
+  assert.equal(w.events().at(-1), 'page-resumed  afterMs=3000 state=running');
+  // hung again soon after: not followed up again, but its end says how long it was
+  await wait(w, HUNG_MS + HUNG_CHECK_MS);
+  assert.equal(w.lines.length, 6);
+  w.watch.pulse({ state: 'running', songMs: 68000 });
+  assert.equal(w.events().at(-1), 'page-resumed  afterMs=2500 state=running told=no');
+  assert.equal(w.asked, 1);
+  // and followed up again once the quiet time is over
+  await w.advance(QUIET_MS);
+  w.watch.pulse({ state: 'running', songMs: 99000 });
+  await wait(w, HUNG_MS);
+  assert.equal(w.asked, 2);
+  assert.equal(w.shots.length, 2);
+});
+
+test('a page that stays hung is said to be so again at ten seconds and at a minute, no more; its coming back says how long it was', async () => {
+  const w = world({ audible: () => true });
+  w.watch.pulse({ state: 'running', songMs: 1000 });
+  await wait(w, HUNG_MS);
+  const told = w.lines.length;
+  await wait(w, 8000);
+  assert.equal(w.events().at(-1), 'page-hung  still=yes silentMs=10000 audible=yes');
+  await wait(w, 50_000);
+  assert.equal(w.events().at(-1), 'page-hung  still=yes silentMs=60000 audible=yes');
+  await wait(w, 60_000);
+  assert.equal(w.lines.length, told + 2);
+  w.watch.pulse({ state: 'running', songMs: 190000 });
+  assert.equal(w.events().at(-1), 'page-resumed  afterMs=120000 state=running');
+});
+
+test('no pulse is waited for while the play is paused or over, of a window put away, or when the PC itself slept', async () => {
+  const win = { fullScreen: 'no', focused: 'yes', size: '1280x720' };
+  const w = world({ window: () => win });
+  // paused, done, off: frames are owed to no one
+  for (const state of ['paused', 'done', 'off']) {
+    w.watch.pulse({ state: 'running', songMs: 1000 });
+    w.watch.pulse({ state, songMs: 1200 });
+    await wait(w, HUNG_MS * 3);
+  }
+  // what is not a pulse is none
+  w.watch.pulse({ state: 'dancing' });
+  w.watch.pulse(null);
+  assert.deepEqual(w.lines, []);
+  // a window minimized draws nothing: the player's doing, and its coming back is no line either
+  w.watch.pulse({ state: 'running', songMs: 2000 });
+  win.minimized = 'yes';
+  await wait(w, HUNG_MS * 2);
+  delete win.minimized;
+  w.watch.pulse({ state: 'running', songMs: 2100 });
+  assert.deepEqual(w.lines, []);
+  // the PC slept: the app's own clock jumped with the page's
+  await w.advance(3_600_000);
+  assert.deepEqual(w.lines, []);
+  w.watch.pulse({ state: 'ending', songMs: 2200 });
+  // a page that went (loaded again, its process gone) is waited for no longer
+  w.watch.pageLeft();
+  await wait(w, HUNG_MS * 2);
+  w.watch.pulse({ state: 'running', songMs: 10 });
+  w.watch.renderGone({ reason: 'crashed', exitCode: 1 });
+  await wait(w, HUNG_MS * 2);
+  assert.deepEqual(w.events(), ['render-process-gone  reason=crashed exitCode=1']);
+  // an ending play's picture moves too
+  w.watch.pulse({ state: 'ending', songMs: 99000 });
+  await wait(w, HUNG_MS);
+  assert.match(w.events()[1], /^page-hung  silentMs=2000 state=ending songMs=99000 fullScreen=no/);
+});
+
+test('a page that does not answer the app’s question, and Electron’s own word on a window that stopped answering', async () => {
+  const w = world({
+    audible: () => false,
+    probe: async () => {
+      throw new Error('timeout');
+    },
+  });
+  w.watch.pulse({ state: 'running', songMs: 5000 });
+  await wait(w, HUNG_MS);
+  assert.deepEqual(w.events().slice(0, 1), ['page-hung  silentMs=2000 state=running songMs=5000 audible=no']);
+  assert.ok(w.events().includes('page-probe  answered=no why=timeout waitedMs=0'));
+  assert.deepEqual(probeFields({ visibility: 'hidden', focus: false, raf: 16 }, 12), { answered: 'yes', tookMs: 12, visibility: 'hidden', focus: 'no', frames: undefined, raf: '16' });
+  assert.deepEqual(probeFields(undefined, 1500), { answered: 'no', why: 'no answer', waitedMs: 1500 });
+  w.watch.unresponsive();
+  await w.advance(4200);
+  w.watch.responsive();
+  assert.deepEqual(w.events().slice(-2), ['window-unresponsive  state=running silentMs=2000 audible=no', 'window-responsive  afterMs=4200']);
+});
+
+test('the pictures of a loss and of a hang are kept together: the newest five, whichever they are of', () => {
+  assert.equal(shotName(NIGHT), 'graphics-lost-20261113-210405.jpg');
+  assert.equal(shotName(NIGHT, 'hung'), 'graphics-hung-20261113-210405.jpg');
+  const names = ['graphics-lost-20261113-210001.jpg', 'graphics-hung-20261113-210002.jpg', 'graphics-lost-20261113-210003.jpg', 'graphics-hung-20261112-235959.jpg', 'notes.txt', 'graphics-hung-x.jpg'];
+  assert.deepEqual(staleShots(names, 2), ['graphics-hung-20261112-235959.jpg', 'graphics-lost-20261113-210001.jpg']);
+  assert.deepEqual(staleShots(names, 9), []);
 });

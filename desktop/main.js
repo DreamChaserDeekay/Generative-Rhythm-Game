@@ -354,7 +354,42 @@ function windowFields() {
   if (!win || win.isDestroyed()) return {};
   const { width, height } = win.getBounds();
   const yes = (on) => (on ? 'yes' : 'no');
-  return { fullScreen: yes(win.isFullScreen()), maximized: win.isMaximized() ? 'yes' : undefined, minimized: win.isMinimized() ? 'yes' : undefined, focused: yes(win.isFocused()), size: `${width}x${height}` };
+  return {
+    fullScreen: yes(win.isFullScreen()),
+    maximized: win.isMaximized() ? 'yes' : undefined,
+    minimized: win.isMinimized() ? 'yes' : undefined,
+    // (said only of a window that is not shown)
+    visible: win.isVisible() ? undefined : 'no',
+    focused: yes(win.isFocused()),
+    size: `${width}x${height}`,
+  };
+}
+
+/** How long the page is given to say that it still runs (pageProbe). */
+const PROBE_MS = 1500;
+
+/**
+ * The page's own word that it still runs, asked when its play's frames have stopped (graphicsLog.js's
+ * page-hung): its document's state, how many frames its play has drawn (frameWatch.ts counts them), and
+ * how long a frame of its own takes to come now ('none': none within 600 ms). A page whose thread is
+ * stuck does not answer in time; one that answers and gets no frame is held up on the way to the screen;
+ * one that gets frames while its play's pulse is missing has a play that stopped drawing by itself.
+ */
+function pageProbe() {
+  const win = gameWindow;
+  if (!win || win.isDestroyed()) return Promise.reject(new Error('no window'));
+  const ask = `new Promise((resolve) => {
+    const t0 = performance.now();
+    let told = false;
+    const say = (raf) => {
+      if (told) return;
+      told = true;
+      resolve({ visibility: document.visibilityState, focus: document.hasFocus(), frames: Number(window.__grgFrames) || undefined, raf });
+    };
+    requestAnimationFrame(() => say(Math.round(performance.now() - t0)));
+    setTimeout(() => say('none'), 600);
+  })`;
+  return within(win.webContents.executeJavaScript(ask), PROBE_MS);
 }
 
 /** The GPU process as it was last looked at (every few seconds: once it is gone there is nothing to look at). */
@@ -477,6 +512,9 @@ const graphics = graphicsWatch({
   gpuProcess: gpuProcessFields,
   chromium: async () => chromiumTail(),
   dump: async (sinceMs) => newestDump(sinceMs),
+  // a play whose picture stands still: whether its sound goes on, and whether the page still answers
+  audible: () => (gameWindow && !gameWindow.isDestroyed() ? gameWindow.webContents.isCurrentlyAudible() : undefined),
+  probe: pageProbe,
   // what Windows keeps: its settings for the graphics drivers, and its logs of them and of crashed programs
   ...(isWindows
     ? {
@@ -621,6 +659,13 @@ function watchWindowAndScreens(win) {
   for (const event of ['suspend', 'resume', 'lock-screen', 'unlock-screen', 'on-ac', 'on-battery']) {
     powerMonitor.on(event, () => graphics.seen(event));
   }
+  // Electron's own word on a window whose page stopped answering the system (and answers again)
+  win.on('unresponsive', () => graphics.unresponsive());
+  win.on('responsive', () => graphics.responsive());
+  // (a page that is loaded again takes its play with it: no pulse to wait for)
+  win.webContents.on('did-start-navigation', (details) => {
+    if (details.isMainFrame && !details.isSameDocument) graphics.pageLeft();
+  });
   let ticks = 0;
   const timer = setInterval(() => {
     sampleGpuProcess();
@@ -795,9 +840,14 @@ if (!primary) {
       const win = BrowserWindow.fromWebContents(event.sender);
       return Boolean(win && fromGame(event) && win.isFullScreen());
     });
-    // a WebGL canvas of the game losing its context, or getting it back (preload.js)
+    // a WebGL canvas of the game losing its context, or getting it back (preload.js); a play's frames
+    // that stood still, and the page's errors (client/src/render/frameWatch.ts)
     ipcMain.on('grg:graphics', (event, record) => {
       if (fromGame(event)) graphics.page(record);
+    });
+    // a play's pulse: its frames go on (a pulse that stops while a play runs is written down as a page hung)
+    ipcMain.on('grg:pulse', (event, record) => {
+      if (fromGame(event)) graphics.pulse(record);
     });
     // the settings' 그래픽 호환 모드: the mode kept is the next start's (Chromium's switches cannot change while it runs)
     ipcMain.handle('grg:graphics-mode', (event) => (fromGame(event) ? graphicsModeInfo() : null));

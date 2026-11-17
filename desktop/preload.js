@@ -2,7 +2,8 @@
 // full screen, which the settings' 화면 모드 sets and F11 changes as well, and the graphics
 // compatibility mode (the settings' 그래픽 호환 모드: kept by the window, the next start's). The
 // window is also told, for its log (graphics.log, see main.js), when a WebGL canvas of the page loses
-// its context or gets it back.
+// its context or gets it back, when a play's frames stood still for a while or the page threw an error
+// (the page tells: tellGraphics), and that a play's frames go on (pulse).
 const { contextBridge, ipcRenderer } = require('electron');
 
 // the events do not bubble, but every event of the document passes the window on its way down.
@@ -54,4 +55,11 @@ contextBridge.exposeInMainWorld('grgDesktop', {
   setGraphicsMode: (mode) => ipcRenderer.invoke('grg:set-graphics-mode', String(mode)),
   /** Closes the app and opens it again. */
   restart: () => ipcRenderer.invoke('grg:restart'),
+  /**
+   * A line for the app's log from the page (client/src/render/frameWatch.ts): { type: 'page-stall' | 'page-error',
+   * canvas, about: { … } }. The window writes down what it knows of (graphicsLog.js's pageRecord), so many a minute.
+   */
+  tellGraphics: (record) => ipcRenderer.send('grg:graphics', record),
+  /** A play's frames go on: { state: 'running' | 'paused' | 'ending' | 'done' | 'off', songMs }, every half second. */
+  pulse: (record) => ipcRenderer.send('grg:pulse', record),
 });

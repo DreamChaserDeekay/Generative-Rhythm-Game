@@ -103,14 +103,16 @@ export class Trail {
   /**
    * The frames of the last TRAIL_MS before `now`, as a line: how many, the usual one's length and the longest
    * (ms), how long ago the last one was drawn, the long ones ("-2104:41.7": 2104 ms ago, 41.7 ms long), the
-   * lengths of the last few (the newest last), and how many of each thing tallied.
+   * lengths of the last few (the newest last), and how many of each thing tallied. `upTo`: the frames drawn
+   * later than that are left out (the frames before a stall, told once the frames go on: frameWatch.ts).
    */
-  frames(now: number = performance.now()): string {
+  frames(now: number = performance.now(), upTo = Infinity): string {
     const intervals: { at: number; ms: number }[] = [];
     let previous: number | null = null;
     let lastAt: number | null = null;
     for (let i = 0; i < this.count; i++) {
       const at = this.times[(this.head - this.count + i + FRAMES_KEPT * 2) % FRAMES_KEPT];
+      if (at > upTo) break;
       if (previous !== null && now - at <= TRAIL_MS) intervals.push({ at, ms: at - previous });
       previous = at;
       lastAt = at;
@@ -134,10 +136,12 @@ export class Trail {
 
   /**
    * What happened in the last TRAIL_MS before `now`, as a line: "-2100 fever:0>2; -35 tex:41>42" (ms before
-   * `now`, then the note; "x3" after one noted three times running). The oldest give way when the line gets long.
+   * `now`, then the note; "x3" after one noted three times running; "+3120" for what happened that long after
+   * `now`, when a time gone by is asked for). The oldest give way when the line gets long.
    */
   told(now: number = performance.now()): string {
-    const recent = this.events.filter((e) => now - e.at <= TRAIL_MS).map((e) => `${Math.round(e.at - now)} ${e.what}${e.times > 1 ? ` x${e.times}` : ''}`);
+    const when = (at: number) => `${at > now ? '+' : ''}${Math.round(at - now)}`;
+    const recent = this.events.filter((e) => now - e.at <= TRAIL_MS).map((e) => `${when(e.at)} ${e.what}${e.times > 1 ? ` x${e.times}` : ''}`);
     let text = recent.join('; ');
     while (text.length > EVENTS_TEXT && recent.length > 1) {
       recent.shift();

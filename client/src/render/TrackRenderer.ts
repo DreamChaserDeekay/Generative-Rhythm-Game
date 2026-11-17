@@ -19,6 +19,7 @@ import {
   type TrackGeometry,
 } from './layout';
 import { FEVER_COLORS } from './palette';
+import { FrameWatch, notePart, reportError, type PlayPhase } from './frameWatch';
 import { activeTrail, setActiveTrail, Trail } from './trail';
 import { disposeSkinArt, flipbookBlend, flipbookOffset, hitFrame, type Flipbook, type MediaEffects, type SkinArt } from './skinArt';
 import { hex, laneColorsFor, type Skin, type SkinStyle } from './skins';
@@ -947,6 +948,12 @@ export class TrackRenderer {
   private toldAt = -Infinity;
   /** What the track did in its last seconds (trail.ts): put on the canvas when it loses its WebGL context. */
   private readonly trail = new Trail();
+  /** A play's frames watched for the desktop app's log (frameWatch.ts): stalls, and the pulse of frames going on. */
+  private readonly watch = new FrameWatch(this.trail);
+  /** The song's time the last frame drew (ms). */
+  private drawnMs = 0;
+  /** Whether a note on a lane the track does not have has been told (strayNote). */
+  private strayTold = false;
   private cssWidth = 1;
   private cssHeight = 1;
   /**
@@ -1377,6 +1384,7 @@ export class TrackRenderer {
   /** A hit on the judge line of a lane, in `color`. */
   hitEffect(lane: number, color: number, perfNow: number): void {
     if (this.hit === 'none') return;
+    if (!this.geometry.lanes[lane]) return this.strayNote(lane);
     this.trail.tally('hits', perfNow);
     // a side lane laid over the keys: the band of light across its half, and a burst as wide as the half in the middle of it
     if (this.geometry.lanes[lane].over) this.sideFlash(lane, color, perfNow);
@@ -1426,45 +1434,118 @@ export class TrackRenderer {
     this.drawHit(h, perfNow);
   }
 
+  /**
+   * The parts of a frame, drawn one after the other. Each on its own: one that throws is told (frameWatch.ts:
+   * a page-error line in the desktop app's log, once, then counted) and the others are drawn all the same,
+   * so that a part gone wrong does not hold the whole track still while the song goes on. How long each
+   * worked is kept for the line of a stall that follows the frame ("slow=track:draw=805": notePart).
+   */
+  private readonly steps: readonly (readonly [string, (frame: TrackFrame, perfNow: number, dt: number) => void])[] = [
+    [
+      'deck',
+      () => {
+        if (this.deckPending && (!this.deckPictured || ++this.deckWait >= DECK_SETTLE_FRAMES)) this.paintDeckPicture(this.deckPending);
+      },
+    ],
+    [
+      'notes',
+      (frame) => {
+        this.gone = frame.stage && frame.stage.crack > 0 ? frame.stage.drop : null;
+        this.drawNotes(frame);
+      },
+    ],
+    ['flows', (frame) => this.drawFlows(frame)],
+    ['bars', (frame) => this.drawBars(frame)],
+    ['beams', (frame, _perfNow, dt) => this.drawBeams(frame, dt)],
+    ['keys', (frame, _perfNow, dt) => this.drawPressKeys(frame, dt)],
+    ['holds', (frame, perfNow) => this.drawHolds(frame, perfNow)],
+    ['hits', (_frame, perfNow) => this.drawHits(perfNow)],
+    ['fever', (frame) => this.drawFever(frame)],
+    [
+      'lights',
+      (frame) => {
+        const clock = beatClock(frame.timeMs, frame.barTimes, frame.fever.active);
+        this.gearLights.update(clock);
+        this.sweepBorders(clock);
+        this.shimmerJudge(clock);
+      },
+    ],
+    ['stage', (frame) => this.drawStage(frame.stage)],
+    ['camera', (frame) => this.applyCameraFx(frame.camera)],
+    [
+      'draw',
+      () => {
+        this.renderer.clear();
+        // what stands by the gear: figures behind it (drawn first), stickers over its near corners (drawn last)
+        const staged = this.standees.length > 0;
+        const over = staged && STAGES[this.style.deck]?.kind === 'stickers';
+        if (staged && this.stagePlaced !== this.planeVersion) this.placeStandees();
+        if (staged && !over) this.renderer.render(this.stageScene, this.stageCamera);
+        this.renderer.render(this.scene, this.camera);
+        if (over) this.renderer.render(this.stageScene, this.stageCamera);
+      },
+    ],
+    [
+      'after',
+      (frame, perfNow) => {
+        if (this.staleMaterials.length > 0) {
+          this.trail.note(`materials:dispose ${this.staleMaterials.length}`, perfNow);
+          for (const m of this.staleMaterials) m.dispose();
+          this.staleMaterials.length = 0;
+        }
+        this.trace(frame, perfNow);
+        if (perfNow - this.toldAt >= TELL_EVERY_MS) this.tell(frame, perfNow);
+        if (this.recoveredFrom !== null) this.tellRecovered(frame, perfNow);
+      },
+    ],
+  ];
+
+  /** The parts' names as they are told ("track:notes"). */
+  private readonly stepNames = this.steps.map(([name]) => `track:${name}`);
+
   render(frame: TrackFrame, perfNow: number): void {
     this.trail.frame(perfNow);
     this.renderer.info.reset();
-    if (this.lastFrameMs === 0) this.warm();
+    const first = this.lastFrameMs === 0;
     const dt = this.lastFrameMs > 0 ? Math.min(100, perfNow - this.lastFrameMs) : 16;
     this.lastFrameMs = perfNow;
-    if (this.deckPending && (!this.deckPictured || ++this.deckWait >= DECK_SETTLE_FRAMES)) this.paintDeckPicture(this.deckPending);
-    this.gone = frame.stage && frame.stage.crack > 0 ? frame.stage.drop : null;
-    this.drawNotes(frame);
-    this.drawFlows(frame);
-    this.drawBars(frame);
-    this.drawBeams(frame, dt);
-    this.drawPressKeys(frame, dt);
-    this.drawHolds(frame, perfNow);
-    this.drawHits(perfNow);
-    this.drawFever(frame);
-    const clock = beatClock(frame.timeMs, frame.barTimes, frame.fever.active);
-    this.gearLights.update(clock);
-    this.sweepBorders(clock);
-    this.shimmerJudge(clock);
-    this.drawStage(frame.stage);
-    this.applyCameraFx(frame.camera);
-    this.renderer.clear();
-    // what stands by the gear: figures behind it (drawn first), stickers over its near corners (drawn last)
-    const staged = this.standees.length > 0;
-    const over = staged && STAGES[this.style.deck]?.kind === 'stickers';
-    if (staged && this.stagePlaced !== this.planeVersion) this.placeStandees();
-    if (staged && !over) this.renderer.render(this.stageScene, this.stageCamera);
-    this.renderer.render(this.scene, this.camera);
-    if (over) this.renderer.render(this.stageScene, this.stageCamera);
-    if (this.staleMaterials.length > 0) {
-      this.trail.note(`materials:dispose ${this.staleMaterials.length}`, perfNow);
-      for (const m of this.staleMaterials) m.dispose();
-      this.staleMaterials.length = 0;
+    this.drawnMs = frame.timeMs;
+    if (first) {
+      const from = performance.now();
+      try {
+        this.warm();
+      } catch (error) {
+        reportError('track:warm', error);
+      }
+      notePart('track:warm', performance.now() - from);
     }
-    this.trace(frame, perfNow);
-    if (perfNow - this.toldAt >= TELL_EVERY_MS) this.tell(frame, perfNow);
-    if (this.recoveredFrom !== null) this.tellRecovered(frame, perfNow);
+    for (let i = 0; i < this.steps.length; i++) {
+      const from = performance.now();
+      try {
+        this.steps[i][1](frame, perfNow, dt);
+      } catch (error) {
+        reportError(this.stepNames[i], error);
+      }
+      notePart(this.stepNames[i], performance.now() - from);
+    }
   }
+
+  /**
+   * A frame of the play has run to its end (the play's own word, after everything it does in a frame): its
+   * timestamp, the play's state, and when the play began to work on it (the page's clock). The frames are
+   * watched from here for the desktop app's log (frameWatch.ts): a stall is told once they go on, and the app
+   * is sent a pulse while they come. The gear shown in the settings and the editor's track are not plays:
+   * nothing calls this for them, and nothing is watched.
+   */
+  frameDone(perfNow: number, state: PlayPhase, startedAt?: number): void {
+    this.watch.done(perfNow, state, this.drawnMs, this.aboutStall, startedAt);
+  }
+
+  /** What is told with a stall of what the page keeps on the play's canvas: the skin, the stage of the play, what the renderer holds. */
+  private readonly aboutStall = (): Record<string, string> => {
+    const { style, stage, gfx } = this.pageCanvas.dataset;
+    return { ...(style ? { style } : {}), ...(stage ? { stage } : {}), ...(gfx ? { gfx } : {}) };
+  };
 
   /**
    * The track is drawn on its own canvas after a loss: how long it was gone, for the log and the trail. Told
@@ -1974,6 +2055,7 @@ export class TrackRenderer {
 
   dispose(): void {
     this.disposed = true;
+    this.watch.stop();
     if (activeTrail() === this.trail) setActiveTrail(null);
     if (this.recoverTimer !== null) window.clearTimeout(this.recoverTimer);
     this.classWatch?.disconnect();
@@ -2002,6 +2084,16 @@ export class TrackRenderer {
     this.renderer.dispose();
   }
 
+  /**
+   * A note on a lane the track does not have (a chart whose lanes are not its key mode's) is not drawn, nor
+   * its hits: said once for the desktop app's log (frameWatch.ts), not thrown at every frame it is in view.
+   */
+  private strayNote(lane: number): void {
+    if (this.strayTold) return;
+    this.strayTold = true;
+    reportError('track:notes', new Error(`a note on lane ${lane}: the track has ${this.geometry.lanes.length} lanes`));
+  }
+
   private drawNotes(frame: TrackFrame): void {
     const { notes, timeMs, scroll } = frame;
     const L = this.geometry.length;
@@ -2021,6 +2113,10 @@ export class TrackRenderer {
       // a lane that has dropped away takes its notes with it
       if (this.gone && this.gone[n.lane] > 0) continue;
       const lane = this.geometry.lanes[n.lane];
+      if (!lane) {
+        this.strayNote(n.lane);
+        continue;
+      }
       const color = this.laneColors[n.lane];
       const height = lane.kind === 'side' ? SIDE_NOTE_HEIGHT : NOTE_HEIGHT;
       const kind = noteKindOf(lane);
