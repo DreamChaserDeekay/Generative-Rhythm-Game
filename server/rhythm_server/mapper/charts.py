@@ -154,29 +154,28 @@ def timing_osu(timing: dict[str, Any], keycount: int, audio_name: str, title: st
     return "\n".join(lines)
 
 
-# A tempo of the model's timing is believed where the song's onsets follow its grid about as well as
-# they follow the tempo before it, run on (TIMING_MARGIN less at most). None outside these bounds,
+# A tempo of the model's timing is believed where the song's onsets gather in its grid's sixteenths
+# about as tightly as in those of the tempo before it, run on (grid_gather, TIMING_MARGIN less at most). None outside these bounds,
 # nor slower or faster than these shares of the tempo that holds longest
 TEMPO_MIN_BPM, TEMPO_MAX_BPM = 30.0, 400.0
 TEMPO_MIN_SHARE, TEMPO_MAX_SHARE = 0.4, 2.5
 TIMING_MARGIN = 0.1
 # fewer onsets than this under a tempo: nothing to judge it by, it stays (within the bounds)
 TIMING_MIN_ONSETS = 8
-# an onset is on a grid within this of one of its sixteenths (and a sixth of a sixteenth at most)
-TIMING_TOL_MS = 20.0
 # the timing changes only for tempos taken out over this long in all (ms), by the bounds or with
 # the old grid fitting the onsets this much better (TIMING_GAIN); smaller ones leave it as it was
 TIMING_SPAN_MS = 4000.0
 TIMING_GAIN = 0.25
 
 
-def grid_fit(onsets: list[float], start: float, beat_len: float) -> float:
-    """How much better than chance onsets fall on the sixteenths of a grid with a beat at `start`:
-    the share on it, less the share chance would put there."""
+def grid_gather(onsets: list[float], start: float, beat_len: float) -> float:
+    """How tightly onsets gather at one place in the sixteenths of a grid (0: all over them, 1: at
+    one place), wherever that place is: a grid of the right tempo a little off gathers them as well as
+    one on them, a grid of a wrong tempo passes every place and gathers nothing."""
     sub = beat_len / 4.0
-    tol = min(TIMING_TOL_MS, sub / 6.0)
-    on = sum(1 for t in onsets if abs((t - start) / sub - round((t - start) / sub)) * sub <= tol)
-    return on / len(onsets) - 2.0 * tol / sub
+    c = sum(math.cos(2.0 * math.pi * (t - start) / sub) for t in onsets)
+    s = sum(math.sin(2.0 * math.pi * (t - start) / sub) for t in onsets)
+    return math.hypot(c, s) / len(onsets)
 
 
 def _spans(reds: list[tuple[float, float, int]], duration_ms: float) -> list[tuple[float, float, int]]:
@@ -217,7 +216,9 @@ def checked_timing(timing: dict[str, Any], onsets: list[dict[str, Any]], duratio
     song, 2.9 and 29.5 BPM from 160 s in another; 2 of 20 runs on the runner,
     docs/MAPPERATORINATOR.md), and a song's first chart's timing serves all its charts. The onsets
     are judged with their lag behind the grid taken out (onset_lag); a real change stays (its own
-    grid fits the onsets after it better than the old one run on: 176 -> 185 BPM at 103.6 s), and
+    grid gathers the onsets after it better than the old one run on: 176 -> 185 BPM at 103.6 s; so
+    does a grid of the right tempo a little off them, which a share of onsets within 20 ms took for
+    a lost one in fast songs), and
     so does a timing whose lost stretches are short or barely worse (TIMING_SPAN_MS, TIMING_GAIN).
     Returns the timing (the same object when it stays) and what was taken out of it."""
     # red lines at one time: the last holds, as in osu!
@@ -253,7 +254,7 @@ def checked_timing(timing: dict[str, Any], onsets: list[dict[str, Any]], duratio
             under = times[bisect.bisect_left(times, t):bisect.bisect_left(times, end)]
             if len(under) >= TIMING_MIN_ONSETS:
                 prev_t, prev_len, _ = kept[-1]
-                gain = grid_fit(under, prev_t, prev_len) - grid_fit(under, t, beat_len)
+                gain = grid_gather(under, prev_t, prev_len) - grid_gather(under, t, beat_len)
                 if gain > TIMING_MARGIN:
                     why = "onsets"
         lost = why is not None

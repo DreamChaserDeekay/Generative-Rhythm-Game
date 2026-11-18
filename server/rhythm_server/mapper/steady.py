@@ -50,6 +50,7 @@ STEADY_TOLS_MS = (25.0, 12.0, 6.0)
 # spans stepped over in a row, at most (ms); one whose red line lies on the zone's grid and whose
 # tempo is within STEADY_NEAR of the zone's had the beat, a little off: its notes move with the grid
 STEADY_NEAR = 0.02
+STEADY_NEAR_MS = 30.0
 # a tempo about half or twice the one held longest is the same beat counted otherwise
 HALF_BAND = 0.1
 STEADY_SKIP_MS = 20000.0
@@ -232,9 +233,20 @@ def _share_old(times: list[float], spans: list[Span], which: list[int]) -> tuple
 
 
 def _stepped_ok(times: list[float], spans: list[Span], which: list[int], beat_len: float, start: float) -> bool:
-    """Spans stepped over: the grid run on fits their onsets about as well as their own did."""
+    """Spans stepped over: the grid run on fits their onsets about as well as their own did. One
+    whose tempo is the zone's (within STEADY_NEAR) had not lost the beat: where the zone's grid
+    leaves its own by more than STEADY_NEAR_MS it followed a tempo that sways, and the zone ends
+    there (the share of onsets within 20 ms of a sixteenth cannot tell a grid of the right tempo a
+    little off from one of a wrong tempo, which passes every phase)."""
     if not which:
         return True
+    for i in which:
+        s = spans[i]
+        if abs(s.beat_len / beat_len - 1.0) <= STEADY_NEAR:
+            g = round((s.t - start) / beat_len * 4.0) / 4.0
+            a = s.t - (start + g * beat_len)
+            if max(abs(a), abs(a + (s.beat_len - beat_len) * s.beats)) > STEADY_NEAR_MS:
+                return False
     on, n = _share_old(times, spans, which)
     if n < STEADY_MIN_ONSETS:
         return True
