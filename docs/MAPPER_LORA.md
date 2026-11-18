@@ -217,6 +217,7 @@ Mapperatorinator의 가중치(`OliBomby/Mapperatorinator-v32`)는 카드에 `lic
 - 학습되는 매개변수는 11,206,656개(전체 227,600,640개의 4.9%)다(러너의 학습 기록).
 - 데이터는 "mmrs" 형식이다: 폴더의 `metadata.parquet`(채보마다 한 줄: `BeatmapSetId` · `Id` · `BeatmapSetFolder` · `BeatmapFile` · `AudioFile` · `ModeInt` · `StarRating`(배속 0.5–2.0의 별점 7개) · `Ranked` · `RankedDate` · `SubmittedDate` · `UserId`)과 `data/<세트>/`의 음원 · `.osu`. 저자는 이것을 자기 도구(Mapperator 콘솔 앱)로 만든다. 우리는 `scripts/lora/make_dataset.py`가 같은 열을 직접 쓴다(별점은 Mapperatorinator가 쓰는 것과 같은 `rosu-pp-py`로 잰다).
 - 학습 중 증강: 배속(30%, 1–1.2배), **좌우 뒤집기 50%**(mania의 열도 뒤집힌다), 스냅 흔들기. 뒤집기는 `data.flip_horizontal_prob=0`으로 끌 수 있다.
+- 학습 기록에 "Logged checkpoint to wandb"가 찍히지만 `logging.mode=disabled`라 아무것도 올라가지 않는다(Weights & Biases의 꺼짐 모드).
 - 학습이 남기는 것: `checkpoints/checkpoint_N/`에 accelerate의 상태(모델 전체 `pytorch_model.bin`, 옵티마이저, 토크나이저 `custom_checkpoint_0.pkl`, 난수 상태)와 그 안의 `lora/` 폴더. **어댑터는 `lora/` 폴더뿐이다**: `adapter_config.json`, `adapter_model.safetensors`, `mapperatorinator_lora_metadata.json`.
 - 추론은 `lora_path`가 있으면 `PeftModel.from_pretrained` 뒤 `merge_and_unload`로 가중치에 합친다. 합친 뒤에는 기본 모델과 속도 · 메모리가 같다. 박자 패스는 게임 모드 구분이 없는 기본 모델로 돌고 어댑터가 붙지 않는다(저자의 이슈 #113 답과 코드가 같다).
 
@@ -254,7 +255,7 @@ Mapperatorinator의 가중치(`OliBomby/Mapperatorinator-v32`)는 카드에 `lic
 
 ### 러너에서 끝까지 돌려 본 것
 
-`.github/workflows/mapper-lora-smoke.yml`, 실행 [44323762849](https://github.com/DreamChaserDeekay/Generative-Rhythm-Game/actions/runs/44323762849)(Windows 러너, CPU). 이 실행은 실패로 표시되어 있는데, 마지막 채보까지 만든 뒤 보고서를 찍다가 Windows 콘솔의 코드 페이지(cp1252)에서 난 오류다(고쳤다). 고친 뒤의 실행은 성공했다([44333940132](https://github.com/DreamChaserDeekay/Generative-Rhythm-Game/actions/runs/44333940132)). 두 실행은 어댑터의 태그와 어댑터로 만든 채보가 같았다(같은 데이터 · 같은 시드의 CPU 학습은 다시 해도 같은 어댑터가 나온다). 사람 채보(첫 조각의 4키)로 2스텝을 도는 단계를 더한 실행은 [44339828900](https://github.com/DreamChaserDeekay/Generative-Rhythm-Game/actions/runs/44339828900)이고 이 줄을 쓸 때 돌고 있었다.
+`.github/workflows/mapper-lora-smoke.yml`, 실행 [44323762849](https://github.com/DreamChaserDeekay/Generative-Rhythm-Game/actions/runs/44323762849)(Windows 러너, CPU). 이 실행은 실패로 표시되어 있는데, 마지막 채보까지 만든 뒤 보고서를 찍다가 Windows 콘솔의 코드 페이지(cp1252)에서 난 오류다(고쳤다). 고친 뒤의 실행은 성공했다([44333940132](https://github.com/DreamChaserDeekay/Generative-Rhythm-Game/actions/runs/44333940132)). 두 실행은 어댑터의 태그와 어댑터로 만든 채보가 같았다(같은 데이터 · 같은 시드의 CPU 학습은 다시 해도 같은 어댑터가 나온다). 사람 채보(첫 조각의 4키)로 2스텝을 도는 단계를 더한 실행은 [44339828900](https://github.com/DreamChaserDeekay/Generative-Rhythm-Game/actions/runs/44339828900)이고 성공했다: 실행 환경의 Python으로 첫 조각의 4키 101곡 · 채보 273개를 음원까지 받아(1.7GB, 못 읽은 음원 0) 2스텝을 학습했다(159초). 6절의 시험 순서 1–2번이 GPU만 빼고 그대로 돈 것이다.
 
 | 단계 | 결과 |
 |---|---|
