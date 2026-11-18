@@ -12,8 +12,13 @@ needs them. docs/MAPPERATORINATOR.md.
 A request: {"id", "audio" (a WAV), "out" (a folder), "beatmap" (an .osu with the song's timing
 points, or null to let the model find the timing), "model" (an inference config: v32, v32-mini),
 "keycount", "difficulty" (star rating), "seed", "holdNoteRatio", "temperature", "precision",
-"device", "title", "artist", "endTime" (ms: nothing is made past it), "sv" (true: the scroll speed pass too, one more pass over the song)}. The answer: {"id", "ok", "osu" (the made .osu), "seconds", "device",
-"precision", "encoder" ("fp32" when a fp16 model's encoder ran in fp32, see encoder_fp32)} or
+"device", "title", "artist", "endTime" (ms: nothing is made past it), "sv" (true: the scroll speed pass too, one more pass over the song),
+"lora" (a LoRA adapter's folder, merged into the model for the notes; the timing pass keeps the base
+model), and the model's other conditions, none set by default: "descriptors" and
+"negativeDescriptors" (style tags), "cfgScale" (classifier-free guidance; over 1 the decoder runs
+twice a token), "columnTemperature", "mapperId", "year"}. The answer: {"id", "ok", "osu" (the made .osu), "seconds", "device",
+"precision", "encoder" ("fp32" when a fp16 model's encoder ran in fp32, see encoder_fp32), "lora"
+(the adapter's folder when one was merged)} or
 {"id", "ok": false, "error"}. Mapperatorinator's own prints go to stderr (the server keeps them in
 worker.log).
 """
@@ -236,6 +241,22 @@ class Generator:
             args.precision = str(req["precision"])
         if req.get("temperature") is not None:
             args.temperature = float(req["temperature"])
+        # the model's other conditions (docs/MAPPER_LORA.md): the app sets none by default
+        if req.get("descriptors"):
+            args.descriptors = [str(d) for d in req["descriptors"]]
+        if req.get("negativeDescriptors"):
+            args.negative_descriptors = [str(d) for d in req["negativeDescriptors"]]
+        if req.get("cfgScale") is not None:
+            args.cfg_scale = float(req["cfgScale"])
+        if req.get("columnTemperature") is not None:
+            args.mania_column_temperature = float(req["columnTemperature"])
+        if req.get("mapperId") is not None:
+            args.mapper_id = int(req["mapperId"])
+        if req.get("year") is not None:
+            args.year = int(req["year"])
+        # a LoRA adapter's folder (PEFT: adapter_config.json, adapter_model.safetensors), merged into
+        # the model as it loads
+        args.lora_path = str(req["lora"]) if req.get("lora") else None
         args.title = req.get("title") or "Generative Rhythm"
         args.artist = req.get("artist") or ""
         args.creator = "Mapperatorinator"
@@ -254,10 +275,14 @@ class Generator:
         return args
 
     def _model(self, args, auto_select: bool, lora: bool = True):
-        key = (args.model_path, args.gamemode, args.precision, args.device, args.attn_implementation, auto_select)
+        lora_path = (args.lora_path or None) if lora else None
+        key = (args.model_path, args.gamemode, args.precision, args.device, args.attn_implementation, auto_select, lora_path)
         if key not in self.models:
-            # another model or precision (the settings changed): the old ones leave the GPU first
-            for old in [k for k in self.models if k[:5] != key[:5]]:
+            if lora_path:
+                self._lora_fits(args, auto_select)
+            # another model, precision or adapter (the settings or the key mode changed): the old ones
+            # leave the GPU first (the timing pass's base model, auto_select False, stays)
+            for old in [k for k in self.models if k[:5] != key[:5] or (k[5] == auto_select and k[6] != lora_path)]:
                 _ENCODERS32.pop(id(self.models.pop(old)[0]), None)
             try:
                 import torch
@@ -268,13 +293,27 @@ class Generator:
                 pass
             model, tokenizer = self.inference.load_model_with_server(
                 args.model_path, args.train, args.device, max_batch_size=args.max_batch_size, use_server=False,
-                precision=args.precision, attn_implementation=args.attn_implementation, lora_path=args.lora_path if lora else None,
+                precision=args.precision, attn_implementation=args.attn_implementation, lora_path=lora_path,
                 gamemode=args.gamemode, auto_select_gamemode_model=auto_select, fast_decoder_loop=args.fast_decoder_loop,
             )
             if args.precision == "fp16" and str(args.device).startswith("cuda"):
                 encoder_fp32(model)
             self.models[key] = (model, tokenizer)
         return self.models[key]
+
+    def _lora_fits(self, args, auto_select: bool) -> None:
+        """Mapperatorinator skips, with a printed line only, an adapter whose metadata names other
+        checkpoint subfolders (mapperatorinator_lora_metadata.json: one trained on gamemode=0 for the
+        gamemode=3 model): the chart would be the base model's under the adapter's name. And PEFT
+        would read a pickled adapter_model.bin where there is no safetensors file."""
+        folder = Path(args.lora_path)
+        if not (folder / "adapter_config.json").is_file() or not (folder / "adapter_model.safetensors").is_file():
+            raise ValueError(f"LoRA 어댑터 폴더가 아닙니다 (adapter_config.json, adapter_model.safetensors): {folder}")
+        ckpt, subfolder = self.inference.resolve_model_checkpoint_path(args.model_path, gamemode=args.gamemode, auto_select_gamemode_model=auto_select)
+        fits, _ = self.inference.resolve_compatible_lora_path(
+            args.lora_path, ckpt_subfolder=self.inference.get_model_checkpoint_subfolder(ckpt, subfolder), verbose=False)
+        if not fits:
+            raise ValueError(f"LoRA 어댑터가 이 모델({args.model_path} gamemode={args.gamemode})의 것이 아닙니다: {folder}")
 
     def generate(self, req: dict) -> dict:
         t0 = time.time()
@@ -299,6 +338,8 @@ class Generator:
         answer = {"osu": str(path), "seconds": round(time.time() - t0, 2), "device": args.device, "precision": args.precision}
         if id(model) in _ENCODERS32:
             answer["encoder"] = "fp32"
+        if args.lora_path:
+            answer["lora"] = args.lora_path
         return answer
 
 

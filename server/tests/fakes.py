@@ -34,7 +34,7 @@ FAKE_WORKER = textwrap.dedent('''
         head = "osu file format v14\\n[General]\\nMode: 3\\n[Difficulty]\\nCircleSize:%d\\n[TimingPoints]\\n%s\\n[HitObjects]\\n" % (keys, red)
         out.write_text(head + "\\n".join(objs) + "\\n", encoding="utf-8")
         print(json.dumps({"id": req["id"], "ok": True, "osu": str(out), "seconds": 0.1, "device": "cuda", "precision": "fp32",
-                          "timingGiven": bool(req.get("beatmap"))}), flush=True)
+                          "timingGiven": bool(req.get("beatmap")), "lora": req.get("lora")}), flush=True)
 ''')
 
 

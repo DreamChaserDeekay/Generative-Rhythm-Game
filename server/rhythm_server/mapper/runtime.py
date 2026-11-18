@@ -351,6 +351,18 @@ class Runtime:
         finally:
             logf.close()
 
+    def ensure_lora(self) -> None:
+        """PEFT in the runtime's Python (mapper.json runtime.lora): what merges a LoRA adapter into
+        the model. A runtime set up before adapters has none; installed once, state.json says so."""
+        state = self.state()
+        if state is None or state.get("lora"):
+            return
+        packages = list(mapper_config()["runtime"].get("lora") or [])
+        with open(self.root / "setup.log", "a", encoding="utf-8") as logf:
+            logf.write(f"\n==== lora packages {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+            self._run([str(self.uv), "pip", "install", "--python", str(self.venv_python), *packages], logf)
+        (self.root / "state.json").write_text(json.dumps({**state, "lora": packages}, ensure_ascii=False, indent=1), encoding="utf-8")
+
     def _model_repo(self, model: str) -> str:
         """The Hugging Face repo an inference config names (configs/inference/<model>.yaml)."""
         try:

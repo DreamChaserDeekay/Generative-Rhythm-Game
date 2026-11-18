@@ -903,3 +903,62 @@ def test_some_key_notes_go_to_the_fx_lanes_by_the_tiers_rate(key_mode: str) -> N
     assert shares == sorted(shares)
     # a key mode without FX lanes is as the model made it
     assert "fx" not in _fx_chart("4K", "EXPERT")["meta"]["generator"]
+
+
+def _adapter(folder: Path, weights: bytes = b"weights", rank: int = 64) -> Path:
+    """A LoRA adapter's folder as a Mapperatorinator LoRA training leaves it (the files only)."""
+    folder.mkdir(parents=True)
+    (folder / "adapter_config.json").write_text(json.dumps({"r": rank, "peft_type": "LORA"}), encoding="utf-8")
+    (folder / "adapter_model.safetensors").write_bytes(weights)
+    return folder
+
+
+def test_a_key_counts_lora_adapter_makes_other_charts_that_say_so(mapped: TestClient, fake_mapper_runtime, monkeypatch) -> None:
+    from rhythm_server.mapper import lora
+
+    installed: list[bool] = []
+    monkeypatch.setattr(Runtime, "ensure_lora", lambda self: installed.append(True))
+    mapper = mapped.app.state.mapper
+    sid = mapped.post("/api/songs/demo", json={"bpm": 128, "bars": 12, "seed": 2}).json()["song"]["id"]
+    tag = mapped.get("/api/health").json()["generator"]
+    base = {m: mapped.post(f"/api/songs/{sid}/charts", json={"keyMode": m, "difficulty": "HARD", "brief": True}).json()["meta"]["chartId"]
+            for m in ("4K", "6K", "6K+FX", "8K")}
+    assert mapper.config()["_lora"] == {}
+    # an adapter for 6K in the runtime folder: 6K and 6K+FX (made as 6K) are other charts, 4K and 8K are not
+    folder = _adapter(fake_mapper_runtime / "lora" / "6K")
+    assert lora.adapter(folder) == {"path": str(folder), "tag": hashlib.sha256(b"weights").hexdigest()[:12], "r": 64}
+    with_lora = {m: mapped.post(f"/api/songs/{sid}/charts", json={"keyMode": m, "difficulty": "HARD", "brief": True}).json()["meta"]["chartId"] for m in base}
+    assert {m for m in base if with_lora[m] != base[m]} == {"6K", "6K+FX"}
+    assert mapped.get("/api/health").json()["generator"] != tag  # the song select drops its old briefs
+    cfg = mapper.config()
+    assert charts.request_for("6K", 6, 1, cfg, Path("a.wav"), Path("out"), None, {})["lora"] == str(folder)
+    assert "lora" not in charts.request_for("8K", 6, 1, cfg, Path("a.wav"), Path("out"), None, {})
+    chart = mapped.post(f"/api/songs/{sid}/charts", json={"keyMode": "6K", "difficulty": "HARD"}).json()["chart"]
+    assert chart["meta"]["chartId"] == with_lora["6K"] and chart["meta"]["generator"]["lora"] == {"tag": lora.adapter(folder)["tag"], "r": 64}
+    assert installed  # PEFT was asked for before the worker
+    # other weights are another adapter: other charts again
+    (folder / "adapter_model.safetensors").write_bytes(b"trained longer")
+    assert charts.chart_id(_analysis(), "6K", "HARD", 6, 1, mapper.config()) != charts.chart_id(_analysis(), "6K", "HARD", 6, 1, cfg)
+    # a pickled adapter is none (PEFT would unpickle it), and lora.enabled false is the base model
+    _adapter(fake_mapper_runtime / "lora" / "8K")
+    (fake_mapper_runtime / "lora" / "8K" / "adapter_model.safetensors").rename(fake_mapper_runtime / "lora" / "8K" / "adapter_model.bin")
+    assert set(mapper.config()["_lora"]) == {6}
+    assert lora.adapters({"lora": {"enabled": False}}, fake_mapper_runtime) == {}
+    # mapper.json lora.adapters names another folder for a key count
+    other = _adapter(fake_mapper_runtime / "lora" / "8K-v2", b"v2")
+    assert lora.adapters({"lora": {"adapters": {"8K": "8K-v2"}}}, fake_mapper_runtime)[8]["path"] == str(other)
+
+
+def test_the_models_other_conditions_reach_the_worker_and_make_other_charts() -> None:
+    cfg = dict(mapper_config())
+    plain = charts.request_for("8K", 6, 1, cfg, Path("a.wav"), Path("out"), None, {})
+    assert not {"descriptors", "negativeDescriptors", "cfgScale", "lora"} & set(plain) and charts.conditions_of("8K", cfg) == {}
+    cond = {**cfg, "conditions": {"_comment": "…", "8K": {"negativeDescriptors": ["style/N+1"], "cfgScale": 2.0}}}
+    request = charts.request_for("8K", 6, 1, cond, Path("a.wav"), Path("out"), None, {})
+    assert (request["negativeDescriptors"], request["cfgScale"]) == (["style/N+1"], 2.0)
+    assert charts.request_for("6K", 6, 1, cond, Path("a.wav"), Path("out"), None, {}) == charts.request_for("6K", 6, 1, cfg, Path("a.wav"), Path("out"), None, {})
+    assert charts.chart_id(_analysis(), "8K", "HARD", 6, 1, cond) != charts.chart_id(_analysis(), "8K", "HARD", 6, 1, cfg)
+    assert charts.chart_id(_analysis(), "6K", "HARD", 6, 1, cond) == charts.chart_id(_analysis(), "6K", "HARD", 6, 1, cfg)
+    assert charts.settings_tag(cond) != charts.settings_tag(cfg)
+    # with neither an adapter nor a condition the ids are what they were before there were any
+    assert charts.settings_tag(cfg) == charts.settings_tag({k: v for k, v in cfg.items() if k not in ("lora", "conditions")})

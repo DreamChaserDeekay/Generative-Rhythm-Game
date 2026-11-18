@@ -1,0 +1,73 @@
+name: Mapper conditions
+
+# Mapperatorinator (v32, on the runner's CPU) on CC BY songs with the model's other conditions set
+# (style tags, classifier-free guidance, the column temperature): whether a condition alone mends
+# what a key count's charts lack, before any training (docs/MAPPER_LORA.md). Each job keeps the raw
+# .osu files and the key-mode report of them (scripts/mapper_keymode_report.py), to hold against
+# the DPC probe's charts of the same songs. Nothing is committed.
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/mapper-lora]
+    paths:
+      - '.github/workflows/mapper-conditions.yml'
+
+jobs:
+  probe:
+    strategy:
+      fail-fast: false
+      matrix:
+        song: [chibi_ninja.mp3, newer_wave.mp3]
+        condition:
+          - name: not-n1-cfg2
+            json: '{"negativeDescriptors": ["style/N+1"], "cfgScale": 2.0}'
+          - name: not-n1-cfg4
+            json: '{"negativeDescriptors": ["style/N+1"], "cfgScale": 4.0}'
+          - name: n1
+            json: '{"descriptors": ["style/N+1"]}'
+          - name: column-temperature-1
+            json: '{"columnTemperature": 1.0}'
+    name: 8K ${{ matrix.condition.name }} ${{ matrix.song }}
+    runs-on: windows-latest
+    timeout-minutes: 300
+    defaults:
+      run:
+        shell: bash
+    env:
+      GRG_MAPPER_ALLOW_CPU: '1'
+      GRG_MAPPER_MODEL: v32
+      SONG: ${{ matrix.song }}
+      CONDITIONS: ${{ matrix.condition.json }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: server/pyproject.toml
+      - name: Install the server
+        run: |
+          python -m pip install -e ./server
+          echo "GRG_MAPPER_HOME=$RUNNER_TEMP/grg-mapper" >> "$GITHUB_ENV"
+      - name: Fetch the song
+        run: |
+          url=$(python -c "import json, os; print(next(s['download_url'] for s in json.load(open('design-mockups/_src/music/manifest.json', encoding='utf-8')) if s['file'] == os.environ['SONG']))" | tr -d '\r')
+          mkdir -p "$RUNNER_TEMP/song"
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/song/$SONG" "$url"
+      - name: Set the runtime up
+        working-directory: server
+        run: python -m rhythm_server mapper setup
+      - name: 8K charts with the condition
+        run: |
+          status=0
+          python scripts/mapper_probe.py --audio "$RUNNER_TEMP/song/$SONG" --out "$RUNNER_TEMP/probe" --mode 8K --tiers HARD EXPERT --conditions "$CONDITIONS" || status=$?
+          python scripts/mapper_keymode_report.py "$RUNNER_TEMP/probe" --json "$RUNNER_TEMP/probe/report.json" --label "${{ matrix.condition.name }}" | tee -a "$GITHUB_STEP_SUMMARY" || true
+          cp "$GRG_MAPPER_HOME/worker.log" "$RUNNER_TEMP/probe/worker.log" 2>/dev/null || true
+          exit $status
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: conditions-${{ matrix.condition.name }}-${{ matrix.song }}
+          path: ${{ runner.temp }}/probe
+          if-no-files-found: warn
+          retention-days: 30
