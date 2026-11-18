@@ -417,12 +417,21 @@ class Library:
     def mapper_timing_record(self, song_id: str, model: str) -> dict[str, Any] | None:
         """The kept timing with what it went through, for this model: {"timing", "steady"}."""
         kept = self.mapper_timing_kept(song_id)
-        return {"timing": kept["timing"], "steady": kept.get("steady")} if kept is not None and kept.get("model") == model else None
+        if kept is None or kept.get("model") != model:
+            return None
+        return {"timing": kept["timing"], "steady": kept.get("steady"), "raw": kept.get("raw")}
 
-    def save_mapper_timing(self, song_id: str, model: str, timing: dict[str, Any], steady: int | None = None) -> None:
+    def save_mapper_timing(
+        self, song_id: str, model: str, timing: dict[str, Any], steady: int | None = None, raw: dict[str, Any] | None = None,
+    ) -> None:
+        """`raw`: the timing as the model found it (before mapper.steady settled it), kept so that it
+        can be settled anew from that; the one kept before stays when none is given."""
         path = self.mapper_timing_path(song_id)
+        if raw is None:
+            raw = (self.mapper_timing_kept(song_id) or {}).get("raw")
+        kept = {"model": model, "timing": timing, **({"steady": steady} if steady else {}), **({"raw": raw} if raw else {})}
         tmp = path.with_suffix(".part")
-        tmp.write_text(json.dumps({"model": model, "timing": timing, **({"steady": steady} if steady else {})}, ensure_ascii=False), encoding="utf-8")
+        tmp.write_text(json.dumps(kept, ensure_ascii=False), encoding="utf-8")
         os.replace(tmp, path)
 
     def stems_info(self, song_id: str) -> dict[str, Any] | None:

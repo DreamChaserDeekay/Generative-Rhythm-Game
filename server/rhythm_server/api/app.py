@@ -43,8 +43,8 @@ from .imports import import_package
 from .jobs import AnalysisQueue
 from .library import BGA_EXTENSIONS, Library, SongNotFound
 from ..mapper import Mapper, MapperError
-from ..mapper.charts import MAPPER_VERSION, checked_timing, settings_tag, song_bpm
-from ..mapper.steady import STEADY_VERSION, steady_timing
+from ..mapper.charts import MAPPER_VERSION, settings_tag, song_bpm
+from ..mapper.steady import STEADY_VERSION, settled_timing
 from ..mapper.runtime import public_settings, save_settings
 from ..mapper.queue import BACKGROUND, OPENED, MapperQueue
 
@@ -195,11 +195,11 @@ def create_app(
                 analysis = library.load_analysis(sid)
                 if analysis is None:
                     continue
-                timing, onsets, duration = kept["timing"], analysis.get("onsets", []), float(analysis["durationMs"])
-                if cfg.get("timingCheck", True):
-                    timing, _ = checked_timing(timing, onsets, duration)
-                timing, report, _ = steady_timing(timing, onsets, duration)
-                library.save_mapper_timing(sid, str(kept.get("model", "")), timing, STEADY_VERSION)
+                # from the model's own timing when that was kept, else from what is there (the timing
+                # check had gone over it)
+                model_timing, onsets, duration = kept.get("raw") or kept["timing"], analysis.get("onsets", []), float(analysis["durationMs"])
+                timing, _, report, _ = settled_timing(model_timing, onsets, duration, bool(cfg.get("timingCheck", True)))
+                library.save_mapper_timing(sid, str(kept.get("model", "")), timing, STEADY_VERSION, model_timing)
                 library.update_song(sid, **song_bpm_fields(timing, duration))
                 if report:
                     log.info("The timing kept for %s is steady now: %s", song.get("title"), report)
@@ -592,12 +592,13 @@ def create_app(
                     chart = j.result()
                     library.save_chart(chart, sid)
                     generator = chart["meta"]["generator"]
+                    model_timing = mapper.model_timings.pop(chart["meta"]["chartId"], None)
                     if generator.get("timing") == "model" or generator.get("timingFixed") or generator.get("timingSteady"):
                         # the song's first chart: its timing is the song's from now on (the other
                         # tiers are made on it), and the song list's BPM; or a song's timing kept
                         # from before, with the tempos it lost the beat on taken out, or steadied
                         steady = STEADY_VERSION if mapper.config().get("timingSteady", True) else None
-                        library.save_mapper_timing(sid, model, chart["timing"], steady)
+                        library.save_mapper_timing(sid, model, chart["timing"], steady, model_timing)
                         library.update_song(sid, **song_bpm_fields(chart["timing"], chart["meta"]["durationMs"]))
                 else:
                     log.warning("Mapperatorinator could not make %s: %s", label, e)

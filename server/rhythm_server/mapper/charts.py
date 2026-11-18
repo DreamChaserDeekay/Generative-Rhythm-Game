@@ -270,6 +270,8 @@ def checked_timing(timing: dict[str, Any], onsets: list[dict[str, Any]], duratio
 
 # the slowest and fastest tempo of a song are among those held this share of it
 BPM_SHARE = 0.05
+# and they are one tempo when they differ by less than this share of the one held longest
+BPM_ONE = 0.02
 
 
 def song_bpm(timing: dict[str, Any], duration_ms: float) -> dict[str, float]:
@@ -285,6 +287,9 @@ def song_bpm(timing: dict[str, Any], duration_ms: float) -> dict[str, float]:
     main = max(held, key=lambda b: held[b])
     # a tempo held for a moment (a red line of the model's that lasts two beats) is not the song's range
     bpms = [b for b in held if held[b] >= BPM_SHARE * sum(held.values())] or [main]
+    if max(bpms) - min(bpms) < BPM_ONE * main:
+        # a tempo that sways a little (161-162) is one tempo to the player
+        bpms = [main]
     return {"bpm": round(main, 4), "bpmMin": round(min(bpms), 4), "bpmMax": round(max(bpms), 4)}
 
 

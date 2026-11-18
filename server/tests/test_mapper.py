@@ -26,7 +26,7 @@ from rhythm_server.mapper import Mapper, charts, runtime as rt
 from rhythm_server.mapper.runtime import Runtime, mapper_config
 from rhythm_server.synth import make_structured_song
 
-from fakes import onset_osu, osu, x_of
+from fakes import heard_song, onset_osu, osu, x_of
 
 
 @lru_cache(maxsize=None)
@@ -577,7 +577,7 @@ def test_a_tempo_that_sways_is_left_as_the_model_heard_it() -> None:
     new, _, _ = steady.steady_timing(lurch, sounds, 120_000.0)
     assert [p["bpm"] for p in new["tempoMap"]] == [120.0]
     fits = steady.window_fits(steady.red_lines_of(new, 120_000.0), sorted(o["t"] for o in sounds), 120_000.0)
-    assert all(off < 1.0 for _, off, _ in fits)
+    assert all(off < 1.0 for _, off, _, _ in fits)
 
 
 def test_bars_keep_a_change_of_meter_that_lasts_and_drop_one_that_does_not() -> None:
@@ -607,6 +607,9 @@ def test_the_song_list_bpm_is_not_a_range_for_a_tempo_held_a_moment() -> None:
     # 180 with two beats of 171 and of 182 (a song left as the model heard it): 180, not 171-182
     timing = timing_from_reds([(0.0, 60000 / 180, 4), (60_000.0, 60000 / 171, 4), (60_700.0, 60000 / 180, 4), (90_000.0, 60000 / 182, 4), (90_660.0, 60000 / 180, 4)])
     assert charts.song_bpm(timing, 200_000.0) == {"bpm": 180.0, "bpmMin": 180.0, "bpmMax": 180.0}
+    # a tempo that sways a little is one tempo to the player (161-162); a real change is not (176 -> 185)
+    sway = timing_from_reds([(0.0, 60000 / 162, 4), (60_000.0, 60000 / 161, 4), (100_000.0, 60000 / 162, 4)])
+    assert charts.song_bpm(sway, 200_000.0) == {"bpm": 162.0, "bpmMin": 162.0, "bpmMax": 162.0}
     # a bar that starts at a tempo change is one red line, with that tempo
     cut = timing_from_reds([(0.0, 500.0, 4), (10_100.0, 400.0, 3)])
     assert [(round(t), round(b)) for t, b, _ in charts.timing_red_lines(cut)] == [(0, 500), (10000, 500), (10100, 400)]
@@ -659,6 +662,8 @@ def test_a_first_chart_moves_onto_the_steady_timing_and_the_song_keeps_it(tmp_pa
         assert (song["bpm"], song["bpmMin"], song["bpmMax"]) == (128.0, 128.0, 128.0)
         kept = app.state.library.mapper_timing_kept(sid)
         assert kept["timing"] == chart["timing"] and kept["steady"] == steady.STEADY_VERSION
+        # the model's own timing is kept beside it: to settle it anew from, or to go back to
+        assert len(kept["raw"]["tempoMap"]) == 4
         # the next chart is made on that timing as it is
         other = c.post(f"/api/songs/{sid}/charts", json={"keyMode": "4K", "difficulty": "NORMAL"}).json()["chart"]
         assert other["timing"] == chart["timing"] and "timingSteady" not in other["meta"]["generator"]
@@ -676,6 +681,7 @@ def test_a_first_chart_moves_onto_the_steady_timing_and_the_song_keeps_it(tmp_pa
         assert (song["bpm"], song["bpmMin"], song["bpmMax"]) == (128.0, 128.0, 128.0)
         kept = app.state.library.mapper_timing_kept(sid)
         assert kept["steady"] == steady.STEADY_VERSION and kept["timing"]["tempoMap"] == [{"beat": 0.0, "bpm": 128.0}]
+        assert kept["raw"] == old  # what was there is what it was settled from
         assert app.state.library.load_chart(chart["meta"]["chartId"]) == made
     # with mapper.json timingSteady off the model's red lines are kept as they came
     config = Mapper.config
@@ -685,6 +691,50 @@ def test_a_first_chart_moves_onto_the_steady_timing_and_the_song_keeps_it(tmp_pa
         sid = c.post("/api/songs/demo", json={"bpm": 128, "bars": 12, "seed": 2}).json()["song"]["id"]
         chart = c.post(f"/api/songs/{sid}/charts", json={"keyMode": "4K", "difficulty": "HARD"}).json()["chart"]
         assert "timingSteady" not in chart["meta"]["generator"] and len(chart["timing"]["tempoMap"]) == 4
+
+
+def _beats_off(timing: dict, beats: list[float]) -> float:
+    """How far the true beats lie from the timing's beats at most (ms)."""
+    tempo = TempoMap(timing)
+    return max(abs(tempo.ms_to_beat(b) - round(tempo.ms_to_beat(b))) * tempo.beat_ms(tempo.ms_to_beat(b)) for b in beats)
+
+
+def test_a_fast_steady_song_is_steadied_before_the_check_can_take_a_right_tempo_out() -> None:
+    from rhythm_server.formats.osu import timing_from_reds
+    from rhythm_server.mapper import steady
+
+    # 222 BPM: a sixteenth is 68 ms, the check's tolerance 11. On the model's red lines the check took
+    # the right tempo of a span 12 ms off for a lost one (10 of 30 such songs came out worse than the
+    # model's timing, checked first); steadied first there is one tempo and nothing to take
+    exact = again = 0
+    for seed in range(200, 208):
+        beats, reds, onsets = heard_song(lambda t: 222.0, 200_000.0, seed, wander=2.2, noise=6.0)
+        model = timing_from_reds(reds)
+        assert len(model["tempoMap"]) > 10
+        timing, fixed, report, moves = steady.settled_timing(model, onsets, 200_000.0)
+        assert _beats_off(timing, beats) <= max(30.0, _beats_off(model, beats) + 10.0)
+        assert (moves is None) == bool(fixed) and steady.no_worse(model, timing, onsets, 200_000.0)
+        exact += [p["bpm"] for p in timing["tempoMap"]] == [222.0]
+        again += bool(fixed)
+    # one of the eight has a start one grid cannot follow: there the check goes first after all
+    assert exact >= 7 and again <= 1
+    # a tempo off the round numbers, and a real change
+    beats, reds, onsets = heard_song(lambda t: 127.96, 200_000.0, 3)
+    timing, _, _, _ = steady.settled_timing(timing_from_reds(reds), onsets, 200_000.0)
+    assert [p["bpm"] for p in timing["tempoMap"]] == [127.96] and _beats_off(timing, beats) < 15.0
+    beats, reds, onsets = heard_song(lambda t: 120.0 if t < 100_000 else 150.0, 200_000.0, 4)
+    timing, _, _, _ = steady.settled_timing(timing_from_reds(reds), onsets, 200_000.0)
+    assert [p["bpm"] for p in timing["tempoMap"]] == [120.0, 150.0] and _beats_off(timing, beats) < 20.0
+    # the long tail of a lost beat leaves no zone: the check takes it out, then the rest is one tempo
+    beats, reds, onsets = heard_song(lambda t: 120.0, 200_000.0, 5)
+    lost = [r for r in reds if r[0] < 130_000] + [(130_000.0, 60000.0 / 2.9, 4), (170_000.0, 60000.0 / 29.5, 4)]
+    timing, fixed, report, moves = steady.settled_timing(timing_from_reds(lost), onsets, 200_000.0)
+    assert [p["bpm"] for p in timing["tempoMap"]] == [120.0] and [d["why"] for d in fixed] == ["bounds", "bounds"] and moves is None
+    assert _beats_off(timing, beats) < 20.0
+    # bars of a timing left as the model heard it are whole (3.999999 beats are four)
+    beats, reds, onsets = heard_song(lambda t: 100.0 * (1.0 + 0.01 * ((int(t / 4800) * 7) % 5 - 2) / 2.0), 150_000.0, 6)
+    left, _, _, _ = steady.settled_timing(timing_from_reds(reds), onsets, 150_000.0)
+    assert all(abs(m["beatsPerMeasure"] - round(m["beatsPerMeasure"])) > 5e-5 or m["beatsPerMeasure"] == round(m["beatsPerMeasure"]) for m in left["meter"])
 
 
 # ---------- FX notes of 4K+FX and 6K+FX (mapper/fx.py) ----------

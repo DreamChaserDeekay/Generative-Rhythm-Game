@@ -17,7 +17,7 @@ from typing import Any, Callable
 from ..chart.keysounds import default_seed
 from ..formats.osu import parse_osu
 from . import charts
-from .steady import STEADY_VERSION, steady_timing
+from .steady import STEADY_VERSION, settled_timing
 from .runtime import Runtime, mapper_config
 from .service import MapperError, MapperService
 from .silence import music_end, quiet_spans
@@ -31,6 +31,8 @@ class Mapper:
     def __init__(self, runtime: Runtime | None = None):
         self.runtime = runtime or Runtime()
         self.service = MapperService(self.runtime)
+        # the model's own timing (before it was settled) of the charts that found or settled one, by chart id
+        self.model_timings: dict[str, dict[str, Any]] = {}
         # the last chart it failed on (shown in the settings): {"chart", "error", "at"}
         self.last_error: dict[str, Any] | None = None
 
@@ -59,40 +61,37 @@ class Mapper:
         audio_path: Path, song_timing: Callable[[], dict[str, Any] | None] | None = None,
     ) -> dict[str, Any]:
         """`song_timing`: asked when the chart's turn comes, for the timing the song's first chart
-        found (None: this is the first, and the model finds it). The timing is checked against the
-        song's onsets (charts.checked_timing): a tempo the song does not follow is taken out, and a
-        first chart made on one is made again on the timing without it; the chart says what was
-        taken out (generator.timingFixed), and the song keeps that timing. A steady song's timing is
-        then made one tempo (steady.steady_timing): a first chart's notes move with their grid, a
-        timing kept from before is steadied before the chart is made on it; the chart says so
-        (generator.timingSteady), and the song keeps that timing too (a kept timing that says it was
-        steadied is not steadied again: a song's charts share it to the millisecond)."""
+        found (None: this is the first, and the model finds it), as the song's kept record
+        ({"timing", "steady", "raw"}: Library.mapper_timing_record) or the timing alone.
+
+        The model's timing is settled before the song keeps it (steady.settled_timing): a steady
+        song's red lines become one tempo, and a tempo the song's onsets do not follow is taken
+        out. A first chart's notes move with their grid; when tempos were taken out its notes
+        followed them, and it is made again on the settled timing. A timing kept from before it was
+        settled is settled before the chart is made on it (from the model's own when that was kept).
+        The chart says what was done (generator.timingSteady, timingFixed) and the song keeps the
+        timing; the model's own is in `model_timings` under the chart's id for the song to keep too."""
         from .. import audio_io
         import soundfile as sf
 
         cfg = self.config()
         level, seed, cid = self.plan(analysis, key_mode, difficulty, target_level, seed)
         timing = song_timing() if song_timing is not None else None
-        # the song's kept record ({"timing", "steady"}: Library.mapper_timing_kept) or the timing alone
-        steadied_before = False
-        if timing is not None and "tempoMap" not in timing:
-            timing, steadied_before = timing.get("timing"), timing.get("steady") == STEADY_VERSION
         onsets, duration = analysis.get("onsets", []), float(analysis["durationMs"])
-        # mapper.json timingCheck: on the runner's 24 real timings it changes 7, fits none worse in any
-        # 20 s window and mends the two that lost the beat (docs/MAPPERATORINATOR.md)
-        check = bool(cfg.get("timingCheck", True))
-        # mapper.json timingSteady: on the same 24 it makes 20 one tempo (or one a real tempo), 3 of a
-        # song whose tempo sways stay, and no 20 s window's onsets lie further from the grid
-        steady = bool(cfg.get("timingSteady", True))
+        # mapper.json timingCheck and timingSteady (docs/MAPPERATORINATOR.md, "정박 곡의 박자를 하나로")
+        check, steady = bool(cfg.get("timingCheck", True)), bool(cfg.get("timingSteady", True))
         fixed: list[dict[str, Any]] = []
         steadied: dict[str, Any] | None = None
         moves = None
-        if timing is not None and check:
-            # a song's timing kept from before this check: it may have lost the beat
-            timing, fixed = charts.checked_timing(timing, onsets, duration)
-        if timing is not None and steady and not steadied_before:
-            # one kept from before it was steadied: the chart is made on the steady one
-            timing, steadied, _ = steady_timing(timing, onsets, duration)
+        if timing is not None and "tempoMap" not in timing:
+            record = timing
+            timing = record.get("timing")
+            if timing is not None and not (steady and record.get("steady") == STEADY_VERSION):
+                model = record.get("raw") or timing
+                timing, fixed, steadied, _ = settled_timing(model, onsets, duration, check, steady)
+                self.model_timings[cid] = model
+        elif timing is not None:
+            timing, fixed, steadied, _ = settled_timing(timing, onsets, duration, check, steady)
         keycount = len(charts.columns(key_mode))
         timeout = float(cfg.get("timeoutSeconds", 1800))
         jobs = self.runtime.root / "jobs"
@@ -118,8 +117,10 @@ class Mapper:
             osu_text = Path(answer["osu"]).read_text(encoding="utf-8-sig")
             found = None
             try:
-                if timing is None and check:
-                    found, fixed = charts.checked_timing(parse_osu(osu_text).timing, onsets, duration)
+                if timing is None:
+                    model = parse_osu(osu_text).timing
+                    self.model_timings[cid] = model
+                    found, fixed, steadied, moves = settled_timing(model, onsets, duration, check, steady)
                     if fixed:
                         # its notes followed the lost beat: made again on the timing without it
                         log.warning("Mapperatorinator's timing lost the beat (%s): the chart is made again without those tempos", fixed)
@@ -127,13 +128,8 @@ class Mapper:
                         answer = make(found, "again")
                         answer = {**answer, "seconds": float(first.get("seconds") or 0.0) + float(answer.get("seconds") or 0.0)}
                         osu_text = Path(answer["osu"]).read_text(encoding="utf-8-sig")
-                    else:
+                    elif found is model:
                         found = None
-                if timing is None and steady:
-                    # the notes are on the grid the model found: they move with it
-                    made, steadied, moves = steady_timing(found or parse_osu(osu_text).timing, onsets, duration)
-                    if steadied:
-                        found = made
                 return charts.make_chart(
                     analysis, key_mode, difficulty, level, seed, cid, cfg, meta, osu_text, answer, target_level, timing, quiet,
                     found_timing=found, timing_fixed=fixed or None, timing_steady=steadied, moves=moves,

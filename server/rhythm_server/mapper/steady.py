@@ -64,6 +64,8 @@ STEADY_COVER = 0.8
 STEADY_WINDOW_MS = 20000.0
 STEADY_MARGIN_MS = 1.0
 STEADY_MARGIN = 0.06
+# onsets this share of chance's distance from the grid, or further, lie as chance puts them
+STEADY_CHANCE = 0.9
 # a rounder tempo may put a zone's onsets this much further from its grid (ms)
 STEADY_ROUND_MS = 0.3
 # a stretch stepped over: the old grid may fit its onsets this much better at most
@@ -75,6 +77,8 @@ BPM_STEPS = (1.0, 0.5, 0.1, 0.01)
 ONSET_TOL_MS = 20.0
 # a bar shorter than this many beats before a red line is part of the bar before it
 SLIVER_BEATS = 0.25
+# a length this near a whole number of beats is that number (0.05 ms at 120 BPM)
+WHOLE_BEATS = 1e-4
 
 
 @dataclass
@@ -160,7 +164,7 @@ def timing_of(reds: list[tuple[float, float, int]]) -> dict[str, Any]:
     for i, (t, beat_len, meter) in enumerate(reds):
         if i > 0:
             beat += (t - reds[i - 1][0]) / reds[i - 1][1]
-            if abs(beat - round(beat)) < 1e-6:
+            if abs(beat - round(beat)) < WHOLE_BEATS:
                 beat = float(round(beat))
         bpm = round(60000.0 / beat_len, 6)
         if not tempo_map or tempo_map[-1]["bpm"] != bpm:
@@ -170,6 +174,9 @@ def timing_of(reds: list[tuple[float, float, int]]) -> dict[str, Any]:
             lengths.append(bar)
             break
         left = (reds[i + 1][0] - t) / beat_len
+        if abs(left - round(left)) < WHOLE_BEATS:
+            # 3.999999 beats are four (the sums of many spans are a hair off)
+            left = float(round(left))
         while left > bar - 1e-6:
             lengths.append(bar)
             left -= bar
@@ -353,25 +360,38 @@ def _bar_starts(spans: list[Span], zone: Zone) -> list[tuple[float, int]]:
     return [(c[0], int(c[1]), int(c[2])) for c in claims]  # type: ignore[misc]
 
 
-def window_fits(reds: list[tuple[float, float, int]], times: list[float], duration_ms: float) -> list[tuple[float, float, int]]:
+def window_fits(reds: list[tuple[float, float, int]], times: list[float], duration_ms: float) -> list[tuple[float, float, int, float]]:
     """Per STEADY_WINDOW_MS of the song: the share of `times` on a sixteenth of the timing's grid
     (counted from the red line in force), how far they lie from the nearest sixteenth on average
-    (ms), and how many there are."""
+    (ms), how many there are, and how far chance would put them (a quarter of a sixteenth)."""
     starts = [r[0] for r in reds]
-    out: list[tuple[float, float, int]] = []
+    out: list[tuple[float, float, int, float]] = []
     w = 0.0
     while w < duration_ms:
         on = n = 0
-        off = 0.0
+        off = chance = 0.0
         for t in times[bisect.bisect_left(times, w):bisect.bisect_left(times, w + STEADY_WINDOW_MS)]:
             r = reds[max(0, bisect.bisect_right(starts, t) - 1)]
             sub = r[1] / 4.0
             n += 1
             on += _on_grid(t, r[0], r[1])
             off += abs((t - r[0]) / sub - round((t - r[0]) / sub)) * sub
-        out.append((on / n if n else 0.0, off / n if n else 0.0, n))
+            chance += sub / 4.0
+        out.append((on / n if n else 0.0, off / n if n else 0.0, n, chance / n if n else 0.0))
         w += STEADY_WINDOW_MS
     return out
+
+
+def worse_windows(before: list[tuple[float, float, int, float]], after: list[tuple[float, float, int, float]]) -> list[str]:
+    """The windows whose onsets fit the timing after worse than the one before: further from its
+    sixteenths by more than STEADY_MARGIN_MS (not where they lay as chance puts them before: there
+    is nothing to lose, at a change of tempo or in a wash of sound), or fewer within 20 ms of one by
+    more than STEADY_MARGIN."""
+    return [
+        f"{k * STEADY_WINDOW_MS / 1000:.0f}s:{off0:.1f}>{off1:.1f}ms,{on0:.2f}>{on1:.2f}"
+        for k, ((on0, off0, n, chance), (on1, off1, _, _)) in enumerate(zip(before, after))
+        if n >= STEADY_MIN_ONSETS and ((off1 > off0 + STEADY_MARGIN_MS and off0 < STEADY_CHANCE * chance) or on1 < on0 - STEADY_MARGIN)
+    ]
 
 
 def strong_onsets(onsets: list[dict[str, Any]], lag: float) -> list[float]:
@@ -528,11 +548,7 @@ def steady_timing(
         if same:
             return None
         after = window_fits(out, times, duration_ms)
-        worse = [
-            f"{k * STEADY_WINDOW_MS / 1000:.0f}s:{off0:.1f}>{off1:.1f}ms,{on0:.2f}>{on1:.2f}"
-            for k, ((on0, off0, n), (on1, off1, _)) in enumerate(zip(before, after))
-            if n >= STEADY_MIN_ONSETS and (off1 > off0 + STEADY_MARGIN_MS or on1 < on0 - STEADY_MARGIN)
-        ]
+        worse = worse_windows(before, after)
         if worse:
             _why(f"onsets (±{tol:g} ms) " + " ".join(worse))
             return None
@@ -562,3 +578,46 @@ def steady_timing(
         "absorbed": sum(len(z.absorbed) for z in zones),
     }
     return made, report, Moves([s.t for s in spans], rows)
+
+
+def no_worse(base: dict[str, Any], timing: dict[str, Any], onsets: list[dict[str, Any]], duration_ms: float) -> bool:
+    """The song's onsets lie as near `timing`'s grid as `base`'s in every window (the margins of
+    steady_timing; nearer is as good)."""
+    from .charts import onset_lag
+
+    def reds_of(t: dict[str, Any]) -> list[tuple[float, float, int]]:
+        reds = red_lines_of(t, duration_ms)
+        return [(sp.t, sp.beat_len, sp.meter) for sp in folded_spans(reds, max(float(duration_ms), reds[-1][0] + reds[-1][1]))]
+
+    was, now = reds_of(base), reds_of(timing)
+    times = strong_onsets(onsets, onset_lag(was, onsets, duration_ms))
+    return not worse_windows(window_fits(was, times, duration_ms), window_fits(now, times, duration_ms))
+
+
+def settled_timing(
+    model: dict[str, Any], onsets: list[dict[str, Any]], duration_ms: float, check: bool = True, steady: bool = True,
+) -> tuple[dict[str, Any], list[dict[str, Any]], dict[str, Any] | None, Moves | None]:
+    """The timing a song keeps, of the one the model found (or one kept from before): steadied, then
+    checked for tempos the song does not follow (charts.checked_timing: the long tail of a lost
+    beat, which leaves no zone), then steadied again without them. Returns the timing, the tempos
+    the check took out (a first chart is made again when there are some: its notes followed them),
+    what steadying did, and where the model's times lie on it (None when the check changed it).
+
+    Steadying comes first: on the model's red lines the check can take a right tempo for a lost one
+    (a fast song's sixteenth leaves it 11 ms: a grid of the right tempo 12 ms off fits worse than
+    chance, a wrong tempo run on fits as chance does), and a zone built on what is left stands for
+    the wrong grid. One tempo has nothing for the check to take. Whatever comes out must fit the
+    song's onsets no worse than the model's own timing in any window, or the check's part is dropped."""
+    from .charts import checked_timing
+
+    first, report, moves = steady_timing(model, onsets, duration_ms) if steady else (model, None, None)
+    if not check:
+        return first, [], report, moves
+    checked, fixed = checked_timing(first, onsets, duration_ms)
+    if not fixed:
+        return first, [], report, moves
+    final, again, _ = steady_timing(checked, onsets, duration_ms) if steady else (checked, None, None)
+    if not no_worse(model, final, onsets, duration_ms):
+        log.info("the timing check's result fits the song worse than the model's timing: left out (%s)", fixed)
+        return first, [], report, moves
+    return final, fixed, again or report, None
