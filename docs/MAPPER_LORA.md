@@ -179,8 +179,8 @@ Mapperatorinator의 가중치(`OliBomby/Mapperatorinator-v32`)는 카드에 `lic
   - **채보의 특징**(집계): 빨간 선의 박 길이가 터무니없다. 3774040은 빨간 선 424개에 가장 짧은 박 6e-96ms · 가장 긴 박 1.5e8ms, 4223690은 160개에 1e-50ms · 6e13ms, 1537498은 527개에 3ms · 1e66ms. 빨간 선 사이가 0.01ms인 곳이 있다. 노트는 1,200–1,712개, 길이 2–4분으로 평범하다. 매퍼가 스크롤을 멈추거나 튀게 하려고 100분의 1ms 동안 "무한 BPM"이나 "0 BPM"을 넣은 것이다.
   - **왜**: 박 1e-50ms짜리 구간은 0.01ms 동안에도 박이 1e48개라 마디 세기가 끝나지 않는다. 박 1e66ms는 BPM이 반올림되어 0이 된다.
   - **고친 것**: `red_lines`가 박 길이 6ms–60,000ms(10,000–1 BPM) 밖의 빨간 선을 템포로 치지 않는다(앞의 템포가 이어진다). 그 특징을 흉내 낸 합성 `.osu`의 테스트를 넣었다(`test_osu_red_lines_of_no_playable_tempo_are_not_tempos`: 고치기 전에는 실패한다). 모델이 만든 채보에서는 이런 값이 나온 적이 없고(가장 느린 것이 2.9 BPM), 이 경로는 `.osu` 가져오기와 모델 출력 읽기가 함께 쓴다.
-  - 고친 뒤 그 네 채보가 측정되는지는 {{DIAG2}}.
-- **데이터셋의 음원 일부는 `soundfile`이 못 읽는다.** Windows 러너에서 첫 조각의 4키 곡을 음원까지 읽었을 때 82곡은 읽혔고 8곡 이상이 "Supported file format but file is malformed"로 빠졌다. `make_dataset.py`가 그런 파일을 PyAV(ffmpeg)로 다시 읽게 했다({{AUDIO2}}).
+  - 고친 뒤 그 네 채보가 측정되는지는 러너에서 확인했다(실행 [44339828826](https://github.com/DreamChaserDeekay/Generative-Rhythm-Game/actions/runs/44339828826): 네 채보 모두 0.1초 안에 측정됨).
+- **데이터셋의 음원 일부는 `soundfile`이 못 읽는다.** Windows 러너에서 첫 조각의 4키 곡을 음원까지 읽었을 때 82곡만 읽히고 나머지는 "Supported file format but file is malformed"로 빠졌다. `make_dataset.py`가 그런 파일을 PyAV(ffmpeg)로 다시 읽게 했다(같은 조각을 다시 읽어 101곡 · 305.6분 · 1.76GB가 모두 읽혔고 못 읽은 것은 0개였다. `soundfile`만으로는 101곡 중 19곡이 빠졌던 것이다).
 
 ### 그 밖의 5 · 6 · 8키 사람 채보 (조사한 것. 판단 없이)
 
@@ -254,7 +254,7 @@ Mapperatorinator의 가중치(`OliBomby/Mapperatorinator-v32`)는 카드에 `lic
 
 ### 러너에서 끝까지 돌려 본 것
 
-`.github/workflows/mapper-lora-smoke.yml`, 실행 [44323762849](https://github.com/DreamChaserDeekay/Generative-Rhythm-Game/actions/runs/44323762849)(Windows 러너, CPU). 이 실행은 실패로 표시되어 있는데, 마지막 채보까지 만든 뒤 보고서를 찍다가 Windows 콘솔의 코드 페이지(cp1252)에서 난 오류다(고쳤다). 고친 뒤의 실행은 {{SMOKE2}}.
+`.github/workflows/mapper-lora-smoke.yml`, 실행 [44323762849](https://github.com/DreamChaserDeekay/Generative-Rhythm-Game/actions/runs/44323762849)(Windows 러너, CPU). 이 실행은 실패로 표시되어 있는데, 마지막 채보까지 만든 뒤 보고서를 찍다가 Windows 콘솔의 코드 페이지(cp1252)에서 난 오류다(고쳤다). 고친 뒤의 실행은 성공했다([44333940132](https://github.com/DreamChaserDeekay/Generative-Rhythm-Game/actions/runs/44333940132)). 두 실행은 어댑터의 태그와 어댑터로 만든 채보가 같았다(같은 데이터 · 같은 시드의 CPU 학습은 다시 해도 같은 어댑터가 나온다). 사람 채보(첫 조각의 4키)로 2스텝을 도는 단계를 더한 실행은 [44339828900](https://github.com/DreamChaserDeekay/Generative-Rhythm-Game/actions/runs/44339828900)이고 이 줄을 쓸 때 돌고 있었다.
 
 | 단계 | 결과 |
 |---|---|
@@ -263,7 +263,7 @@ Mapperatorinator의 가중치(`OliBomby/Mapperatorinator-v32`)는 카드에 `lic
 | `uv pip install peft==0.18.1 soundfile`(지금은 `av`도) | 됨 |
 | `make_dataset.py --local`(그 곡과 채보 2개를 데이터로) | 채보 2개, 곡 1개 |
 | `train.py --steps 3 --batch 2 --device cpu --precision no` | 됨. 모델을 올리는 것부터 저장까지 208.6초 |
-| 어댑터 | `…/checkpoints/checkpoint_0/lora` → `<실행 환경>/lora/8K`로 복사. r 64, `ckpt_subfolders: ["gamemode=3"]`, 태그 `c1c23d5dd86a`{{SIZES}} |
+| 어댑터 | `…/checkpoints/checkpoint_0/lora` → `<실행 환경>/lora/8K`로 복사. r 64, `ckpt_subfolders: ["gamemode=3"]`, 태그 `c1c23d5dd86a`, `adapter_model.safetensors` 44.9MB |
 | 앱이 어댑터를 찾아(`lora/8K`) 만든 8K HARD(같은 시드) | 워커 기록 "Loaded LoRA weights from …\lora\8K", 노트 508개, 522.7초 |
 
 - **증명된 것**: Windows에서 flash-attention · bf16 · `torch.compile` 없이 mania LoRA가 학습되고, 그 어댑터를 앱의 워커가 읽어 채보를 만든다. 우리 `metadata.parquet`을 업스트림 로더가 읽는다.
@@ -301,7 +301,7 @@ $py = "$rt\venv\Scripts\python.exe"
 # 0. 학습에 더 필요한 패키지를 실행 환경에 넣는다 (한 번)
 & "$rt\uv\uv.exe" pip install --python $py peft==0.18.1 soundfile av
 
-# 1. 시험용 데이터: 조각 하나(약 1GB)만 읽어 4키 채보의 곡을 남긴다. 몇 분, 82곡 · 1.4GB.
+# 1. 시험용 데이터: 조각 하나(약 1GB)만 읽어 4키 채보의 곡을 남긴다. 몇 분, 101곡 · 1.8GB.
 #    메모리와 속도는 키 수와 거의 무관하고(시퀀스 길이가 같다), 8키 곡은 조각 하나에 3곡뿐이라 4키로 잰다.
 & $py make_dataset.py --keys 4 --out D:\grg-lora\test --shards 0-0
 
@@ -328,13 +328,13 @@ $py = "$rt\venv\Scripts\python.exe"
 
 | 무엇 | 예상 | 근거 |
 |---|---|---|
-| 시험용 데이터 | 조각 하나 약 1.07GB를 읽어 4키 82곡(244분), 1.4GB | Windows 러너에서 28초(확인). 집에서는 100Mbps면 1분 30초쯤 |
+| 시험용 데이터 | 조각 하나 약 1.07GB를 읽어 4키 101곡(306분), 1.76GB | Windows 러너에서 47초(확인). 집에서는 100Mbps면 1분 30초쯤에 음원을 푸는 시간 |
 | 데이터 받기(전체) | 회선에 달림. 100Mbps면 약 1시간 50분, 키 수마다 한 번 | 79.0GB를 모두 읽는다(확인). 러너에서는 4분 30초–13분 |
 | 데이터 용량 | 8K 약 1–2GB, 5K 약 3–4GB, 6K 약 4–5GB | 곡 수 93 · 219 · 278(확인) × 모노 16비트 WAV. 첫 조각에서 4키는 곡당 17MB(3.0분), 8키 3곡은 곡당 9MB(1.6분)였다 |
 | 학습 시간 | **모른다.** 1000스텝은 시퀀스 32,000개다. 러너 CPU는 6개에 (모델 올리기 포함) 209초였다 | GPU에서 초당 1개면 약 9시간, 초당 3개면 약 3시간. `--test`가 PC의 값을 찍는다 |
 | GPU 메모리 | **모른다** | `--test`가 최고값을 찍는다 |
-| 작업 폴더 | 체크포인트 하나에 {{CKPT}}, 마지막 둘을 남긴다 | 러너의 값. 학습이 끝나면 `run` 폴더는 지워도 된다(어댑터는 복사되어 있다) |
-| 어댑터 | {{ADAPTER}} | 러너의 값(r 64) |
+| 작업 폴더 | 체크포인트 하나에 약 0.96GB(모델 전체 911MB + 옵티마이저 45MB + 어댑터 45MB), 마지막 둘을 남긴다 | 러너의 값. 학습이 끝나면 `run` 폴더는 지워도 된다(어댑터는 복사되어 있다) |
+| 어댑터 | 44.9MB | 러너의 값(r 64) |
 
 ### (b) 무료 · 유료 GPU
 
@@ -371,7 +371,7 @@ $py = "$rt\venv\Scripts\python.exe"
 - 2절: 조건 시험 실행 44322511185의 `.osu` 16개.
 - 3절의 채보 수 · 별점 · `SpecialStyle` · 열 몫: 데이터셋의 74개 조각을 러너에서 모두 읽음(실행 44331823881). 라이선스 문구: Hugging Face의 카드 원문.
 - 4절의 설정 · 형식 · pickle을 여는 곳: 고정 커밋의 소스. 학습 → 어댑터 → 채보: 러너의 실행 44323762849.
-- 5절: 테스트 31개 통과, Windows 빌드 {{BUILD}}.
+- 5절: 서버 테스트 176개 통과(8개 건너뜀), Windows 빌드 450(커밋 `97438b0`) 성공.
 - v32의 태그 122개와 `style/N+1` 19개: 모델의 `tokenizer.json`.
 
 **확인하지 못한 것**
