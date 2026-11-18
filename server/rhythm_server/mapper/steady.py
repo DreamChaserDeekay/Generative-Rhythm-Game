@@ -434,7 +434,7 @@ def folded_spans(reds: list[tuple[float, float, int]], end: float) -> list[Span]
     return spans
 
 
-def _same(a: dict[str, Any], b: dict[str, Any]) -> bool:
+def same_timing(a: dict[str, Any], b: dict[str, Any]) -> bool:
     """Two timings a listener could not tell apart: the same tempos at the same beats, the same
     bars, starts within a millisecond."""
     def bars(t: dict[str, Any]) -> list[tuple[int, float]]:
@@ -573,12 +573,12 @@ def steady_timing(
     else:
         # the model's red lines stay; a sliver of a bar before one is still part of the bar before it
         tidy = timing_of(raw)
-        if _same(tidy, timing):
+        if same_timing(tidy, timing):
             return timing, None, None
         return tidy, {"version": STEADY_VERSION, "tolMs": None, "tempos": [len(timing["tempoMap"])] * 2, "zones": [], "absorbed": 0}, None
     out, zones, rows = got
     made = timing_of(out)
-    if _same(made, timing):
+    if same_timing(made, timing):
         # steadied before: it stays as it is, to the millisecond (a song's charts share it)
         return timing, None, None
     report = {
@@ -633,3 +633,74 @@ def settled_timing(
         log.info("the timing check's result fits the song worse than the model's timing: left out (%s)", fixed)
         return first, [], report, moves
     return final, fixed, again or report, None
+
+
+# ---------- charts made before their song's timing was settled ----------
+
+# The client counts a hold's ticks on its beat and endBeat: those on multiples of RETIME_TICK_BEATS
+# strictly between them (engine/session.ts holdTicks, config/judgement.json hold.tickBeats). On the
+# new timing a head may lie a few ms before a tick's place where it lay on it before, and get one
+# tick more. A head or an end with a tick's place within RETIME_SNAP_MS inside the hold is written
+# on that place where that gives the hold the ticks it had: a chart's max combo stays.
+RETIME_SNAP_MS = 15.0
+RETIME_TICK_BEATS = 0.25
+
+
+def hold_ticks(beat: float, end_beat: float) -> int:
+    """A hold's ticks, as the client counts them."""
+    first = math.floor(beat / RETIME_TICK_BEATS + 1e-6) + 1
+    last = math.ceil((end_beat - 1e-6) / RETIME_TICK_BEATS) - 1
+    return max(0, last - first + 1)
+
+
+def retimed_chart(chart: dict[str, Any], timing: dict[str, Any], steady_version: int = STEADY_VERSION) -> dict[str, Any]:
+    """A chart on another timing: the notes where they were in time (t, endT untouched: scores and
+    replays hold to them), their beats on the new timing, and whatever else is written in beats
+    (sections, camera effects) at the times it had on the old one. The chart's level and summaries
+    stay as they are. `generator.retimed` says it was done."""
+    old, new = TempoMap(chart["timing"]), TempoMap(timing)
+
+    def beat_at(ms: float) -> float:
+        return round(new.ms_to_beat(ms), 6)
+
+    def places(ms: float, side: float) -> list[float]:
+        """Where a hold's head (side -1) or end (+1) may be written: where it is, or on the place
+        of a tick that falls just inside the hold there, which is then not the hold's. A tick's
+        place outside the hold in time is never made its tick: it would come before the key is down
+        or after it is up, and count for the max combo without ever being got."""
+        beat = new.ms_to_beat(ms)
+        place = round(beat / RETIME_TICK_BEATS) * RETIME_TICK_BEATS
+        inside = (place - beat) * -side > 1e-9
+        return [beat, place] if inside and abs(new.beat_to_ms(place) - ms) <= RETIME_SNAP_MS else [beat]
+
+    notes = []
+    for n in chart["notes"]:
+        if n.get("type") != "hold":
+            notes.append({**n, "beat": beat_at(float(n["t"]))})
+            continue
+        had = hold_ticks(float(n["beat"]), float(n["endBeat"]))
+        head, end = min(
+            ((a, b) for a in places(float(n["t"]), -1.0) for b in places(float(n["endT"]), 1.0) if b > a),
+            key=lambda ab: abs(hold_ticks(*ab) - had),
+            default=(new.ms_to_beat(float(n["t"])), new.ms_to_beat(float(n["endT"]))),
+        )
+        notes.append({**n, "beat": round(head, 6), "endBeat": round(end, 6)})
+    sections = [
+        {**s, "startBeat": round(new.ms_to_beat(old.beat_to_ms(float(s["startBeat"]))), 3), "endBeat": round(new.ms_to_beat(old.beat_to_ms(float(s["endBeat"]))), 3)}
+        if "startBeat" in s and "endBeat" in s else s
+        for s in chart.get("sections") or []
+    ]
+    effects = []
+    for e in chart.get("effects") or []:
+        if "beat" not in e:
+            effects.append(e)
+            continue
+        at = float(e["t"]) if "t" in e else old.beat_to_ms(float(e["beat"]))
+        row = {**e, "beat": beat_at(at)}
+        if e.get("durationBeats") is not None:
+            until = old.beat_to_ms(float(e["beat"]) + float(e["durationBeats"]))
+            row["durationBeats"] = round(new.ms_to_beat(until) - new.ms_to_beat(at), 6)
+        effects.append(row)
+    meta = chart["meta"]
+    generator = {**(meta.get("generator") or {}), "retimed": {"version": steady_version, "tempos": [len(chart["timing"]["tempoMap"]), len(timing["tempoMap"])]}}
+    return {**chart, "meta": {**meta, "generator": generator}, "timing": timing, "sections": sections, "effects": effects, "notes": notes}
