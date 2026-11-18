@@ -73,6 +73,8 @@ export interface TierMark {
   lamp: string | null;
   /** The lamp is another chart's of the tier than the one Enter plays (never played itself). */
   other?: boolean;
+  /** The chart Enter plays is not made yet (the generator makes it when it is played): its level is the one aimed at. */
+  unmade?: boolean;
 }
 
 /**
@@ -85,15 +87,16 @@ export function tierMark(records: ScoreRecord[], tier: string, brief: ChartBrief
   const own = records.filter((r) => r.difficulty === tier);
   const lamp = bestLamp(own);
   if (!brief) return { level: bestByTier(own).get(tier)?.level ?? null, lamp };
+  const unmade = brief.predicted === true ? { unmade: true } : {};
   const played = own.find((r) => r.chartId === brief.chartId);
-  if (played) return { level: brief.level, lamp: played.lamp };
-  return { level: brief.level, lamp, other: lamp !== null };
+  if (played) return { level: brief.level, lamp: played.lamp, ...unmade };
+  return { level: brief.level, lamp, other: lamp !== null, ...unmade };
 }
 
 /** Two cells that show the same (a row of the song list is drawn again only when one of its cells changes). */
 export function sameMark(a: TierMark | null, b: TierMark | null): boolean {
   if (a === null || b === null) return a === b;
-  return a.level === b.level && a.lamp === b.lamp && Boolean(a.other) === Boolean(b.other);
+  return a.level === b.level && a.lamp === b.lamp && Boolean(a.other) === Boolean(b.other) && Boolean(a.unmade) === Boolean(b.unmade);
 }
 
 /** The best of `records` by lamp, then score (null: none). */
