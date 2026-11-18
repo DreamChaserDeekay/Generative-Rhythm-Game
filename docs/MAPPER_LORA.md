@@ -174,7 +174,13 @@ Mapperatorinator의 가중치(`OliBomby/Mapperatorinator-v32`)는 카드에 `lic
 - **5K · 6K에서 모델이 사람 채보와 다른 점은 세 가지다**: 높은 티어에서 계단이 절반 아래, 롱노트가 절반쯤(HARD · EXPERT), 빠른 잭이 훨씬 적다. 4K에서도 같은 차이가 난다(계단 MASTER 0.029 대 0.084, 잭 171 대 483). 5K · 6K만의 결함이 아니라 모델의 버릇이다.
 - 사람 MASTER 채보는 별점이 높은 쪽으로 열려 있어(6점 이상이 모두 MASTER에 들어간다) 초당 노트가 모델보다 많다. MASTER 열의 차이는 그만큼 덜어 읽는다.
 - **8K의 방향이 뒤집혀 있다.** 사람 8K는 가장 적은 열이 1번인 채보가 285개 중 198개인데 모델은 8번을 비운다. 업스트림의 학습 설정에 좌우 뒤집기(`flip_horizontal_prob: 0.5`)가 있고 mania 열에도 적용되는 것은 코드에서 확인했지만(`osu_parser._flip_pos`), 그렇다면 반반이어야 한다. 원인은 확인하지 못했고 더 파지 않았다(전에도 본 것이다: `docs/MAPPERATORINATOR.md` "8열 채보는 맨 오른쪽 열이 비어 있다").
-- 앱의 측정이 끝나지 않는 채보가 있었다: 6K 1개(beatmap 2571106), 4K 2개(3774040, 4223690)는 10초 안에 측정이 끝나지 않았고(처음 세 번의 실행은 이 때문에 러너가 종료됐다), 4K 1개(1537498)는 0으로 나누기가 났다. 어느 함수인지는 채보를 보지 않아 모른다. 모델이 만든 채보에서는 본 적이 없다. 사용자가 그런 `.osu`를 가져오기로 열면 같은 일이 날 수 있다.
+- **`.osu`를 읽다가 끝나지 않는 채보가 있었고, 고쳤다**(커밋 `97438b0`). 6K 1개(beatmap 2571106)와 4K 2개(3774040, 4223690)에서 측정이 끝나지 않아 처음 세 번의 실행은 러너가 종료됐고, 4K 1개(1537498)는 0으로 나누기가 났다.
+  - **어디서**: 넷 다 `.osu`를 앱의 박자로 바꾸는 곳이다. 셋은 `formats/osu.timing_from_reds`의 마디를 하나씩 세는 반복(212–215행)에 머물렀고(6초 · 12초 뒤의 스택이 같다), 하나는 `chart/tempo.TempoMap`의 `60000 / bpm`이다. 레벨 측정이나 패턴 요약이 아니었다.
+  - **채보의 특징**(집계): 빨간 선의 박 길이가 터무니없다. 3774040은 빨간 선 424개에 가장 짧은 박 6e-96ms · 가장 긴 박 1.5e8ms, 4223690은 160개에 1e-50ms · 6e13ms, 1537498은 527개에 3ms · 1e66ms. 빨간 선 사이가 0.01ms인 곳이 있다. 노트는 1,200–1,712개, 길이 2–4분으로 평범하다. 매퍼가 스크롤을 멈추거나 튀게 하려고 100분의 1ms 동안 "무한 BPM"이나 "0 BPM"을 넣은 것이다.
+  - **왜**: 박 1e-50ms짜리 구간은 0.01ms 동안에도 박이 1e48개라 마디 세기가 끝나지 않는다. 박 1e66ms는 BPM이 반올림되어 0이 된다.
+  - **고친 것**: `red_lines`가 박 길이 6ms–60,000ms(10,000–1 BPM) 밖의 빨간 선을 템포로 치지 않는다(앞의 템포가 이어진다). 그 특징을 흉내 낸 합성 `.osu`의 테스트를 넣었다(`test_osu_red_lines_of_no_playable_tempo_are_not_tempos`: 고치기 전에는 실패한다). 모델이 만든 채보에서는 이런 값이 나온 적이 없고(가장 느린 것이 2.9 BPM), 이 경로는 `.osu` 가져오기와 모델 출력 읽기가 함께 쓴다.
+  - 고친 뒤 그 네 채보가 측정되는지는 {{DIAG2}}.
+- **데이터셋의 음원 일부는 `soundfile`이 못 읽는다.** Windows 러너에서 첫 조각의 4키 곡을 음원까지 읽었을 때 82곡은 읽혔고 8곡 이상이 "Supported file format but file is malformed"로 빠졌다. `make_dataset.py`가 그런 파일을 PyAV(ffmpeg)로 다시 읽게 했다({{AUDIO2}}).
 
 ### 그 밖의 5 · 6 · 8키 사람 채보 (조사한 것. 판단 없이)
 
@@ -254,14 +260,14 @@ Mapperatorinator의 가중치(`OliBomby/Mapperatorinator-v32`)는 카드에 `lic
 |---|---|
 | 실행 환경 설치(v32, CPU) | 46초 |
 | 기준 8K 채보 2개(chibi_ninja 123초, HARD · EXPERT) | 노트 681 · 1,225개, 593초 · 597초 |
-| `uv pip install peft==0.18.1 soundfile` | 됨 |
+| `uv pip install peft==0.18.1 soundfile`(지금은 `av`도) | 됨 |
 | `make_dataset.py --local`(그 곡과 채보 2개를 데이터로) | 채보 2개, 곡 1개 |
 | `train.py --steps 3 --batch 2 --device cpu --precision no` | 됨. 모델을 올리는 것부터 저장까지 208.6초 |
 | 어댑터 | `…/checkpoints/checkpoint_0/lora` → `<실행 환경>/lora/8K`로 복사. r 64, `ckpt_subfolders: ["gamemode=3"]`, 태그 `c1c23d5dd86a`{{SIZES}} |
 | 앱이 어댑터를 찾아(`lora/8K`) 만든 8K HARD(같은 시드) | 워커 기록 "Loaded LoRA weights from …\lora\8K", 노트 508개, 522.7초 |
 
 - **증명된 것**: Windows에서 flash-attention · bf16 · `torch.compile` 없이 mania LoRA가 학습되고, 그 어댑터를 앱의 워커가 읽어 채보를 만든다. 우리 `metadata.parquet`을 업스트림 로더가 읽는다.
-- **증명되지 않은 것**: 품질(3스텝은 아무것도 가르치지 않는다. 데이터도 모델 자신의 채보다), GPU에서의 메모리와 속도, fp16 학습, 실제 데이터셋에서 받은 음원(opus)을 `soundfile`로 푸는 것(러너의 통계 작업은 음원 없이 돌았다).
+- **증명되지 않은 것**: 품질(3스텝은 아무것도 가르치지 않는다. 데이터도 모델 자신의 채보다), GPU에서의 메모리와 속도, fp16 학습, GPU에서의 것 전부.
 - 어댑터로 만든 채보는 말이 되는 채보였다: 초당 4.1개(기준 5.5), 잰 레벨 5(기준 7), 열 몫 5.7 · 12.4 · 13.4 · 17.5 · 17.7 · 15.6 · 12.0 · 5.7%(기준 16.9 · 10.7 · 14.8 · 12.0 · 16.7 · 12.9 · 13.2 · 2.6%). 3스텝에 이만큼 달라진 것은 학습률이 처음에 가장 높기 때문이다.
 
 ## 5. 앱 연결
@@ -292,21 +298,27 @@ Mapperatorinator의 가중치(`OliBomby/Mapperatorinator-v32`)는 카드에 `lic
 $rt = "$env:LOCALAPPDATA\Generative Rhythm\mapper"
 $py = "$rt\venv\Scripts\python.exe"
 
-# 0. 학습에 더 필요한 두 패키지를 실행 환경에 넣는다 (한 번)
-& "$rt\uv\uv.exe" pip install --python $py peft==0.18.1 soundfile
+# 0. 학습에 더 필요한 패키지를 실행 환경에 넣는다 (한 번)
+& "$rt\uv\uv.exe" pip install --python $py peft==0.18.1 soundfile av
 
-# 1. 데이터: 74개 조각을 읽어 가며 8키 채보의 곡만 남긴다. 중간에 끊겨도 같은 명령으로 이어진다.
-#    --min-column-share 0.5: 한 열이 거의 빈(7키 + 스크래치) 채보를 뺀다. 0.75면 더 엄격하다.
-& $py make_dataset.py --keys 8 --out D:\grg-lora\8K --min-column-share 0.5
+# 1. 시험용 데이터: 조각 하나(약 1GB)만 읽어 4키 채보의 곡을 남긴다. 몇 분, 82곡 · 1.4GB.
+#    메모리와 속도는 키 수와 거의 무관하고(시퀀스 길이가 같다), 8키 곡은 조각 하나에 3곡뿐이라 4키로 잰다.
+& $py make_dataset.py --keys 4 --out D:\grg-lora\test --shards 0-0
 
 # 2. 메모리 시험: 10스텝. 끝에 GPU 메모리 최고값과 1000스텝에 걸릴 시간을 찍는다. 앱은 꺼 둔다.
-& $py train.py --data D:\grg-lora\8K --keys 8 --test
+& $py train.py --data D:\grg-lora\test --keys 4 --test
 
-# 3. 학습. 끝나면 어댑터가 실행 환경의 lora\8K 에 놓인다(있던 것은 다른 이름으로 남긴다).
+# ── 여기까지가 시험이다. 통과하면 아래로. ──
+
+# 3. 데이터: 74개 조각을 읽어 가며 8키 채보의 곡만 남긴다. 중간에 끊겨도 같은 명령으로 이어진다.
+#    --min-column-share 0.5: 한 열이 거의 빈(7키 + 스크래치) 채보를 뺀다(165개가 남는다). 0.75면 52개.
+& $py make_dataset.py --keys 8 --out D:\grg-lora\8K --min-column-share 0.5
+
+# 4. 학습. 끝나면 어댑터가 실행 환경의 lora\8K 에 놓인다(있던 것은 다른 이름으로 남긴다).
 & $py train.py --data D:\grg-lora\8K --keys 8 --steps 1000
 
-# 4. 앱을 켜고 8K 채보를 새로 만든다(이미 만든 8K 채보는 그대로 남고, 새 ID로 따로 만들어진다).
-#    되돌리기: lora\8K 폴더를 지우거나 다른 곳으로 옮긴다.
+# 5. 앱을 켜고 8K 채보를 새로 만든다(이미 만든 8K 채보는 그대로 남고, 새 ID로 따로 만들어진다).
+#    되돌리기: lora\8K 폴더를 지우거나 다른 곳으로 옮긴다. 시험용 폴더 D:\grg-lora\test 는 지워도 된다.
 ```
 
 - 메모리 시험이 메모리 부족으로 죽으면: `--rank 32`, 그래도 안 되면 6GB로는 안 되는 것이고 (b)로 간다. loss가 `nan`이면 `--precision no`.
@@ -316,8 +328,9 @@ $py = "$rt\venv\Scripts\python.exe"
 
 | 무엇 | 예상 | 근거 |
 |---|---|---|
-| 데이터 받기 | 회선에 달림. 100Mbps면 약 1시간 50분, 키 수마다 한 번 | 79.0GB를 모두 읽는다(확인). 러너에서는 4분 30초–13분 |
-| 데이터 용량 | 8K 약 1–2GB, 5K 약 3GB, 6K 약 4GB | 곡 수 93 · 219 · 278(확인) × 곡당 2.5분쯤(가정) × 모노 16비트 WAV 5.3MB/분 |
+| 시험용 데이터 | 조각 하나 약 1.07GB를 읽어 4키 82곡(244분), 1.4GB | Windows 러너에서 28초(확인). 집에서는 100Mbps면 1분 30초쯤 |
+| 데이터 받기(전체) | 회선에 달림. 100Mbps면 약 1시간 50분, 키 수마다 한 번 | 79.0GB를 모두 읽는다(확인). 러너에서는 4분 30초–13분 |
+| 데이터 용량 | 8K 약 1–2GB, 5K 약 3–4GB, 6K 약 4–5GB | 곡 수 93 · 219 · 278(확인) × 모노 16비트 WAV. 첫 조각에서 4키는 곡당 17MB(3.0분), 8키 3곡은 곡당 9MB(1.6분)였다 |
 | 학습 시간 | **모른다.** 1000스텝은 시퀀스 32,000개다. 러너 CPU는 6개에 (모델 올리기 포함) 209초였다 | GPU에서 초당 1개면 약 9시간, 초당 3개면 약 3시간. `--test`가 PC의 값을 찍는다 |
 | GPU 메모리 | **모른다** | `--test`가 최고값을 찍는다 |
 | 작업 폴더 | 체크포인트 하나에 {{CKPT}}, 마지막 둘을 남긴다 | 러너의 값. 학습이 끝나면 `run` 폴더는 지워도 된다(어댑터는 복사되어 있다) |
@@ -332,7 +345,7 @@ $py = "$rt\venv\Scripts\python.exe"
 
 ### 권고
 
-1. **PC에서 `--test` 10스텝부터.** 메모리가 되는지와 스텝당 시간이 나오면 나머지가 정해진다. 몇 분이면 끝나고 잃을 것이 없다.
+1. **PC에서 `--test` 10스텝부터.** 조각 하나(1GB)만 받아서 잰다. 메모리가 되는지와 스텝당 시간이 나오면 나머지가 정해진다. 79GB를 읽는 것은 그 뒤다.
 2. 6GB에서 되고 1000스텝이 하룻밤 안이면 PC에서 한다. 데이터가 PC에 있고 어댑터가 바로 앱에 놓인다.
 3. 안 되면 Kaggle이다(무료, 16GB). 유료는 Kaggle이 번거로울 때.
 4. **8K부터, `--min-column-share 0.5`(165개)로.** 고칠 것이 숫자로 있는 유일한 키 수이고, 학습 뒤 `mapper_keymode_report.py`로 "한 열이 거의 빈 채보"가 줄었는지 바로 잴 수 있다. 0.75(52개)는 저자가 말한 70개에 못 미친다.
@@ -365,10 +378,8 @@ $py = "$rt\venv\Scripts\python.exe"
 
 - 집 PC(GPU, fp16)의 채보와 학습: 메모리, 시간, fp16 학습에서 loss가 온전한지, CPU에서 만든 어댑터를 GPU fp16으로 읽을 때의 차이(PiSSA).
 - LoRA가 실제로 8K의 열을 고르게 하는지. 긴 학습을 돌리지 않았다.
-- 데이터셋의 opus 음원을 `soundfile`로 푸는 것(러너는 음원 없이 돌았다).
 - 공개된 v32 가중치가 `v32.yaml` 그대로(2024년까지, ranked만, 좌우 뒤집기 50%) 학습됐는지.
 - 모델이 8번 열을, 사람 채보는 1번 열을 비우는 까닭.
-- 앱의 측정이 끝나지 않은 4개 채보의 원인.
 - 클라우드 노트북 뼈대(돌려 보지 않음), Kaggle의 지금 할당량, GPU 대여의 지금 가격.
 - osu! 약관 · API 문서 · GitHub 이슈의 인용은 요약 도구가 돌려준 조각이다(전문을 직접 읽지 못했다). 데이터셋 카드와 `data.ppy.sh`의 `LICENCE.txt`는 원문이다.
 
@@ -381,6 +392,7 @@ $py = "$rt\venv\Scripts\python.exe"
 | `scripts/lora/make_dataset.py` | 한 키 수의 사람 채보를 학습 형식(mmrs)으로: Hugging Face 데이터셋에서, 또는 osu! Songs 같은 폴더에서 |
 | `scripts/lora/train.py` | Mapperatorinator의 LoRA 학습을 mania · Windows용 설정으로 시작하고 어댑터를 앱 자리에 놓음. `--test`는 10스텝 |
 | `scripts/lora/cloud_notebook.py` | 무료 클라우드 GPU(Kaggle · Colab) 노트북의 뼈대 |
+| `scripts/mapper_chart_diagnose.py` | 측정이 끝나지 않는 채보에서 어디에 머무는지(스택)와 채보의 특징(집계) |
 | `server/rhythm_server/mapper/lora.py` | 키 수별 어댑터 찾기와 그 태그 |
 | `server/rhythm_server/mapper/worker.py` | 요청의 `lora`와 조건(`descriptors` · `negativeDescriptors` · `cfgScale` · `columnTemperature` · `mapperId` · `year`)을 모델에 넘김 |
 | `config/mapper.json` | `lora`(켬 · 끔, 키 수별 폴더), `conditions`(키 수별 조건), `runtime.lora`(PEFT 버전) |
