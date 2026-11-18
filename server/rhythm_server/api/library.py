@@ -347,6 +347,7 @@ class Library:
             self._db.commit()
         for chart_id in charts:
             self.chart_path(chart_id).unlink(missing_ok=True)
+            self.chart_backup_path(chart_id).unlink(missing_ok=True)
         shutil.rmtree(self.song_dir(song_id), ignore_errors=True)
 
     def pending_songs(self) -> list[str]:
@@ -549,6 +550,32 @@ class Library:
                 counts[r["key_mode"]] = counts.get(r["key_mode"], 0) + 1
         return [{"keyMode": mode, "count": n} for mode, n in sorted(counts.items())]
 
+    def generated_chart_ids(self, song_id: str) -> list[str]:
+        """The ids of a song's charts the generator made (not edited or imported ones)."""
+        with self._lock:
+            rows = self._db.execute("SELECT id FROM charts WHERE song_id = ? AND kind = 'generated'", (_checked(SONG_ID, song_id),)).fetchall()
+        return [r["id"] for r in rows if self.chart_path(r["id"]).exists()]
+
+    def chart_backup_path(self, chart_id: str) -> Path:
+        """Where a chart's file is kept as it was before its timing was replaced (retime_chart)."""
+        return self.root / "charts-before-retime" / f"{_checked(CHART_ID, chart_id)}.json"
+
+    def retime_chart(self, chart: dict[str, Any]) -> None:
+        """Writes a chart whose timing was replaced (mapper.steady.retimed_chart) over its file: the
+        file as it was is kept first (once: the first one is the original), and the new one is
+        written beside it and put in its place, so that no reader sees half of it. The chart's row
+        (level, note count) stays: neither changed."""
+        path = self.chart_path(chart["meta"]["chartId"])
+        backup = self.chart_backup_path(chart["meta"]["chartId"])
+        if not backup.exists():
+            backup.parent.mkdir(parents=True, exist_ok=True)
+            part = backup.with_suffix(".part")
+            part.write_bytes(path.read_bytes())
+            os.replace(part, backup)
+        tmp = path.with_suffix(".part")
+        tmp.write_text(json.dumps(chart, separators=(",", ":")), encoding="utf-8")
+        os.replace(tmp, path)
+
     def chart_song(self, chart_id: str) -> str | None:
         with self._lock:
             row = self._db.execute("SELECT song_id FROM charts WHERE id = ?", (chart_id,)).fetchone()
@@ -561,6 +588,7 @@ class Library:
             self._db.execute("DELETE FROM charts WHERE id = ?", (chart_id,))
             self._db.commit()
         self.chart_path(chart_id).unlink(missing_ok=True)
+        self.chart_backup_path(chart_id).unlink(missing_ok=True)
 
     def load_chart(self, chart_id: str) -> dict[str, Any] | None:
         if not CHART_ID.fullmatch(chart_id):

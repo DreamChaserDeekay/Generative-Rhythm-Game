@@ -44,11 +44,14 @@ from .jobs import AnalysisQueue
 from .library import BGA_EXTENSIONS, Library, SongNotFound
 from ..mapper import Mapper, MapperError
 from ..mapper.charts import MAPPER_VERSION, settings_tag, song_bpm
-from ..mapper.steady import STEADY_VERSION, settled_timing
+from ..mapper.steady import STEADY_VERSION, hold_ticks, retimed_chart, same_timing, settled_timing
 from ..mapper.runtime import public_settings, save_settings
 from ..mapper.queue import BACKGROUND, OPENED, MapperQueue
 
 log = logging.getLogger("rhythm_server.api")
+# a chart made before is put on its song's settled timing only where its max combo changes by this
+# share at most (holds in a stretch whose timing had lost the beat get other ticks)
+RETIME_MAX_COMBO_CHANGE = 0.05
 MAX_UPLOAD_BYTES = 300 * 1024 * 1024
 MAX_BGA_BYTES = 1024 * 1024 * 1024
 MAX_IMPORT_BYTES = 4 * 1024**3
@@ -206,13 +209,62 @@ def create_app(
             except Exception:  # noqa: BLE001  (one song's timing must not stop the others')
                 log.exception("Could not steady the timing kept for %s", sid)
 
+    def retime_kept_charts() -> None:
+        """The charts made before their song's timing was settled, put on the settled timing: the
+        bar lines and the BPM of a chart made already are the song's at once, without making it
+        again. The notes stay where they were in time (scores and replays hold to that), a hold
+        keeps its ticks (so the max combo stays), the chart's level and summaries are not touched
+        and the file as it was is kept (Library.chart_backup_path). Only charts the model made, of
+        the model the kept timing is of; mapper.json timingRetime turns it off."""
+        cfg = mapper.config()
+        if not cfg.get("timingSteady", True) or not cfg.get("timingRetime", True):
+            return
+        for song in library.list_songs():
+            sid = song["id"]
+            try:
+                kept = library.mapper_timing_kept(sid)
+                if kept is None or kept.get("steady") != STEADY_VERSION:
+                    continue
+                done = left = 0
+                for cid in library.generated_chart_ids(sid):
+                    try:
+                        if mapper_queue.state(cid) is not None:
+                            continue
+                        chart = library.load_chart(cid)
+                        generator = (chart or {}).get("meta", {}).get("generator") or {}
+                        if (
+                            chart is None or chart["meta"].get("source") or generator.get("name") != "mapperatorinator"
+                            or generator.get("model") != kept.get("model") or same_timing(chart["timing"], kept["timing"])
+                        ):
+                            continue
+                        new = retimed_chart(chart, kept["timing"])
+                        holds = [(a, b) for a, b in zip(chart["notes"], new["notes"]) if a.get("type") == "hold"]
+                        ticks = sum(abs(hold_ticks(b["beat"], b["endBeat"]) - hold_ticks(a["beat"], a["endBeat"])) for a, b in holds)
+                        combo = len(chart["notes"]) + len(holds) + sum(hold_ticks(a["beat"], a["endBeat"]) for a, _ in holds)
+                        if ticks > RETIME_MAX_COMBO_CHANGE * combo:
+                            # its timing had lost the beat where it has holds: their ticks would be others
+                            left += 1
+                            continue
+                        library.retime_chart(new)
+                        done += 1
+                    except Exception:  # noqa: BLE001  (one chart must not stop the others)
+                        log.exception("Could not put the chart %s on its song's timing", cid)
+                if done or left:
+                    log.info("%s: %d chart(s) put on the song's settled timing, %d left as made (their max combo would change)", song.get("title"), done, left)
+            except Exception:  # noqa: BLE001
+                log.exception("Could not put the charts of %s on its timing", sid)
+
+    def settle_kept() -> None:
+        steady_kept_timings()
+        retime_kept_charts()
+
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
         queue.resume_pending()
         if synchronous_jobs:
-            steady_kept_timings()
+            settle_kept()
         else:
-            threading.Thread(target=steady_kept_timings, name="steady-timings", daemon=True).start()
+            threading.Thread(target=settle_kept, name="settle-timings", daemon=True).start()
         yield
         queue.shutdown()
         mapper_queue.close()

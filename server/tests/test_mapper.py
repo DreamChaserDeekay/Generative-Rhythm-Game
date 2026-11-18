@@ -693,6 +693,109 @@ def test_a_first_chart_moves_onto_the_steady_timing_and_the_song_keeps_it(tmp_pa
         assert "timingSteady" not in chart["meta"]["generator"] and len(chart["timing"]["tempoMap"]) == 4
 
 
+def test_a_chart_made_before_goes_onto_the_settled_timing_with_its_notes_and_ticks_where_they_were() -> None:
+    from rhythm_server.formats.common import normalize_notes
+    from rhythm_server.formats.osu import timing_from_reds
+    from rhythm_server.mapper import steady
+
+    # a chart on the model's red lines (128 BPM, lines a few ms off, one tempo a little off), its notes
+    # at whole ms on those grids: taps on the beats, a hold of two beats and one of a beat and a half
+    reds = _model_reds(100.0, 128.0, [(0, 0, 128), (64, 6, 127.5), (68, 3, 128.1), (128, -4, 128), (192, 8, 128)])
+    old = timing_from_reds(reds)
+    tempo, raw = TempoMap(old), []
+    for k, (t, beat_len, _) in enumerate(reds):
+        for b in range(0, 56, 4):
+            raw.append({"t": float(round(t + b * beat_len)), "lane": 0, "type": "tap"})
+            raw.append({"t": float(round(t + (b + 1) * beat_len)), "lane": 1, "type": "hold", "endT": float(round(t + (b + 3) * beat_len))})
+            raw.append({"t": float(round(t + (b + 1.5) * beat_len)), "lane": 2, "type": "hold", "endT": float(round(t + (b + 3) * beat_len))})
+    notes = normalize_notes(raw, tempo)
+    chart = {
+        "formatVersion": 1, "meta": {"chartId": "c" + "0" * 20, "level": 7, "noteCount": len(notes), "generator": {"name": "mapperatorinator", "model": "v32"}},
+        "timing": old, "notes": notes,
+        "sections": [{"label": "verse", "startBeat": 64.0, "endBeat": 128.0}],
+        "effects": [{"beat": 68.0, "t": round(tempo.beat_to_ms(68.0), 3), "type": "zoom", "value": 0.2, "durationBeats": 4.0}],
+    }
+    new, _, _ = steady.steady_timing(old, _eighths(100.0, 150_000.0, 128.0), 150_000.0)
+    assert new["tempoMap"] == [{"beat": 0.0, "bpm": 128.0}]
+    made = steady.retimed_chart(chart, new)
+    assert made["timing"] == new and made["meta"]["generator"]["retimed"] == {"version": steady.STEADY_VERSION, "tempos": [len(old["tempoMap"]), 1]}
+    assert {k: v for k, v in made["meta"].items() if k != "generator"} == {k: v for k, v in chart["meta"].items() if k != "generator"}
+    # every note where it was in time, its beat the new timing's
+    after = TempoMap(new)
+    assert [(n["t"], n.get("endT"), n["lane"], n["type"]) for n in made["notes"]] == [(n["t"], n.get("endT"), n["lane"], n["type"]) for n in notes]
+    assert all(abs(after.beat_to_ms(n["beat"]) - n["t"]) <= steady.RETIME_SNAP_MS + 1 for n in made["notes"])
+    assert all(abs(after.beat_to_ms(n["beat"]) - n["t"]) < 0.01 for n in made["notes"] if n["type"] == "tap")
+    # every hold has the ticks it had (the client counts them on beat and endBeat): the max combo stays;
+    # written as they fall, heads a few ms before a tick's place would each get one more
+    ticks = lambda ns: [steady.hold_ticks(n["beat"], n["endBeat"]) for n in ns if n["type"] == "hold"]
+    assert sum(ticks(notes)) > 400
+    plain = [steady.hold_ticks(after.ms_to_beat(n["t"]), after.ms_to_beat(n["endT"])) for n in notes if n["type"] == "hold"]
+    changed = lambda counts: sum(abs(a - b) for a, b in zip(counts, ticks(notes)))
+    assert changed(plain) >= 10 and changed(ticks(made["notes"])) <= changed(plain) / 2, (changed(plain), changed(ticks(made["notes"])))
+    # and every tick falls while the hold is held: one before the head or after the end would count for
+    # the max combo and never be got (an autoplay of such a chart ended 88 / 90)
+    for n in made["notes"]:
+        if n["type"] == "hold":
+            k = int(n["beat"] / steady.RETIME_TICK_BEATS + 1e-6) + 1
+            while k * steady.RETIME_TICK_BEATS < n["endBeat"] - 1e-6:
+                assert n["t"] < after.beat_to_ms(k * steady.RETIME_TICK_BEATS) < n["endT"]
+                k += 1
+    # what else is written in beats is at the time it was
+    assert after.beat_to_ms(made["sections"][0]["startBeat"]) == pytest.approx(tempo.beat_to_ms(64.0), abs=0.5)
+    effect = made["effects"][0]
+    assert effect["t"] == chart["effects"][0]["t"] and after.beat_to_ms(effect["beat"]) == pytest.approx(effect["t"], abs=0.01)
+    assert after.beat_to_ms(effect["beat"] + effect["durationBeats"]) == pytest.approx(tempo.beat_to_ms(72.0), abs=0.01)
+    # done twice, nothing more changes
+    again = steady.retimed_chart(made, new)
+    assert again["notes"] == made["notes"] and again["sections"] == made["sections"] and again["effects"] == made["effects"]
+
+
+def test_the_charts_made_before_are_put_on_the_settled_timing_when_the_server_starts(tmp_path, fake_mapper_runtime, monkeypatch) -> None:
+    from rhythm_server.mapper import steady
+
+    (fake_mapper_runtime / "fake_worker.py").write_text(SWAYING_LINES_WORKER, encoding="utf-8")
+    config = Mapper.config
+    # a build from before: the model's red lines as they came, in the song's timing and in its charts
+    monkeypatch.setattr(Mapper, "config", lambda self: {**config(self), "timingSteady": False})
+    app = create_app(tmp_path / "data", client_dist=None, synchronous_jobs=True)
+    with TestClient(app) as c:
+        sid = c.post("/api/songs/demo", json={"bpm": 128, "bars": 12, "seed": 2}).json()["song"]["id"]
+        chart = c.post(f"/api/songs/{sid}/charts", json={"keyMode": "4K", "difficulty": "HARD"}).json()["chart"]
+        cid = chart["meta"]["chartId"]
+        assert len(chart["timing"]["tempoMap"]) == 4
+        library = app.state.library
+        # a chart edited from it, and one of another model: neither is the song's kept timing's to change
+        edited = {**chart, "meta": {**chart["meta"], "chartId": "c" + "e" * 20, "source": {"kind": "edited"}}}
+        other = {**chart, "meta": {**chart["meta"], "chartId": "c" + "f" * 20, "generator": {**chart["meta"]["generator"], "model": "v30"}}}
+        library.save_chart(edited, sid)
+        library.save_chart(other, sid)
+        was = library.chart_path(cid).read_bytes()
+    # with mapper.json timingRetime off the charts stay (the song's timing is settled all the same)
+    monkeypatch.setattr(Mapper, "config", lambda self: {**config(self), "timingRetime": False})
+    app = create_app(tmp_path / "data", client_dist=None, synchronous_jobs=True)
+    with TestClient(app):
+        assert app.state.library.chart_path(cid).read_bytes() == was
+        assert app.state.library.mapper_timing_kept(sid)["timing"]["tempoMap"] == [{"beat": 0.0, "bpm": 128.0}]
+    monkeypatch.setattr(Mapper, "config", config)
+    app = create_app(tmp_path / "data", client_dist=None, synchronous_jobs=True)
+    with TestClient(app) as c:
+        library = app.state.library
+        made = c.get(f"/api/charts/{cid}").json()["chart"]
+        assert made["timing"] == library.mapper_timing_kept(sid)["timing"] and made["timing"]["tempoMap"] == [{"beat": 0.0, "bpm": 128.0}]
+        assert made["meta"]["generator"]["retimed"]["version"] == steady.STEADY_VERSION
+        assert [(n["t"], n["lane"]) for n in made["notes"]] == [(n["t"], n["lane"]) for n in chart["notes"]]
+        assert made["meta"]["level"] == chart["meta"]["level"] and made["meta"]["noteCount"] == chart["meta"]["noteCount"]
+        # the file as it was is kept; the edited chart and the other model's are as they were
+        assert library.chart_backup_path(cid).read_bytes() == was
+        assert library.load_chart(edited["meta"]["chartId"])["timing"] == chart["timing"]
+        assert library.load_chart(other["meta"]["chartId"])["timing"] == chart["timing"]
+        now = library.chart_path(cid).read_bytes()
+    # the next start finds nothing to do, and the first file kept stays the original
+    app = create_app(tmp_path / "data", client_dist=None, synchronous_jobs=True)
+    with TestClient(app):
+        assert app.state.library.chart_path(cid).read_bytes() == now and app.state.library.chart_backup_path(cid).read_bytes() == was
+
+
 def _beats_off(timing: dict, beats: list[float]) -> float:
     """How far the true beats lie from the timing's beats at most (ms)."""
     tempo = TempoMap(timing)
