@@ -51,7 +51,7 @@ def test_the_song_timing_goes_to_mapperatorinator_as_red_lines() -> None:
 
 def test_columns_are_the_lanes_but_fx() -> None:
     assert charts.columns("8K") == list(range(8))
-    assert charts.columns("6K+FX") == [1, 2, 3, 4, 5, 6]  # FX lanes stay empty
+    assert charts.columns("6K+FX") == [1, 2, 3, 4, 5, 6]  # the model has no FX lanes: fx.py fills them
     assert charts.columns("4K") == [0, 1, 2, 3]
     objects = [f"{x_of(c, 8)},192,{1000 + 200 * c},1,0,0:0:0:0:" for c in range(8)]
     objects.append(f"{x_of(3, 8)},192,3000,128,0,3600:0:0:0:0:")
@@ -685,3 +685,67 @@ def test_a_first_chart_moves_onto_the_steady_timing_and_the_song_keeps_it(tmp_pa
         sid = c.post("/api/songs/demo", json={"bpm": 128, "bars": 12, "seed": 2}).json()["song"]["id"]
         chart = c.post(f"/api/songs/{sid}/charts", json={"keyMode": "4K", "difficulty": "HARD"}).json()["chart"]
         assert "timingSteady" not in chart["meta"]["generator"] and len(chart["timing"]["tempoMap"]) == 4
+
+
+# ---------- FX notes of 4K+FX and 6K+FX (mapper/fx.py) ----------
+
+
+def _fx_chart(key_mode: str, difficulty: str, cfg: dict | None = None) -> dict:
+    """A chart of 400 beats at 120 BPM: a note on every beat (columns in turn), an eighth after every
+    other, a chord on every eighth beat, and a hold of two beats alone every sixteen."""
+    keys = len(charts.columns(key_mode))
+    objects = []
+    for b in range(400):
+        t = 1000 + 500 * b
+        if b % 16 == 8:
+            objects.append(f"{x_of(b % keys, keys)},192,{t},128,0,{t + 1000}:0:0:0:0:")
+        elif b % 16 == 9:
+            continue  # nothing else while the hold is held
+        else:
+            objects.append(f"{x_of(b % keys, keys)},192,{t},1,{8 if b % 4 == 2 else 0},0:0:0:0:")
+        if b % 8 == 0:
+            objects.append(f"{x_of((b + 2) % keys, keys)},192,{t},1,0,0:0:0:0:")
+        if b % 2 == 1:
+            objects.append(f"{x_of((b + 3) % keys, keys)},192,{t + 250},1,0,0:0:0:0:")
+    a = {**_analysis(), "durationMs": 210_000.0, "onsets": [], "sections": []}
+    cfg = cfg or dict(mapper_config())
+    level = charts.target_level(key_mode, difficulty, None)
+    return charts.make_chart(a, key_mode, difficulty, level, 1, "cfx", cfg, {"songId": None, "title": "T"}, osu(keys, objects, "1000,500,4,1,0,60,1,0"), {})
+
+
+@pytest.mark.parametrize("key_mode", ["4K+FX", "6K+FX"])
+def test_some_key_notes_go_to_the_fx_lanes_by_the_tiers_rate(key_mode: str) -> None:
+    from rhythm_server.chart.lanes import lane_infos
+    from rhythm_server.config import difficulty_config
+
+    lanes = lane_infos(key_mode)
+    side = {l.index: l.hand for l in lanes if l.kind == "side"}
+    hand = {l.index: l.hand for l in lanes}
+    off = {**mapper_config(), "fx": {**mapper_config()["fx"], "enabled": False}}
+    shares = []
+    for tier in ("NORMAL", "HARD", "EXPERT", "MASTER"):
+        plain, chart = _fx_chart(key_mode, tier, off), _fx_chart(key_mode, tier)
+        assert all(n["lane"] not in side for n in plain["notes"]) and "fx" not in plain["meta"]["generator"]
+        notes, fx = chart["notes"], [n for n in chart["notes"] if n["lane"] in side]
+        report = chart["meta"]["generator"]["fx"]
+        preset = difficulty_config()["presets"][tier]
+        instants = len({n["t"] for n in notes})
+        # moved, not added: the same notes at the same times, the tier's share of the instants on FX
+        assert len(notes) == len(plain["notes"]) and sorted(n["t"] for n in notes) == sorted(n["t"] for n in plain["notes"])
+        assert len(fx) == report["taps"] + report["holds"] == report["left"] + report["right"]
+        assert len(fx) == pytest.approx(preset["sideRate"] * instants, abs=1.0) and report["holds"] > 0
+        assert abs(chart["meta"]["level"] - plain["meta"]["level"]) <= 1
+        shares.append(len(fx) / instants)
+        # both sides are used, never within 450 ms of one another (so never at once)
+        assert report["left"] > 0 and report["right"] > 0
+        assert all(b["t"] - a["t"] >= 450 for a, b in zip(fx, fx[1:]))
+        for n in fx:
+            same_hand = [m for m in notes if m["lane"] not in side and hand[m["lane"]] == side[n["lane"]]]
+            # no key of the FX note's hand right before or after it, none while an FX hold is held
+            assert not any(0 < abs(m["t"] - n["t"]) < preset["minJackMs"] for m in same_hand)
+            assert not any(n["type"] == "hold" and n["t"] < m["t"] < n["endT"] for m in same_hand)
+        # over the whole song: every quarter of it has some
+        assert all(sum(1 for n in fx if q * 50_000 <= n["t"] - 1000 < (q + 1) * 50_000) >= 2 for q in range(4))
+    assert shares == sorted(shares)
+    # a key mode without FX lanes is as the model made it
+    assert "fx" not in _fx_chart("4K", "EXPERT")["meta"]["generator"]

@@ -14,6 +14,14 @@
   "idleUnloadSeconds": 120,
   "timingCheck": true,
   "timingSteady": true,
+  "fx": {
+    "_comment": "FX notes of 4K+FX and 6K+FX (server/rhythm_server/mapper/fx.py): the model makes these as 4K and 6K, and the tier's sideRate (config/difficulty.json) times rateScale of the note instants are moved to the FX lanes, holdShare of them holds (the model's own, minHoldBeats long at least), the rest taps on the strongest hits; FX notes are minGapMs apart at least. enabled false leaves the FX lanes empty.",
+    "enabled": true,
+    "rateScale": 1.0,
+    "holdShare": 0.6,
+    "minHoldBeats": 1.0,
+    "minGapMs": 450
+  },
   "silence": {
     "_comment": "Silences of the song's audio (server/rhythm_server/mapper/silence.py): a stretch of minMs or more under the song's loud level by belowLoudDb (or under floorDb dBFS), measured in frames of frameMs. Mapperatorinator is asked to stop at the music's end plus endPadMs when the song ends in one, and a note more than marginMs into a silence is dropped (a hold reaching into one ends there).",
     "frameMs": 50,

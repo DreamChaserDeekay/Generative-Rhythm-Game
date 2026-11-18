@@ -2,8 +2,8 @@
 an .osu file), and the .osu it gives back as one of our charts (docs/MAPPERATORINATOR.md).
 
 Key modes: Mapperatorinator makes osu!mania charts of 1 to 18 columns. Every lane but the FX ones
-is a column, in our lane order: 4K, 5K, 6K, 8K as they are, 4K+FX and 6K+FX as 4K and 6K with
-their FX lanes left empty.
+is a column, in our lane order: 4K, 5K, 6K, 8K as they are, 4K+FX and 6K+FX as 4K and 6K, some
+of whose notes are then moved to the FX lanes (fx.py).
 
 Timing: the model's own, made one tempo where the song is steady (steady.py). A song's first chart finds it (Mapperatorinator's timing pass); the
 song keeps it (`song_timing`) and its other charts are given it as timing context, so every tier
@@ -38,6 +38,7 @@ from ..chart.keysounds import keysound_meta, mark_sound_ends
 from ..chart.lanes import lane_infos
 from ..chart.tempo import TempoMap
 from ..difficulty.tiers import resolve_tier
+from .fx import fx_notes
 
 # the request and conversion's form; part of every chart id (a new one makes charts anew)
 MAPPER_VERSION = "2"
@@ -449,6 +450,8 @@ def make_chart(
         raise ValueError("Mapperatorinator가 만든 채보에 노트가 없습니다")
     attach_sources(notes, analysis.get("onsets", []))
     notes = normalize_notes(notes, tempo)
+    # 4K+FX, 6K+FX: some of the key notes go to the FX lanes (the model has none)
+    notes, fx = fx_notes(notes, key_mode, difficulty, analysis.get("onsets", []), hits, cfg)
     problems = structural_problems(notes, len(lanes))
     if problems:
         raise ValueError("채보 구조 오류: " + "; ".join(problems[:5]))
@@ -500,6 +503,9 @@ def make_chart(
                 # were made on the grid before and moved with it
                 **({"timingSteady": {**timing_steady, "notesMoved": moves is not None}} if timing_steady else {}),
                 "camera": "structure" if cfg.get("cameraFrom") == "structure" else "notes",
+                # the key notes moved to the FX lanes (fx.fx_notes): their share of the note instants
+                # and the tier's, taps and holds, left and right
+                **({"fx": fx} if fx else {}),
                 # notes the model put in a silence of the song (or past its end), dropped
                 "silentDropped": silent,
                 "seconds": info.get("seconds"),
