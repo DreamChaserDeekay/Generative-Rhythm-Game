@@ -50,7 +50,7 @@ test('a new pattern that ends while the settings are open keeps what was changed
 
 // Mapperatorinator makes one chart at a time: the one being made says so on its plate, the tiers
 // waiting behind it say nothing (no "대기"), as the tiers not asked for yet.
-test('while a chart is made, only its plate says so: the tiers waiting their turn show no state', async ({ page }) => {
+test('while a chart is made, only its plate says 생성 중: the tiers waiting their turn are 미생성, no 대기', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   const songs = fakeSongs(1, 'ready').map((s) => ({ ...s, analyzedAt: 1 }));
@@ -92,7 +92,8 @@ test('while a chart is made, only its plate says so: the tiers waiting their tur
   const plates = page.getByTestId('difficulty-row').getByRole('button');
   await expect(plates).toHaveText([/NORMAL/, /HARD/, /EXPERT/, /ELITE/, /MASTER/], { timeout: 30_000 });
   await expect(page.locator('.difficulty', { hasText: 'NORMAL' }).locator('.diff-state')).toHaveText('생성 중');
-  for (const tier of ['HARD', 'EXPERT', 'ELITE', 'MASTER']) await expect(page.locator('.difficulty', { hasText: tier }).locator('.diff-state')).toHaveCount(0);
+  // the others, waiting or not asked for yet, are not made: 미생성 (never "대기")
+  for (const tier of ['HARD', 'EXPERT', 'ELITE', 'MASTER']) await expect(page.locator('.difficulty', { hasText: tier }).locator('.diff-state')).toHaveText('미생성');
   await expect(page.getByTestId('difficulty-row')).not.toContainText('대기');
   await expect(page.getByTestId('difficulty-row')).not.toContainText('AI');
   expect(errors).toEqual([]);
@@ -142,7 +143,7 @@ test('a chart being made still says so on its plate after the settings and after
   await page.goto('/');
   const normal = page.locator('.difficulty', { hasText: 'NORMAL' });
   await expect(page.getByTestId('difficulty-row').getByRole('button')).toHaveText([/NORMAL/, /HARD/, /EXPERT/, /ELITE/, /MASTER/], { timeout: 30_000 });
-  await expect(normal.locator('.diff-state')).toHaveCount(0);
+  await expect(normal.locator('.diff-state')).toHaveText('미생성');
 
   // Enter on a chart not made yet asks for it and stays
   await page.getByTestId('hint-enter').click();
