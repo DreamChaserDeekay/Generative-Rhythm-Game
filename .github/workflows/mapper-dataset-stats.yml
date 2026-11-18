@@ -48,6 +48,11 @@ jobs:
           print("- 별점(1점 구간): " + ", ".join(f"{k}: {v}" for k, v in d.DifficultyRating.astype(int).value_counts().sort_index().items()))
           print("- 2024년까지의 ranked · approved(v32 학습 설정의 조건): " + str(int(((d.Ranked.isin([1, 2])) & (d.RankedDate.dt.year <= 2024)).sum())))
           PY
+      - name: The charts the measures did not finish on (where they stay, and what the charts are like)
+        if: matrix.keys == 4 || matrix.keys == 6
+        run: |
+          cd scripts
+          python mapper_chart_diagnose.py "$RUNNER_TEMP/ds" 2571106 3774040 4223690 1537498 2>&1 | tee -a "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v5
         if: always()
         with:
@@ -55,3 +60,27 @@ jobs:
           path: ${{ runner.temp }}/report-*.json
           if-no-files-found: warn
           retention-days: 30
+
+  audio:
+    # the dataset's own audio (opus) through scripts/lora/make_dataset.py on Windows, one tar file:
+    # what the quick memory test of docs/MAPPER_LORA.md reads first. Nothing is kept.
+    name: one tar file with its audio (Windows)
+    runs-on: windows-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+      - run: python -m pip install soundfile numpy pandas pyarrow rosu-pp-py==3.1.0
+      - name: 4K and 8K of the first tar file
+        run: |
+          export PYTHONUTF8=1
+          for keys in 4 8; do
+            python scripts/lora/make_dataset.py --keys $keys --out "$RUNNER_TEMP/ds$keys" --shards 0-0
+            du -sh "$RUNNER_TEMP/ds$keys/data" || true
+            DS="$RUNNER_TEMP/ds$keys" python -c "import os, glob, soundfile as sf; fs = glob.glob(os.environ['DS'] + '/data/*/audio.wav'); secs = [sf.info(f).duration for f in fs]; print(len(fs), 'songs', round(sum(secs) / 60, 1), 'minutes', round(sum(os.path.getsize(f) for f in fs) / 1e6, 1), 'MB')"
+          done
