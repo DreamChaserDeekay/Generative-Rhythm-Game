@@ -4,7 +4,7 @@ other conditions or a LoRA adapter when given. Keeps the raw .osu files and a re
 scripts/mapper_keymode_report.py (docs/MAPPER_LORA.md).
 
     python scripts/mapper_probe.py --audio song.mp3 --out probe --mode 8K --tiers HARD EXPERT
-        [--conditions '{"negativeDescriptors": ["style/N+1"], "cfgScale": 2.0}'] [--lora <adapter folder>]
+        [--conditions '{"negativeDescriptors": ["style/N+1"], "cfgScale": 2.0}'] [--lora <adapter folder> | auto]
 
 Needs the server package and Mapperatorinator's runtime set up (`python -m rhythm_server mapper
 setup`; GRG_MAPPER_ALLOW_CPU=1 for a machine without an NVIDIA GPU). The workflows run it on the
@@ -36,7 +36,7 @@ def main() -> None:
     ap.add_argument("--mode", default="8K")
     ap.add_argument("--tiers", nargs="+", default=["HARD", "EXPERT", "MASTER"])
     ap.add_argument("--conditions", default="")
-    ap.add_argument("--lora", type=Path)
+    ap.add_argument("--lora", help="an adapter's folder, or `auto`: the adapters the app finds (runtime folder lora/<N>K)")
     a = ap.parse_args()
     src, out, mode = a.audio, a.out, a.mode
     out.mkdir(parents=True, exist_ok=True)
@@ -47,8 +47,12 @@ def main() -> None:
     keys = len(charts.columns(mode))
     if a.conditions.strip():
         cfg["conditions"] = {f"{keys}K": json.loads(a.conditions)}
-    if a.lora:
-        adapter = lora.adapter(a.lora)
+    if a.lora == "auto":
+        if not charts.lora_of(mode, cfg):
+            sys.exit(f"no adapter for {mode} in {mapper.runtime.root / 'lora'}")
+        mapper.runtime.ensure_lora()
+    elif a.lora:
+        adapter = lora.adapter(Path(a.lora))
         if adapter is None:
             sys.exit(f"no adapter in {a.lora}")
         cfg["_lora"] = {keys: adapter}

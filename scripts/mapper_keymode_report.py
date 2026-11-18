@@ -1,12 +1,14 @@
 """How Mapperatorinator's charts differ by key count: the columns' shares, the hands, chords, jacks
 and the pattern shapes of raw .osu files, a row per key mode and tier (docs/MAPPER_LORA.md).
 
-    python scripts/mapper_keymode_report.py <folder> [--json out.json] [--label name]
+    python scripts/mapper_keymode_report.py <folder> [--json out.json] [--label name] [--mmrs]
 
 <folder> holds what .github/workflows/dpc-probe.yml keeps: `<song>.<mode>.<tier>.osu` and
 `<song>.<mode>.json` (the song's seconds). The .osu files become charts the way the app makes them
 (mapper/charts.notes_from_osu: overlapping notes dropped); nothing of the songs is read. The same
 script on charts made with other conditions or a LoRA gives the numbers to hold against these.
+With --mmrs the folder is a dataset scripts/lora/make_dataset.py made (people's charts): each chart
+counts under the tier whose star rating the app asks for is nearest its own.
 Needs the server package (`pip install -e ./server`). Only aggregate numbers are printed: the .osu
 files and the songs stay out of the repository.
 """
@@ -20,14 +22,16 @@ from collections import Counter, defaultdict
 from pathlib import Path
 
 from rhythm_server.chart.tempo import TempoMap
-from rhythm_server.config import key_modes
+from rhythm_server.config import difficulty_config, key_modes
 from rhythm_server.difficulty.estimator import estimate
 from rhythm_server.difficulty.patterns import pattern_profile
 from rhythm_server.difficulty.tiers import resolve_tier
 from rhythm_server.formats.common import normalize_notes
 from rhythm_server.formats.osu import parse_osu
 from rhythm_server.mapper import charts
+from rhythm_server.mapper.runtime import mapper_config
 
+TIERS = tuple(difficulty_config()["order"])
 JACK_MS = 150.0  # a lane pressed again within this is a fast jack
 
 
@@ -65,6 +69,8 @@ def chart_row(text: str, mode: str, tier: str, seconds: float) -> dict:
         "notes": len(notes), "nps": len(notes) / seconds, "holds": sum(n["type"] == "hold" for n in notes) / len(notes),
         "cols": share, "minCol": min(share) * k, "maxCol": max(share) * k, "emptiest": share.index(min(share)),
         # 0: every column alike, 1: all notes on one column
+        # a chart with a column all but unused (under half an even share): 7 keys and a scratch column
+        "nearEmpty": float(min(share) * k < 0.5),
         "skew": 0.5 * sum(abs(s - 1.0 / k) for s in share) / (1.0 - 1.0 / k),
         "left": left, "right": right, "thumb": 1.0 - left - right,
         "chord1": sizes[1] / len(by_t), "chord2": sizes[2] / len(by_t), "chord3": sizes[3] / len(by_t), "chord4": sizes[4] / len(by_t),
@@ -84,9 +90,23 @@ def main() -> None:
     ap.add_argument("folder", type=Path)
     ap.add_argument("--json", type=Path)
     ap.add_argument("--label", default="")
+    ap.add_argument("--mmrs", action="store_true")
     a = ap.parse_args()
     rows: dict[tuple[str, str], list[dict]] = defaultdict(list)
-    for osu in sorted(a.folder.glob("*.osu")):
+    if a.mmrs:
+        import pandas as pd
+
+        cfg = mapper_config()
+        for _, m in pd.read_parquet(a.folder / "metadata.parquet").iterrows():
+            mode = f"{int(m['KeyCount'])}K"
+            text = (a.folder / "data" / m["BeatmapSetFolder"] / m["BeatmapFile"]).read_text(encoding="utf-8-sig")
+            tier = min(TIERS, key=lambda t: abs(charts.stars_of(charts.target_level(mode, t, None), cfg) - float(m["DifficultyRating"])))
+            seconds = max(float(line.split(",")[2]) for line in text.split("[HitObjects]")[1].strip().splitlines()) / 1000.0
+            try:
+                rows[(mode, tier)].append(chart_row(text, mode, tier, seconds))
+            except Exception as e:  # noqa: BLE001  (a chart the app's parser does not take)
+                print(f"skipped {m['BeatmapFile']}: {e}")
+    for osu in [] if a.mmrs else sorted(a.folder.glob("*.osu")):
         song, mode, tier = osu.name[: -len(".osu")].rsplit(".", 2)
         report = a.folder / f"{song}.{mode}.json"
         seconds = float(json.loads(report.read_text(encoding="utf-8"))["seconds"]) if report.exists() else None
@@ -95,7 +115,7 @@ def main() -> None:
             seconds = max(float(line.split(",")[2]) for line in text.split("[HitObjects]")[1].strip().splitlines()) / 1000.0
         rows[(mode, tier)].append(chart_row(text, mode, tier, seconds))
     modes = sorted({m for m, _ in rows}, key=lambda m: int(m[:-1]))
-    tiers = [t for t in ("EASY", "NORMAL", "HARD", "EXPERT", "MASTER") if any(t == x for _, x in rows)]
+    tiers = [t for t in TIERS if any(t == x for _, x in rows)]
     out: dict[str, dict] = {}
 
     def table(title: str, cols: list[tuple[str, str, str]]) -> None:
@@ -107,7 +127,7 @@ def main() -> None:
                     print(f"| {m} {t} | {len(rs)} | " + " | ".join(format(mean(rs, key), fmt) for _, key, fmt in cols) + " |")
 
     table("열의 쏠림 (minCol · maxCol: 가장 적은 · 많은 열의 몫 × 키 수, 고르면 1.00)", [
-        ("가장 적은 열", "minCol", ".2f"), ("가장 많은 열", "maxCol", ".2f"), ("쏠림(0–1)", "skew", ".3f"),
+        ("가장 적은 열", "minCol", ".2f"), ("가장 많은 열", "maxCol", ".2f"), ("쏠림(0–1)", "skew", ".3f"), ("한 열이 빈 채보", "nearEmpty", ".2f"),
         ("왼손", "left", ".3f"), ("오른손", "right", ".3f"), ("엄지", "thumb", ".3f")])
     table("동시치기 (치는 순간 가운데 몫)", [
         ("1개", "chord1", ".3f"), ("2개", "chord2", ".3f"), ("3개", "chord3", ".3f"), ("4개 이상", "chord4", ".3f"),
