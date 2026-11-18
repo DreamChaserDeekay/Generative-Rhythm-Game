@@ -2,10 +2,10 @@
 an .osu file), and the .osu it gives back as one of our charts (docs/MAPPERATORINATOR.md).
 
 Key modes: Mapperatorinator makes osu!mania charts of 1 to 18 columns. Every lane but the FX ones
-is a column, in our lane order: 4K, 5K, 6K, 8K as they are, 4K+FX and 6K+FX as 4K and 6K with
-their FX lanes left empty.
+is a column, in our lane order: 4K, 5K, 6K, 8K as they are, 4K+FX and 6K+FX as 4K and 6K, some
+of whose notes are then moved to the FX lanes (fx.py).
 
-Timing: the model's own. A song's first chart finds it (Mapperatorinator's timing pass); the
+Timing: the model's own, made one tempo where the song is steady (steady.py). A song's first chart finds it (Mapperatorinator's timing pass); the
 song keeps it (`song_timing`) and its other charts are given it as timing context, so every tier
 of a song has the same beats and bar lines and skips the timing pass. The timing pass can lose the
 beat late in a song (a tempo of 2.9 BPM from 160 s on), so a tempo the song's onsets do not follow
@@ -38,6 +38,7 @@ from ..chart.keysounds import keysound_meta, mark_sound_ends
 from ..chart.lanes import lane_infos
 from ..chart.tempo import TempoMap
 from ..difficulty.tiers import resolve_tier
+from .fx import fx_notes
 
 # the request and conversion's form; part of every chart id (a new one makes charts anew)
 MAPPER_VERSION = "2"
@@ -120,14 +121,19 @@ def timing_red_lines(timing: dict[str, Any]) -> list[tuple[float, float, int]]:
     for start, length in bars:
         if not meter_at or abs(meter_at[-1][1] - length) > 1e-6:
             meter_at.append((start, length))
-    beats = sorted({float(p["beat"]) for p in points} | {b for b, _ in meter_at} | {0.0})
+    # a bar that starts at a tempo change is one red line (the bars' starts are sums, a hair off)
+    beats = sorted({round(float(p["beat"]), 6) for p in points} | {round(b, 6) for b, _ in meter_at} | {0.0})
 
     def bpm_at(beat: float) -> float:
         k = bisect.bisect_right([float(p["beat"]) for p in points], beat + 1e-9) - 1
         return float(points[max(0, k)]["bpm"])
 
     def meter_of(beat: float) -> int:
+        # a bar cut short before a red line (0.01 or 3.98 beats) is no meter: the one before it holds
+        # (as one of 1 beat it would hold on when the tempo after it is taken out: checked_timing)
         k = bisect.bisect_right([b for b, _ in meter_at], beat + 1e-9) - 1
+        while k >= 0 and abs(meter_at[k][1] - round(meter_at[k][1])) > 1e-6:
+            k -= 1
         return max(1, int(round(meter_at[k][1]))) if k >= 0 else 4
 
     return [(tempo.beat_to_ms(beat), 60000.0 / bpm_at(beat), meter_of(beat)) for beat in beats]
@@ -148,29 +154,28 @@ def timing_osu(timing: dict[str, Any], keycount: int, audio_name: str, title: st
     return "\n".join(lines)
 
 
-# A tempo of the model's timing is believed where the song's onsets follow its grid about as well as
-# they follow the tempo before it, run on (TIMING_MARGIN less at most). None outside these bounds,
+# A tempo of the model's timing is believed where the song's onsets gather in its grid's sixteenths
+# about as tightly as in those of the tempo before it, run on (grid_gather, TIMING_MARGIN less at most). None outside these bounds,
 # nor slower or faster than these shares of the tempo that holds longest
 TEMPO_MIN_BPM, TEMPO_MAX_BPM = 30.0, 400.0
 TEMPO_MIN_SHARE, TEMPO_MAX_SHARE = 0.4, 2.5
 TIMING_MARGIN = 0.1
 # fewer onsets than this under a tempo: nothing to judge it by, it stays (within the bounds)
 TIMING_MIN_ONSETS = 8
-# an onset is on a grid within this of one of its sixteenths (and a sixth of a sixteenth at most)
-TIMING_TOL_MS = 20.0
 # the timing changes only for tempos taken out over this long in all (ms), by the bounds or with
 # the old grid fitting the onsets this much better (TIMING_GAIN); smaller ones leave it as it was
 TIMING_SPAN_MS = 4000.0
 TIMING_GAIN = 0.25
 
 
-def grid_fit(onsets: list[float], start: float, beat_len: float) -> float:
-    """How much better than chance onsets fall on the sixteenths of a grid with a beat at `start`:
-    the share on it, less the share chance would put there."""
+def grid_gather(onsets: list[float], start: float, beat_len: float) -> float:
+    """How tightly onsets gather at one place in the sixteenths of a grid (0: all over them, 1: at
+    one place), wherever that place is: a grid of the right tempo a little off gathers them as well as
+    one on them, a grid of a wrong tempo passes every place and gathers nothing."""
     sub = beat_len / 4.0
-    tol = min(TIMING_TOL_MS, sub / 6.0)
-    on = sum(1 for t in onsets if abs((t - start) / sub - round((t - start) / sub)) * sub <= tol)
-    return on / len(onsets) - 2.0 * tol / sub
+    c = sum(math.cos(2.0 * math.pi * (t - start) / sub) for t in onsets)
+    s = sum(math.sin(2.0 * math.pi * (t - start) / sub) for t in onsets)
+    return math.hypot(c, s) / len(onsets)
 
 
 def _spans(reds: list[tuple[float, float, int]], duration_ms: float) -> list[tuple[float, float, int]]:
@@ -211,7 +216,9 @@ def checked_timing(timing: dict[str, Any], onsets: list[dict[str, Any]], duratio
     song, 2.9 and 29.5 BPM from 160 s in another; 2 of 20 runs on the runner,
     docs/MAPPERATORINATOR.md), and a song's first chart's timing serves all its charts. The onsets
     are judged with their lag behind the grid taken out (onset_lag); a real change stays (its own
-    grid fits the onsets after it better than the old one run on: 176 -> 185 BPM at 103.6 s), and
+    grid gathers the onsets after it better than the old one run on: 176 -> 185 BPM at 103.6 s; so
+    does a grid of the right tempo a little off them, which a share of onsets within 20 ms took for
+    a lost one in fast songs), and
     so does a timing whose lost stretches are short or barely worse (TIMING_SPAN_MS, TIMING_GAIN).
     Returns the timing (the same object when it stays) and what was taken out of it."""
     # red lines at one time: the last holds, as in osu!
@@ -247,7 +254,7 @@ def checked_timing(timing: dict[str, Any], onsets: list[dict[str, Any]], duratio
             under = times[bisect.bisect_left(times, t):bisect.bisect_left(times, end)]
             if len(under) >= TIMING_MIN_ONSETS:
                 prev_t, prev_len, _ = kept[-1]
-                gain = grid_fit(under, prev_t, prev_len) - grid_fit(under, t, beat_len)
+                gain = grid_gather(under, prev_t, prev_len) - grid_gather(under, t, beat_len)
                 if gain > TIMING_MARGIN:
                     why = "onsets"
         lost = why is not None
@@ -262,9 +269,15 @@ def checked_timing(timing: dict[str, Any], onsets: list[dict[str, Any]], duratio
     return timing_from_reds(kept), dropped
 
 
+# the slowest and fastest tempo of a song are among those held this share of it
+BPM_SHARE = 0.05
+# and they are one tempo when they differ by less than this share of the one held longest
+BPM_ONE = 0.02
+
+
 def song_bpm(timing: dict[str, Any], duration_ms: float) -> dict[str, float]:
     """A song's BPM as the song list shows it, of a chart's timing: the tempo held longest, and the
-    slowest and fastest."""
+    slowest and fastest (of those held BPM_SHARE of the song)."""
     tempo = TempoMap(timing)
     points = sorted(timing["tempoMap"], key=lambda p: p["beat"])
     held: dict[float, float] = {}
@@ -272,8 +285,13 @@ def song_bpm(timing: dict[str, Any], duration_ms: float) -> dict[str, float]:
         start = tempo.beat_to_ms(float(p["beat"]))
         end = tempo.beat_to_ms(float(points[i + 1]["beat"])) if i + 1 < len(points) else max(float(duration_ms), start + 1.0)
         held[float(p["bpm"])] = held.get(float(p["bpm"]), 0.0) + max(0.0, end - start)
-    bpms = list(held)
-    return {"bpm": round(max(bpms, key=lambda b: held[b]), 4), "bpmMin": round(min(bpms), 4), "bpmMax": round(max(bpms), 4)}
+    main = max(held, key=lambda b: held[b])
+    # a tempo held for a moment (a red line of the model's that lasts two beats) is not the song's range
+    bpms = [b for b in held if held[b] >= BPM_SHARE * sum(held.values())] or [main]
+    if max(bpms) - min(bpms) < BPM_ONE * main:
+        # a tempo that sways a little (161-162) is one tempo to the player
+        bpms = [main]
+    return {"bpm": round(main, 4), "bpmMin": round(min(bpms), 4), "bpmMax": round(max(bpms), 4)}
 
 
 def chart_sections(analysis: dict[str, Any], tempo: TempoMap) -> list[dict[str, Any]]:
@@ -317,6 +335,20 @@ def notes_from_osu(text: str, lanes: list[int]) -> list[dict[str, Any]]:
             notes.append({"t": t, "lane": lane, "type": "tap"})
     notes, _ = drop_conflicts(notes)
     return notes
+
+
+def moved_notes(notes: list[dict[str, Any]], moves: Any) -> list[dict[str, Any]]:
+    """The notes at their place in the beat on another grid (steady.Moves): heads and hold ends each
+    by the grid they were on."""
+    out: list[dict[str, Any]] = []
+    for n in notes:
+        n = {**n, "t": max(0.0, moves.time(float(n["t"])))}
+        if n.get("type") == "hold":
+            n["endT"] = max(0.0, moves.time(float(n["endT"])))
+            if n["endT"] - n["t"] < MIN_HOLD_MS:
+                n = {k: v for k, v in n.items() if k != "endT"} | {"type": "tap"}
+        out.append(n)
+    return drop_conflicts(out)[0]
 
 
 def drop_silent(notes: list[dict[str, Any]], quiet: list[tuple[float, float]], margin_ms: float) -> tuple[list[dict[str, Any]], int]:
@@ -400,18 +432,23 @@ def make_chart(
     analysis: dict[str, Any], key_mode: str, difficulty: str, level: int, seed: int, cid: str, cfg: dict[str, Any], meta: dict[str, Any],
     osu_text: str, info: dict[str, Any], target_level: int | None = None, song_timing: dict[str, Any] | None = None,
     quiet: list[tuple[float, float]] | None = None, found_timing: dict[str, Any] | None = None,
-    timing_fixed: list[dict[str, Any]] | None = None,
+    timing_fixed: list[dict[str, Any]] | None = None, timing_steady: dict[str, Any] | None = None, moves: Any = None,
 ) -> dict[str, Any]:
     """One of our charts from the .osu Mapperatorinator made (`target_level`: the level asked for,
     None for a tier's default chart; `song_timing`: the timing it was given, None when it found
     its own; `quiet`: the song's silences, whose notes are dropped; `found_timing`: the timing it
     found, checked, when the .osu was made again on it; `timing_fixed`: the tempos checked_timing
-    took out of the timing, which the song keeps from now on)."""
+    took out of the timing, which the song keeps from now on; `timing_steady`: what
+    steady.steady_timing did to the timing; `moves`: where the times of the grid the .osu was made on
+    lie on that timing, for a first chart's notes)."""
     params = resolve_tier(key_mode, difficulty, level)
     lanes = lane_infos(key_mode)
     timing = song_timing or found_timing or parse_osu(osu_text).timing
     tempo = TempoMap(timing)
     notes = notes_from_osu(osu_text, columns(key_mode))
+    hits = hits_from_osu(osu_text)
+    if moves is not None:
+        notes, hits = moved_notes(notes, moves), [(moves.time(t), bits, volume) for t, bits, volume in hits]
     duration = float(analysis["durationMs"])
     # nothing is played in a silence, nor past the song's end
     notes, silent = drop_silent(notes, [*(quiet or []), (duration, float("inf"))], float((cfg.get("silence") or {}).get("marginMs", 100.0)))
@@ -419,6 +456,8 @@ def make_chart(
         raise ValueError("Mapperatorinator가 만든 채보에 노트가 없습니다")
     attach_sources(notes, analysis.get("onsets", []))
     notes = normalize_notes(notes, tempo)
+    # 4K+FX, 6K+FX: some of the key notes go to the FX lanes (the model has none)
+    notes, fx = fx_notes(notes, key_mode, difficulty, analysis.get("onsets", []), hits, cfg)
     problems = structural_problems(notes, len(lanes))
     if problems:
         raise ValueError("채보 구조 오류: " + "; ".join(problems[:5]))
@@ -465,7 +504,14 @@ def make_chart(
                 "timing": "song" if song_timing else "model",
                 # the tempos taken out of it, the song not following them (checked_timing)
                 **({"timingFixed": timing_fixed} if timing_fixed else {}),
+                # the timing made one tempo where the song is steady (steady.steady_timing): its tempo
+                # points before and after, the tempo of each zone; `notesMoved` when this chart's notes
+                # were made on the grid before and moved with it
+                **({"timingSteady": {**timing_steady, "notesMoved": moves is not None}} if timing_steady else {}),
                 "camera": "structure" if cfg.get("cameraFrom") == "structure" else "notes",
+                # the key notes moved to the FX lanes (fx.fx_notes): their share of the note instants
+                # and the tier's, taps and holds, left and right
+                **({"fx": fx} if fx else {}),
                 # notes the model put in a silence of the song (or past its end), dropped
                 "silentDropped": silent,
                 "seconds": info.get("seconds"),
@@ -482,7 +528,7 @@ def make_chart(
         "effects": (
             camera_effects(sections, tempo, notes, lanes, analysis.get("onsets", []), [])
             if cfg.get("cameraFrom") == "structure"
-            else camera_from_notes(notes, timing, lanes, hits_from_osu(osu_text))
+            else camera_from_notes(notes, timing, lanes, hits)
         ),
         "notes": notes,
     }

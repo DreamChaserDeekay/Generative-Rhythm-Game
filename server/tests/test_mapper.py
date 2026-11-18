@@ -26,7 +26,7 @@ from rhythm_server.mapper import Mapper, charts, runtime as rt
 from rhythm_server.mapper.runtime import Runtime, mapper_config
 from rhythm_server.synth import make_structured_song
 
-from fakes import onset_osu, osu, x_of
+from fakes import heard_song, onset_osu, osu, x_of
 
 
 @lru_cache(maxsize=None)
@@ -51,7 +51,7 @@ def test_the_song_timing_goes_to_mapperatorinator_as_red_lines() -> None:
 
 def test_columns_are_the_lanes_but_fx() -> None:
     assert charts.columns("8K") == list(range(8))
-    assert charts.columns("6K+FX") == [1, 2, 3, 4, 5, 6]  # FX lanes stay empty
+    assert charts.columns("6K+FX") == [1, 2, 3, 4, 5, 6]  # the model has no FX lanes: fx.py fills them
     assert charts.columns("4K") == [0, 1, 2, 3]
     objects = [f"{x_of(c, 8)},192,{1000 + 200 * c},1,0,0:0:0:0:" for c in range(8)]
     objects.append(f"{x_of(3, 8)},192,3000,128,0,3600:0:0:0:0:")
@@ -488,3 +488,315 @@ def test_a_first_chart_whose_timing_lost_the_beat_is_made_again_without_it(tmp_p
         assert [p["bpm"] for p in again["timing"]["tempoMap"]] == [128.0] and again["meta"]["generator"]["seconds"] == pytest.approx(0.1)
     finally:
         mapper.close()
+
+
+# ---------- a steady song's timing as one tempo (mapper/steady.py) ----------
+
+
+def _grid(start_ms: float, bpm: float, beats: float) -> float:
+    return start_ms + beats * 60000.0 / bpm
+
+
+def _model_reds(start_ms: float, bpm: float, lines: list[tuple[float, float, float]], meter: int = 4) -> list[tuple[float, float, int]]:
+    """Red lines as the model puts them on a song of one tempo: (beat of the true grid, ms off it,
+    the BPM it says from there)."""
+    return [(_grid(start_ms, bpm, beat) + off, 60000.0 / said, meter) for beat, off, said in lines]
+
+
+def test_a_steady_song_gets_one_tempo_and_whole_bars() -> None:
+    from rhythm_server.formats.osu import timing_from_reds
+    from rhythm_server.mapper import steady
+
+    onsets = _eighths(100.0, 200_000.0, 128.0)
+    # the model's red lines on a song at 128: a tempo a little off for four beats, 128.1 for a while (the
+    # next line takes the drift back), a line moved 8 ms, one between two beats, one a beat late for a bar
+    reds = _model_reds(100.0, 128.0, [
+        (0, 0, 128), (64, 6, 127.5), (68, 3, 128.1), (128, -4, 128), (192, 8, 128), (254.5, 0, 128), (300, -5, 128), (333, 2, 128),
+        (336, 0, 128.1),
+    ])
+    old = timing_from_reds(reds)
+    assert len(old["tempoMap"]) > 3 and len(old["meter"]) > 5
+    new, report, moves = steady.steady_timing(old, onsets, 200_000.0)
+    assert new["tempoMap"] == [{"beat": 0.0, "bpm": 128.0}] and new["meter"] == [{"measure": 0, "beatsPerMeasure": 4}]
+    assert new["offsetMs"] == pytest.approx(100.0, abs=3.0)
+    assert report["tempos"] == [5, 1] and report["zones"] == [{"ms": 100.0, "bpm": 128.0}]
+    assert charts.song_bpm(new, 200_000.0) == {"bpm": 128.0, "bpmMin": 128.0, "bpmMax": 128.0}
+    # a note on the third beat after the 128.1 line was 3 ms off the song's grid and more by the span's
+    # end; it keeps its place in the beat on the one grid
+    for beat_in_span in (3.0, 40.5, 59.75):
+        was = reds[2][0] + beat_in_span * reds[2][1]
+        assert moves.time(was) == pytest.approx(_grid(new["offsetMs"], 128.0, 68 + beat_in_span), abs=1e-6)
+        assert abs(moves.time(was) - was) < 25.0
+    # steadied once, it stays to the millisecond
+    again, report2, _ = steady.steady_timing(new, onsets, 200_000.0)
+    assert again is new and report2 is None
+    # a timing of one whole tempo has nothing to steady
+    one = timing_from_reds([(100.0, 468.75, 4)])
+    assert steady.steady_timing(one, onsets, 200_000.0) == (one, None, None)
+
+
+def test_a_real_tempo_change_keeps_its_place_and_each_side_is_one_tempo() -> None:
+    from rhythm_server.formats.osu import timing_from_reds
+    from rhythm_server.mapper import steady
+
+    # 176 -> 185 at beat 304 (103.6 s), the model's lines on each side a little off
+    change = _grid(5.0, 176.0, 304)
+    onsets = _eighths(5.0, change, 176.0) + _eighths(change, 180_000.0, 185.0)
+    reds = _model_reds(5.0, 176.0, [(0, 0, 176), (58, 0, 174), (60, 2, 176.2), (116, -3, 176), (162, 4, 180), (164, 0, 175.99)])
+    reds += _model_reds(change, 185.0, [(0, 0, 185), (23, 5, 187), (29, 0, 185), (64, -6, 184.5), (81, 0, 185)])
+    new, report, _ = steady.steady_timing(timing_from_reds(reds), onsets, 180_000.0)
+    assert [p["bpm"] for p in new["tempoMap"]] == [176.0, 185.0]
+    assert new["tempoMap"][1]["beat"] == pytest.approx(304.0, abs=0.03)
+    assert TempoMap(new).beat_to_ms(new["tempoMap"][1]["beat"]) == pytest.approx(change, abs=5.0)
+    assert charts.song_bpm(new, 180_000.0) == {"bpm": 176.0, "bpmMin": 176.0, "bpmMax": 185.0}
+    # half the tempo is the same beat counted otherwise: 92.5 after 185 stays 185
+    half = reds[:6] + [(change, 60000.0 / 185, 4), (_grid(change, 185.0, 64), 60000.0 / 92.5, 4)]
+    new, _, moves = steady.steady_timing(timing_from_reds(half), onsets, 180_000.0)
+    assert [p["bpm"] for p in new["tempoMap"]] == [176.0, 185.0]
+    was = half[-1][0] + 3 * half[-1][1]  # its third beat: the sixth of 185
+    assert moves.time(was) == pytest.approx(was, abs=5.0)
+
+
+def test_a_tempo_that_sways_is_left_as_the_model_heard_it() -> None:
+    from rhythm_server.formats.osu import timing_from_reds
+    from rhythm_server.mapper import steady
+
+    # a band without a click: a new tempo every four bars, 2 % around 120, and the onsets on those beats
+    reds, onsets, t = [], [], 200.0
+    for k in range(24):
+        bpm = 120.0 * (1.0 + 0.02 * ((k * 7) % 5 - 2) / 2.0)
+        reds.append((t, 60000.0 / bpm, 4))
+        onsets += [{"t": t + i * 30000.0 / bpm} for i in range(32)]
+        t += 16 * 60000.0 / bpm
+    live = timing_from_reds(reds)
+    assert steady.steady_timing(live, onsets, t) == (live, None, None)
+    # red lines the song's onsets do follow, a sixteenth apart from one grid: one grid would fit the
+    # sounds worse, so they stay
+    lurch = timing_from_reds([(100.0, 500.0, 4), (30_100.0 + 18.0, 500.0, 4), (60_100.0 - 18.0, 500.0, 4), (90_100.0 + 18.0, 500.0, 4)])
+    sounds = [{"t": r + i * 250.0} for r in (100.0, 30_118.0, 60_082.0, 90_118.0) for i in range(119)]
+    new, _, _ = steady.steady_timing(lurch, sounds, 120_000.0)
+    assert [p["bpm"] for p in new["tempoMap"]] == [120.0]
+    fits = steady.window_fits(steady.red_lines_of(new, 120_000.0), sorted(o["t"] for o in sounds), 120_000.0)
+    assert all(off < 1.0 for _, off, _, _ in fits)
+
+
+def test_bars_keep_a_change_of_meter_that_lasts_and_drop_one_that_does_not() -> None:
+    from rhythm_server.formats.common import measures
+    from rhythm_server.formats.osu import timing_from_reds
+    from rhythm_server.mapper import steady
+
+    onsets = _eighths(0.0, 200_000.0, 120.0)
+    # 4/4, a line two beats into a bar (the bars after it start there: for two bars, then the old place
+    # again), and 3/4 from beat 128 on, the model's lines a few ms off
+    reds = [(0.0, 500.0, 4), (_grid(0, 120, 34) + 5, 60000.0 / 119.5, 4), (_grid(0, 120, 44) - 4, 500.0, 4),
+            (_grid(0, 120, 128) + 3, 500.0, 3), (_grid(0, 120, 200) - 6, 60000.0 / 120.2, 3), (_grid(0, 120, 212), 500.0, 3)]
+    new, report, _ = steady.steady_timing(timing_from_reds(reds), onsets, 200_000.0)
+    assert new["tempoMap"] == [{"beat": 0.0, "bpm": 120.0}]
+    assert new["meter"] == [{"measure": 0, "beatsPerMeasure": 4}, {"measure": 32, "beatsPerMeasure": 3}]
+    # a beat dropped for good (the bars start a beat early from beat 63 to the end) is a bar cut short there
+    drop = [(0.0, 500.0, 4), (_grid(0, 120, 32) + 4, 500.0, 4), (_grid(0, 120, 63) - 3, 500.0, 4), (_grid(0, 120, 127) + 4, 500.0, 4)]
+    new, _, _ = steady.steady_timing(timing_from_reds(drop), onsets, 200_000.0)
+    assert new["tempoMap"] == [{"beat": 0.0, "bpm": 120.0}]
+    bars = measures(new["meter"], 80.0)
+    assert [length for _, length in bars[14:17]] == [4.0, 3.0, 4.0] and bars[16][0] == 63.0
+
+
+def test_the_song_list_bpm_is_not_a_range_for_a_tempo_held_a_moment() -> None:
+    from rhythm_server.formats.osu import timing_from_reds
+
+    # 180 with two beats of 171 and of 182 (a song left as the model heard it): 180, not 171-182
+    timing = timing_from_reds([(0.0, 60000 / 180, 4), (60_000.0, 60000 / 171, 4), (60_700.0, 60000 / 180, 4), (90_000.0, 60000 / 182, 4), (90_660.0, 60000 / 180, 4)])
+    assert charts.song_bpm(timing, 200_000.0) == {"bpm": 180.0, "bpmMin": 180.0, "bpmMax": 180.0}
+    # a tempo that sways a little is one tempo to the player (161-162); a real change is not (176 -> 185)
+    sway = timing_from_reds([(0.0, 60000 / 162, 4), (60_000.0, 60000 / 161, 4), (100_000.0, 60000 / 162, 4)])
+    assert charts.song_bpm(sway, 200_000.0) == {"bpm": 162.0, "bpmMin": 162.0, "bpmMax": 162.0}
+    # a bar that starts at a tempo change is one red line, with that tempo
+    cut = timing_from_reds([(0.0, 500.0, 4), (10_100.0, 400.0, 3)])
+    assert [(round(t), round(b)) for t, b, _ in charts.timing_red_lines(cut)] == [(0, 500), (10000, 500), (10100, 400)]
+
+
+SWAYING_LINES_WORKER = textwrap.dedent('''
+    import json, sys
+    from pathlib import Path
+    for line in sys.stdin:
+        req = json.loads(line)
+        # its own timing on a song at 128: red lines a little off, as the model puts them; given a timing, it keeps it
+        beat = 468.75
+        reds = [(100.0, beat), (100 + 16 * beat + 6, 60000 / 127.5), (100 + 20 * beat + 3, 60000 / 128.2), (100 + 36 * beat - 4, beat)]
+        if req.get("beatmap"):
+            text = Path(req["beatmap"]).read_text(encoding="utf-8")
+            rows = [l.split(",") for l in text.split("[TimingPoints]")[1].splitlines() if l.strip() and not l.startswith("[")]
+            reds = [(float(r[0]), float(r[1])) for r in rows]
+        keys = int(req["keycount"])
+        times = []
+        for k, (t, length) in enumerate(reds):
+            end = reds[k + 1][0] if k + 1 < len(reds) else t + 16 * length
+            n = 0
+            while t + n * length < end - length / 2 and len(times) < 48:
+                times.append(int(round(t + n * length)))
+                n += 1
+        objs = [f"{int((i % keys + 0.5) * 512 / keys)},192,{t},1,0,0:0:0:0:" for i, t in enumerate(times)]
+        out = Path(req["out"]) / "beatmap.osu"
+        lines = "\\n".join(f"{t:.3f},{length:.9f},4,1,0,60,1,0" for t, length in reds)
+        head = "osu file format v14\\n[General]\\nMode: 3\\n[Difficulty]\\nCircleSize:%d\\n[TimingPoints]\\n%s\\n[HitObjects]\\n" % (keys, lines)
+        out.write_text(head + "\\n".join(objs) + "\\n", encoding="utf-8")
+        print(json.dumps({"id": req["id"], "ok": True, "osu": str(out), "seconds": 0.1, "device": "cuda", "precision": "fp32"}), flush=True)
+''')
+
+
+def test_a_first_chart_moves_onto_the_steady_timing_and_the_song_keeps_it(tmp_path, fake_mapper_runtime, monkeypatch) -> None:
+    from rhythm_server.formats.osu import timing_from_reds
+    from rhythm_server.mapper import steady
+
+    (fake_mapper_runtime / "fake_worker.py").write_text(SWAYING_LINES_WORKER, encoding="utf-8")
+    app = create_app(tmp_path / "data", client_dist=None, synchronous_jobs=True)
+    with TestClient(app) as c:
+        sid = c.post("/api/songs/demo", json={"bpm": 128, "bars": 12, "seed": 2}).json()["song"]["id"]
+        chart = c.post(f"/api/songs/{sid}/charts", json={"keyMode": "4K", "difficulty": "HARD"}).json()["chart"]
+        gen = chart["meta"]["generator"]
+        assert gen["timing"] == "model" and gen["timingSteady"]["tempos"] == [4, 1] and gen["timingSteady"]["notesMoved"] is True
+        assert chart["timing"]["tempoMap"] == [{"beat": 0.0, "bpm": 128.0}] and chart["timing"]["meter"] == [{"measure": 0, "beatsPerMeasure": 4}]
+        # every note was on a beat of the model's grid, and is on a beat of the one grid
+        assert len(chart["notes"]) == 48 and all(abs(n["beat"] - round(n["beat"])) < 0.01 for n in chart["notes"])
+        song = c.get(f"/api/songs/{sid}").json()["song"]
+        assert (song["bpm"], song["bpmMin"], song["bpmMax"]) == (128.0, 128.0, 128.0)
+        kept = app.state.library.mapper_timing_kept(sid)
+        assert kept["timing"] == chart["timing"] and kept["steady"] == steady.STEADY_VERSION
+        # the model's own timing is kept beside it: to settle it anew from, or to go back to
+        assert len(kept["raw"]["tempoMap"]) == 4
+        # the next chart is made on that timing as it is
+        other = c.post(f"/api/songs/{sid}/charts", json={"keyMode": "4K", "difficulty": "NORMAL"}).json()["chart"]
+        assert other["timing"] == chart["timing"] and "timingSteady" not in other["meta"]["generator"]
+        # a timing kept from before (the model's red lines as they came), and the BPM the list showed for it
+        library = app.state.library
+        beat = 468.75
+        old = timing_from_reds([(100.0, beat, 4), (100 + 16 * beat + 6, 60000 / 127.5, 4), (100 + 20 * beat + 3, 60000 / 128.2, 4), (100 + 36 * beat - 4, beat, 4)])
+        library.save_mapper_timing(sid, kept["model"], old)
+        library.update_song(sid, bpm=128.0, bpm_min=127.5, bpm_max=128.2)
+        made = library.load_chart(chart["meta"]["chartId"])
+    # the next start steadies it: the list's BPM is one number at once; the chart made before is as it was
+    app = create_app(tmp_path / "data", client_dist=None, synchronous_jobs=True)
+    with TestClient(app) as c:
+        song = c.get(f"/api/songs/{sid}").json()["song"]
+        assert (song["bpm"], song["bpmMin"], song["bpmMax"]) == (128.0, 128.0, 128.0)
+        kept = app.state.library.mapper_timing_kept(sid)
+        assert kept["steady"] == steady.STEADY_VERSION and kept["timing"]["tempoMap"] == [{"beat": 0.0, "bpm": 128.0}]
+        assert kept["raw"] == old  # what was there is what it was settled from
+        assert app.state.library.load_chart(chart["meta"]["chartId"]) == made
+    # with mapper.json timingSteady off the model's red lines are kept as they came
+    config = Mapper.config
+    monkeypatch.setattr(Mapper, "config", lambda self: {**config(self), "timingSteady": False})
+    app = create_app(tmp_path / "off", client_dist=None, synchronous_jobs=True)
+    with TestClient(app) as c:
+        sid = c.post("/api/songs/demo", json={"bpm": 128, "bars": 12, "seed": 2}).json()["song"]["id"]
+        chart = c.post(f"/api/songs/{sid}/charts", json={"keyMode": "4K", "difficulty": "HARD"}).json()["chart"]
+        assert "timingSteady" not in chart["meta"]["generator"] and len(chart["timing"]["tempoMap"]) == 4
+
+
+def _beats_off(timing: dict, beats: list[float]) -> float:
+    """How far the true beats lie from the timing's beats at most (ms)."""
+    tempo = TempoMap(timing)
+    return max(abs(tempo.ms_to_beat(b) - round(tempo.ms_to_beat(b))) * tempo.beat_ms(tempo.ms_to_beat(b)) for b in beats)
+
+
+def test_a_fast_steady_song_is_steadied_before_the_check_can_take_a_right_tempo_out() -> None:
+    from rhythm_server.formats.osu import timing_from_reds
+    from rhythm_server.mapper import steady
+
+    # 222 BPM: a sixteenth is 68 ms, the check's tolerance 11. On the model's red lines the check took
+    # the right tempo of a span 12 ms off for a lost one (10 of 30 such songs came out worse than the
+    # model's timing, checked first); steadied first there is one tempo and nothing to take
+    exact = again = 0
+    for seed in range(200, 208):
+        beats, reds, onsets = heard_song(lambda t: 222.0, 200_000.0, seed, wander=2.2, noise=6.0)
+        model = timing_from_reds(reds)
+        assert len(model["tempoMap"]) > 10
+        timing, fixed, report, moves = steady.settled_timing(model, onsets, 200_000.0)
+        assert _beats_off(timing, beats) <= max(30.0, _beats_off(model, beats) + 10.0)
+        assert (moves is None) == bool(fixed) and steady.no_worse(model, timing, onsets, 200_000.0)
+        exact += [p["bpm"] for p in timing["tempoMap"]] == [222.0]
+        again += bool(fixed)
+    # one of the eight has a start one grid cannot follow (there the check goes first after all), and
+    # under this much noise a span or two the model put can be too far off to step over
+    assert exact >= 6 and again <= 1
+    # a tempo off the round numbers, and a real change
+    beats, reds, onsets = heard_song(lambda t: 127.96, 200_000.0, 3)
+    timing, _, _, _ = steady.settled_timing(timing_from_reds(reds), onsets, 200_000.0)
+    assert [p["bpm"] for p in timing["tempoMap"]] == [127.96] and _beats_off(timing, beats) < 15.0
+    beats, reds, onsets = heard_song(lambda t: 120.0 if t < 100_000 else 150.0, 200_000.0, 4)
+    timing, _, _, _ = steady.settled_timing(timing_from_reds(reds), onsets, 200_000.0)
+    assert [p["bpm"] for p in timing["tempoMap"]] == [120.0, 150.0] and _beats_off(timing, beats) < 20.0
+    # the long tail of a lost beat leaves no zone: the check takes it out, then the rest is one tempo
+    beats, reds, onsets = heard_song(lambda t: 120.0, 200_000.0, 5)
+    lost = [r for r in reds if r[0] < 130_000] + [(130_000.0, 60000.0 / 2.9, 4), (170_000.0, 60000.0 / 29.5, 4)]
+    timing, fixed, report, moves = steady.settled_timing(timing_from_reds(lost), onsets, 200_000.0)
+    assert [p["bpm"] for p in timing["tempoMap"]] == [120.0] and [d["why"] for d in fixed] == ["bounds", "bounds"] and moves is None
+    assert _beats_off(timing, beats) < 20.0
+    # bars of a timing left as the model heard it are whole (3.999999 beats are four)
+    beats, reds, onsets = heard_song(lambda t: 100.0 * (1.0 + 0.01 * ((int(t / 4800) * 7) % 5 - 2) / 2.0), 150_000.0, 6)
+    left, _, _, _ = steady.settled_timing(timing_from_reds(reds), onsets, 150_000.0)
+    assert all(abs(m["beatsPerMeasure"] - round(m["beatsPerMeasure"])) > 5e-5 or m["beatsPerMeasure"] == round(m["beatsPerMeasure"]) for m in left["meter"])
+
+
+# ---------- FX notes of 4K+FX and 6K+FX (mapper/fx.py) ----------
+
+
+def _fx_chart(key_mode: str, difficulty: str, cfg: dict | None = None) -> dict:
+    """A chart of 400 beats at 120 BPM: a note on every beat (columns in turn), an eighth after every
+    other, a chord on every eighth beat, and a hold of two beats alone every sixteen."""
+    keys = len(charts.columns(key_mode))
+    objects = []
+    for b in range(400):
+        t = 1000 + 500 * b
+        if b % 16 == 8:
+            objects.append(f"{x_of(b % keys, keys)},192,{t},128,0,{t + 1000}:0:0:0:0:")
+        elif b % 16 == 9:
+            continue  # nothing else while the hold is held
+        else:
+            objects.append(f"{x_of(b % keys, keys)},192,{t},1,{8 if b % 4 == 2 else 0},0:0:0:0:")
+        if b % 8 == 0:
+            objects.append(f"{x_of((b + 2) % keys, keys)},192,{t},1,0,0:0:0:0:")
+        if b % 2 == 1:
+            objects.append(f"{x_of((b + 3) % keys, keys)},192,{t + 250},1,0,0:0:0:0:")
+    a = {**_analysis(), "durationMs": 210_000.0, "onsets": [], "sections": []}
+    cfg = cfg or dict(mapper_config())
+    level = charts.target_level(key_mode, difficulty, None)
+    return charts.make_chart(a, key_mode, difficulty, level, 1, "cfx", cfg, {"songId": None, "title": "T"}, osu(keys, objects, "1000,500,4,1,0,60,1,0"), {})
+
+
+@pytest.mark.parametrize("key_mode", ["4K+FX", "6K+FX"])
+def test_some_key_notes_go_to_the_fx_lanes_by_the_tiers_rate(key_mode: str) -> None:
+    from rhythm_server.chart.lanes import lane_infos
+    from rhythm_server.config import difficulty_config
+
+    lanes = lane_infos(key_mode)
+    side = {l.index: l.hand for l in lanes if l.kind == "side"}
+    hand = {l.index: l.hand for l in lanes}
+    off = {**mapper_config(), "fx": {**mapper_config()["fx"], "enabled": False}}
+    shares = []
+    for tier in ("NORMAL", "HARD", "EXPERT", "MASTER"):
+        plain, chart = _fx_chart(key_mode, tier, off), _fx_chart(key_mode, tier)
+        assert all(n["lane"] not in side for n in plain["notes"]) and "fx" not in plain["meta"]["generator"]
+        notes, fx = chart["notes"], [n for n in chart["notes"] if n["lane"] in side]
+        report = chart["meta"]["generator"]["fx"]
+        preset = difficulty_config()["presets"][tier]
+        instants = len({n["t"] for n in notes})
+        # moved, not added: the same notes at the same times, the tier's share of the instants on FX
+        assert len(notes) == len(plain["notes"]) and sorted(n["t"] for n in notes) == sorted(n["t"] for n in plain["notes"])
+        assert len(fx) == report["taps"] + report["holds"] == report["left"] + report["right"]
+        assert len(fx) == pytest.approx(preset["sideRate"] * instants, abs=1.0) and report["holds"] > 0
+        assert abs(chart["meta"]["level"] - plain["meta"]["level"]) <= 1
+        shares.append(len(fx) / instants)
+        # both sides are used, never within 450 ms of one another (so never at once)
+        assert report["left"] > 0 and report["right"] > 0
+        assert all(b["t"] - a["t"] >= 450 for a, b in zip(fx, fx[1:]))
+        for n in fx:
+            same_hand = [m for m in notes if m["lane"] not in side and hand[m["lane"]] == side[n["lane"]]]
+            # no key of the FX note's hand right before or after it, none while an FX hold is held
+            assert not any(0 < abs(m["t"] - n["t"]) < preset["minJackMs"] for m in same_hand)
+            assert not any(n["type"] == "hold" and n["t"] < m["t"] < n["endT"] for m in same_hand)
+        # over the whole song: every quarter of it has some
+        assert all(sum(1 for n in fx if q * 50_000 <= n["t"] - 1000 < (q + 1) * 50_000) >= 2 for q in range(4))
+    assert shares == sorted(shares)
+    # a key mode without FX lanes is as the model made it
+    assert "fx" not in _fx_chart("4K", "EXPERT")["meta"]["generator"]

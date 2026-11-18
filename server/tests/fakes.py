@@ -5,6 +5,7 @@ and a chart made straight from an .osu of the song's onsets."""
 from __future__ import annotations
 
 import json
+import random
 import sys
 import textwrap
 from pathlib import Path
@@ -98,3 +99,89 @@ def on_grid(chart: dict, per_beat: int = 4) -> dict:
             note.update(endBeat=end, endT=round(tempo.beat_to_ms(end), 3))
         notes.append(note)
     return {**chart, "notes": notes, "meta": {**chart["meta"], "noteCount": len(notes)}}
+
+
+# ---------- a song as the model's timing pass hears it (the coordinator session's experiment) ----------
+
+MODEL_LENIENCY_MS = 20.0
+def snapped(markers, mpb, off):
+    return all(abs(t - (off + (k + 1) * mpb)) <= MODEL_LENIENCY_MS for k, (t, _) in enumerate(markers))
+def human_round(mpb, markers, off):
+    bpm = 60000.0 / mpb
+    for scale in (1, 2, 10, 100, 1000):
+        r = 60000.0 / (round(bpm * scale) / scale)
+        if snapped(markers, r, off):
+            return r
+    return mpb
+def ms_per_beat(span, beats, leniency):
+    mpb = span / beats
+    bpm = 60000.0 / mpb
+    for scale in (1, 2, 10, 100, 1000):
+        r = 60000.0 / (round(bpm * scale) / scale)
+        if abs(span - r * beats) <= leniency:
+            return r
+    return mpb
+def model_reds(markers, meter=4):
+    """Red lines as Mapperatorinator's postprocessor.generate_timing puts them on beat markers ((whole
+    ms, is a measure's start), by time): a new one where a beat falls 20 ms off the grid of the one
+    before or the measures' count is off, its tempo rounded (written anew from reading that code)."""
+    reds = [[markers[0][0], 1000.0, meter]]
+    on = [0]
+    counter = 0
+    for i in range(1, len(markers)):
+        t, is_measure = markers[i]
+        red, at = reds[-1], on[-1]
+        before = markers[at + 1:i + 1]
+        mpb = (t - red[0]) / len(before)
+        if snapped(before, mpb, red[0]):
+            red[1] = human_round(mpb, before, red[0])
+        elif len(before) > 1:
+            def loss(ms, off):
+                m = (ms[-1][0] - off) / len(ms)
+                return sum((x - (off + (k + 1) * m)) ** 2 for k, (x, _) in enumerate(ms)) / len(ms)
+            best, split = float("inf"), len(before) - 1
+            for s in range(1, len(before)):
+                cut = before[s - 1]
+                if not cut[1] and s != len(before) - 1:
+                    continue
+                v = loss(before[:s], red[0]) + loss(before[s:], cut[0])
+                if v < best:
+                    best, split = v, s
+            if split < len(before) - 1:
+                m0 = (before[split - 1][0] - red[0]) / split
+                red[1] = human_round(m0, before[:split], red[0])
+            last = before[split - 1][0]
+            reds.append([last, ms_per_beat(t - last, len(before) - split, MODEL_LENIENCY_MS), meter])
+            on.append(at + split)
+            counter = 0
+            for k in range(len(before) - 2, split - 1, -1):
+                if before[k][1]:
+                    break
+                counter += 1
+        counter += 1
+        if reds[-1][0] == t:
+            counter = 0
+        if is_measure:
+            if counter % reds[-1][2] != 0:
+                reds.append([t, reds[-1][1], reds[-1][2]])
+                on.append(i)
+            counter = 0
+    return [tuple(r) for r in reds]
+def heard_song(tempo_at, duration, seed, meter=4, wander=2.0, noise=3.0, offset=430.0):
+    """A song whose true beats are known, as the model hears it: the true beats, the red lines the model
+    would put (each beat heard with a slow wander and noise, ms), and the onsets an analysis would find
+    (sixteenths of the true beats, 25 ms late)."""
+    rng = random.Random(seed)
+    beats, t = [], offset
+    while t < duration:
+        beats.append(t); t += 60000.0 / tempo_at(t)
+    w, markers = 0.0, []
+    for k, b in enumerate(beats):
+        w = 0.985 * w + rng.gauss(0, wander)
+        markers.append((int(round(b + w + rng.gauss(0, noise))), k % meter == 0))
+    onsets = []
+    for a, b in zip(beats, beats[1:]):
+        for q in range(4):
+            if rng.random() < (1.0 if q == 0 else 0.55):
+                onsets.append({"t": a + (b - a) * q / 4 + 25.0 + rng.gauss(0, 6.0), "strength": (1.0 if q == 0 else 0.5) + rng.random() * 0.3})
+    return beats, model_reds(markers, meter), onsets
