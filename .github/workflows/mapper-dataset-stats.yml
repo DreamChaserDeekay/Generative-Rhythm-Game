@@ -33,7 +33,7 @@ jobs:
         run: python scripts/lora/make_dataset.py --keys ${{ matrix.keys }} --out "$RUNNER_TEMP/ds" --osu-only | tail -5
       - name: Report
         run: |
-          # a chart with a stray note hours in is left out of the measures (the report says which)
+          # a chart the measures do not finish on within 10 s is left out (the report says which)
           timeout 900 python scripts/mapper_keymode_report.py "$RUNNER_TEMP/ds" --mmrs --sample 4000 --json "$RUNNER_TEMP/report-${{ matrix.keys }}K.json" --label "project-riz/osu-beatmaps ${{ matrix.keys }}K" | tee -a "$GITHUB_STEP_SUMMARY"
           python - <<'PY' | tee -a "$GITHUB_STEP_SUMMARY"
           import os, pandas as pd

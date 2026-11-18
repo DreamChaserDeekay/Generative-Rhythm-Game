@@ -16,7 +16,10 @@ files and the songs stay out of the repository.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
+import signal
+import sys
 import statistics
 from collections import Counter, defaultdict
 from pathlib import Path
@@ -33,6 +36,26 @@ from rhythm_server.mapper.runtime import mapper_config
 
 TIERS = tuple(difficulty_config()["order"])
 JACK_MS = 150.0  # a lane pressed again within this is a fast jack
+
+
+@contextlib.contextmanager
+def time_limit(seconds: int):
+    """Gives a chart up after `seconds` (where the system has alarms: not on Windows): a few of
+    people's charts have timing the app's measures do not finish on."""
+    if not hasattr(signal, "SIGALRM"):
+        yield
+        return
+
+    def stop(*_):
+        raise TimeoutError(f"not measured within {seconds} s")
+
+    old = signal.signal(signal.SIGALRM, stop)
+    signal.alarm(seconds)
+    try:
+        yield
+    finally:
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, old)
 
 
 def chart_row(text: str, mode: str, tier: str, seconds: float) -> dict:
@@ -86,6 +109,8 @@ def mean(rows: list[dict], key: str) -> float:
 
 
 def main() -> None:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")  # a Windows console's code page has no Korean
     ap = argparse.ArgumentParser()
     ap.add_argument("folder", type=Path)
     ap.add_argument("--json", type=Path)
@@ -98,6 +123,12 @@ def main() -> None:
         import pandas as pd
 
         cfg = mapper_config()
+        try:  # a chart whose measures would take all the memory fails alone, not the machine
+            import resource
+
+            resource.setrlimit(resource.RLIMIT_AS, (6 << 30, 6 << 30))
+        except (ImportError, ValueError, OSError):
+            pass
         meta = pd.read_parquet(a.folder / "metadata.parquet").sort_values("Id")
         if a.sample and len(meta) > a.sample:
             meta = meta.iloc[:: len(meta) // a.sample]
@@ -112,9 +143,10 @@ def main() -> None:
                 print(f"skipped {m['BeatmapFile']}: {len(lines)} objects over {seconds:.0f} s")
                 continue
             try:
-                rows[(mode, tier)].append(chart_row(text, mode, tier, seconds))
-            except Exception as e:  # noqa: BLE001  (a chart the app's parser does not take)
-                print(f"skipped {m['BeatmapFile']}: {e}")
+                with time_limit(10):
+                    rows[(mode, tier)].append(chart_row(text, mode, tier, seconds))
+            except (Exception, MemoryError) as e:  # noqa: BLE001  (a chart the app's parser does not take, or does not finish)
+                print(f"skipped {m['BeatmapFile']}: {type(e).__name__} {e}")
     for osu in [] if a.mmrs else sorted(a.folder.glob("*.osu")):
         song, mode, tier = osu.name[: -len(".osu")].rsplit(".", 2)
         report = a.folder / f"{song}.{mode}.json"
