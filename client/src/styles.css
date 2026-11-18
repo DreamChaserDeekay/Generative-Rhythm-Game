@@ -5998,9 +5998,61 @@ button.key-cap.clash:hover:not(:disabled) {
   color: var(--text-faint);
 }
 
-/* a level the AI model aims at, for a chart it has not made yet */
-.difficulty.predicted .diff-level {
-  opacity: 0.55;
+/* A chart not made yet (or being made, or failed) is told by its plate's outline and its level's
+   shape, not by colour alone: a dashed outline in place of the solid plate, and the level the
+   generator aims at hollow. Picked, the plate is filled with stripes of its tier's colour rather
+   than solid. A made chart keeps the solid plate and level. */
+.difficulty.state-unmade::before,
+.difficulty.state-making::before,
+.difficulty.state-failed::before {
+  background: transparent;
+  box-shadow: none;
+  border: 1px dashed color-mix(in srgb, var(--diff) 75%, transparent);
+}
+
+.difficulty.state-failed::before {
+  border-color: var(--g-break);
+}
+
+.difficulty.state-unmade.active::before,
+.difficulty.state-making.active::before {
+  border-color: var(--diff);
+  background: repeating-linear-gradient(90deg, var(--diff) 0 0.375rem, color-mix(in srgb, var(--diff) 62%, var(--bg)) 0.375rem 0.75rem);
+}
+
+.difficulty.state-failed.active::before {
+  border-color: var(--g-break);
+  background: color-mix(in srgb, var(--g-break) 28%, var(--surface));
+}
+
+.difficulty.state-unmade .diff-level,
+.difficulty.state-making .diff-level {
+  color: transparent;
+  -webkit-text-stroke: 1.5px var(--text-dim);
+}
+
+.difficulty.state-unmade.active .diff-level,
+.difficulty.state-making.active .diff-level {
+  color: transparent;
+  -webkit-text-stroke: 1.5px var(--on-accent);
+}
+
+.difficulty.state-failed.active .diff-name,
+.difficulty.state-failed.active .diff-level,
+.difficulty.state-failed.active .diff-state {
+  color: var(--text);
+}
+
+.difficulty.state-failed .diff-state {
+  color: var(--g-break);
+}
+
+/* the word on a plate not made: on the striped fill it sits on a small ink tag to stay legible */
+.difficulty.state-unmade.active .diff-state,
+.difficulty.state-making.active .diff-state {
+  padding: 0 0.25rem;
+  color: var(--on-accent);
+  background: var(--accent);
 }
 
 .diff-in > .lamp-text,
@@ -6739,6 +6791,17 @@ button.key-cap.clash:hover:not(:disabled) {
 
 .tier-level.unknown b {
   color: var(--text-faint);
+}
+
+/* the chart Enter plays is not made yet: its level hollow (as on its plate), no lamp ring */
+.tier-level.unmade b {
+  color: transparent;
+  -webkit-text-stroke: 1.25px var(--diff);
+}
+
+.song-item.active .tier-level.unmade b {
+  color: transparent;
+  -webkit-text-stroke: 1.5px var(--on-accent);
 }
 
 .song-item.active .tier-level b {

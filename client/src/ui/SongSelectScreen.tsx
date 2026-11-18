@@ -2159,7 +2159,7 @@ function SongRow(props: { song: Song; d: number; reach: number; favorite: boolea
       ) : song.status === 'error' ? (
         <span className="song-state error">분석 실패</span>
       ) : (
-        <span className={`tier-level ${mark?.level === null || !mark ? 'unknown' : ''} ${mark?.other ? 'other' : ''}`}>
+        <span className={`tier-level ${mark?.level === null || !mark ? 'unknown' : ''} ${mark?.other ? 'other' : ''} ${mark?.unmade ? 'unmade' : ''}`} title={mark?.unmade ? '채보 미생성' : undefined}>
           <LampMark />
           <b className="num">{mark?.level ?? '–'}</b>
         </span>
@@ -2171,8 +2171,8 @@ function SongRow(props: { song: Song; d: number; reach: number; favorite: boolea
 /**
  * A difficulty of the song as a leaning plate: its name, the level of the chart Enter plays on it
  * (worked out as soon as the song is chosen) and that chart's lamp. The chosen one is filled with
- * its colour. Where the chart is not there yet, the lamp's place says why: being worked out, made
- * when it is played or waiting its turn (nothing on the plate: every chart is made so, and only the one being made says so), being made, or not made.
+ * its colour. Where the chart is not there yet, the lamp's place says why (미생성, 생성 중, 실패,
+ * 계산 중) and the plate's outline and its level's shape say so too (see TierPlate's kind).
  */
 function TierPlate(props: {
   tier: DifficultyTier;
@@ -2192,27 +2192,29 @@ function TierPlate(props: {
   const { tier: t, brief, record } = props;
   const level = brief?.level ?? null;
   const waiting = props.pending || props.generating;
-  // a tier Mapperatorinator has not made yet: being made, waiting its turn, or made when played
-  const state = brief?.predicted
-    ? brief.making || props.generating
+  // what the plate is, told by its outline and its level's shape as well as a word, not by colour
+  // alone: made (a solid plate, a solid level), not made yet (dashed, its level hollow: the one the
+  // generator aims at), being made (as not made, a bar running), failed (dashed, 실패), or a level
+  // being worked out. A tier waiting behind the one being made is shown as not made (no "대기").
+  const kind: 'made' | 'unmade' | 'making' | 'failed' | 'pending' =
+    props.generating || brief?.making ? 'making' : brief?.predicted ? 'unmade' : props.failed ? 'failed' : props.pending ? 'pending' : 'made';
+  const state =
+    kind === 'making'
       ? ['생성 중', '채보를 만들고 있습니다']
-      : brief.queued
-        ? // waiting behind the one being made: no word on its plate (only the one being made says so)
-          ['', '다른 채보를 만든 뒤에 만듭니다']
-        : ['', '플레이하면 채보를 만듭니다']
-    : props.generating
-      ? ['생성 중', '채보를 만들고 있습니다']
-      : props.pending
-        ? ['계산 중', '레벨을 계산하고 있습니다']
-        : props.failed
+      : kind === 'unmade'
+        ? ['미생성', brief?.queued ? '다른 채보를 만든 뒤에 만듭니다' : '플레이하면 채보를 만듭니다']
+        : kind === 'failed'
           ? ['실패', '채보를 만들지 못했습니다. Enter를 누르면 다시 만들고 이유를 알려 줍니다']
-          : null;
+          : kind === 'pending'
+            ? ['계산 중', '레벨을 계산하고 있습니다']
+            : null;
   // the level the tests and the other screens read: the selected tier's, once known
   const levelId = { 'data-testid': props.active && brief ? 'chart-level' : undefined, 'data-chart-id': props.active ? brief?.chartId : undefined };
   const said = `${t.label}${level === null ? '' : ` Lv.${level}`}${record ? ` · ${record.lamp}` : ''}${state ? ` · ${state[1]}` : ''}`;
   return (
     <button
-      className={`difficulty ${props.active ? 'active' : ''} ${brief?.predicted ? 'predicted' : ''}`}
+      className={`difficulty ${props.active ? 'active' : ''} ${brief?.predicted ? 'predicted' : ''} state-${kind}`}
+      data-state={kind}
       style={{ ['--diff' as string]: t.color } as CSSProperties}
       aria-pressed={props.active}
       onClick={props.onPick}
