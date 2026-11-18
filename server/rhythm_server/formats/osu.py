@@ -176,6 +176,10 @@ def _key_mode(keys: int, tags: str) -> tuple[str, list[int]]:
     raise FormatError(f"osu!mania {keys}K는 지원하지 않습니다 (4·5·6·8키만)")
 
 
+# the beat lengths a red line's tempo is taken from: 10000 BPM to 1 BPM
+MIN_BEAT_MS, MAX_BEAT_MS = 6.0, 60000.0
+
+
 def red_lines(text: str) -> list[tuple[float, float, int]]:
     """The uninherited timing points of an .osu, by time: (ms, beat length in ms, beats a bar).
     Inherited ones change the scroll speed, which we do not use."""
@@ -186,7 +190,10 @@ def red_lines(text: str) -> list[tuple[float, float, int]]:
             continue
         beat_len = float(f[1])
         uninherited = f[6].strip() != "0" if len(f) > 6 else True
-        if uninherited and beat_len > 0:
+        # a red line of no tempo anyone plays to (a beat of 1e-50 ms or 1e66 ms: mappers set one for a
+        # hundredth of a millisecond to stop or jump the scroll) is not a tempo: the one before runs
+        # on. As a tempo it gave a bar count without end, or 0 BPM.
+        if uninherited and MIN_BEAT_MS <= beat_len <= MAX_BEAT_MS:
             reds.append((float(f[0]), beat_len, int(f[2]) if len(f) > 2 and f[2].strip() else 4))
     return sorted(reds)
 

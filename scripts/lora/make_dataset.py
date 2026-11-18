@@ -16,7 +16,7 @@ or from folders of your own, each holding a song and its .osu files (an osu! Son
     python make_dataset.py --keys 6 --out D:\\grg-lora\\6K --local "C:\\osu!\\Songs"
 
 Stopped part way, the same command goes on from the last finished tar file. Runs in
-Mapperatorinator's Python (the app's runtime folder) with soundfile added; nothing here loads the
+Mapperatorinator's Python (the app's runtime folder) with soundfile and av added; nothing here loads the
 model. What it downloads keeps the dataset's own terms (its card: "provided for research purposes
 only"); nothing of it belongs in a public repository.
 
@@ -43,6 +43,7 @@ REPO = "https://huggingface.co/datasets/project-riz/osu-beatmaps/resolve/main/co
 SHARDS = 74
 SPEEDS = (0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0)  # the clock rates of the StarRating column
 AUDIO_TYPES = (".opus", ".mp3", ".ogg", ".wav", ".flac")
+UNREAD: list[int] = []  # the songs whose audio no decoder read (left out)
 
 
 def osu_info(text: str) -> dict:
@@ -82,12 +83,35 @@ def stars(text: str) -> list[float]:
     return out
 
 
+def decode(data: bytes) -> tuple["np.ndarray", int]:
+    """A song's samples as mono floats and their rate: by soundfile, and by PyAV (ffmpeg) for the
+    files soundfile calls malformed (some of the dataset's opus files)."""
+    import soundfile as sf
+
+    try:
+        pcm, rate = sf.read(io.BytesIO(data), dtype="float32", always_2d=True)
+        return pcm.mean(axis=1), rate
+    except Exception as first:  # noqa: BLE001
+        try:
+            import av
+            import numpy as np
+        except ImportError:
+            raise first from None
+        with av.open(io.BytesIO(data)) as container:
+            stream = container.streams.audio[0]
+            rate = int(stream.rate)
+            resampler = av.AudioResampler(format="flt", layout="mono", rate=rate)
+            chunks = [out.to_ndarray().reshape(-1) for frame in container.decode(stream) for out in resampler.resample(frame)]
+            chunks += [out.to_ndarray().reshape(-1) for out in resampler.resample(None)]
+        return np.concatenate(chunks).astype("float32"), rate
+
+
 def write_wav(data: bytes, path: Path) -> float:
     """The song as mono 16-bit WAV (Mapperatorinator reads it without ffmpeg); its seconds."""
     import soundfile as sf
 
-    pcm, rate = sf.read(io.BytesIO(data), dtype="float32", always_2d=True)
-    sf.write(path, pcm.mean(axis=1), rate, subtype="PCM_16")
+    pcm, rate = decode(data)
+    sf.write(path, pcm, rate, subtype="PCM_16")
     return len(pcm) / rate
 
 
@@ -104,6 +128,7 @@ def add_set(a: argparse.Namespace, set_id: int, audio: bytes | None, charts: lis
             write_wav(audio, folder / "audio.wav")
         except Exception as e:  # noqa: BLE001  (an audio file soundfile cannot read: the song is left out)
             print(f"  set {set_id}: audio not read ({e})", file=sys.stderr)
+            UNREAD.append(set_id)
             return []
     rows = []
     for info, text, more in charts:
@@ -226,7 +251,7 @@ def main() -> None:
     df.to_parquet(a.out / "metadata.parquet", index=False)
     sets = df["BeatmapSetId"].nunique()
     print(json.dumps({"charts": len(df), "songs": sets, "keys": a.keys, "medianStars": round(float(df["DifficultyRating"].median()), 2),
-                      "specialStyle": int(df["SpecialStyle"].sum()), "out": str(a.out)}))
+                      "specialStyle": int(df["SpecialStyle"].sum()), "audioNotRead": len(UNREAD), "out": str(a.out)}))
     print(f"train with: train_dataset_end={sets}")
 
 

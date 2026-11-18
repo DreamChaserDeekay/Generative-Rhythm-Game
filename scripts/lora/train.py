@@ -7,7 +7,7 @@ lora_v32) with the settings a mania adapter and a Windows PC need; nothing of th
     python train.py --keys 8 --install D:\\grg-lora\\8K\\run\\...\\lora   an adapter trained elsewhere
 
 Run with the Python of the app's Mapperatorinator runtime (%LOCALAPPDATA%\\Generative Rhythm\\mapper\\
-venv\\Scripts\\python.exe), after `uv pip install peft==0.18.1 soundfile` into it; --runtime names
+venv\\Scripts\\python.exe), after `uv pip install peft==0.18.1 soundfile av` into it; --runtime names
 another runtime folder. The work folder (--work, default <data>\\run) gets Mapperatorinator's
 checkpoints: a full copy of the model and the optimizer each (about 2 GB, the last two are kept).
 Only the `lora` folder in the last one is the adapter (adapter_config.json,

@@ -449,3 +449,20 @@ def test_dropped_connection_tracebacks_are_not_logged():
     assert not keep(record(ConnectionResetError(10054, "An existing connection was forcibly closed by the remote host")))
     assert keep(record(ValueError("a real problem")))
     assert keep(logging.LogRecord("asyncio", logging.WARNING, __file__, 1, "slow callback", None, None))
+
+
+def test_osu_red_lines_of_no_playable_tempo_are_not_tempos() -> None:
+    """Mappers stop or jump the scroll with a red line of an absurd beat length held for a hundredth
+    of a millisecond (seen in ranked charts: 6e-96 ms, 1e-50 ms, 1e66 ms). As tempos they made the
+    bar count endless (the import never returned) or a tempo of 0 BPM (a division by zero)."""
+    from rhythm_server.formats.osu import parse_osu, red_lines
+
+    head = "osu file format v14\n[General]\nMode: 3\n[Difficulty]\nCircleSize:4\n[TimingPoints]\n"
+    points = ["1000,500,4,1,0,60,1,0", "9000,1E-50,4,1,0,60,1,0", "9000.01,500,4,1,0,60,1,0", "17000,1E+66,4,1,0,60,1,0",
+              "17000.01,500,3,1,0,60,1,0", "20000,6E-96,4,1,0,60,1,0", "20000.01,400,4,1,0,60,1,0", "21000,-100,4,1,0,60,0,0"]
+    objects = [f"{64 + 128 * (i % 4)},192,{1000 + 250 * i},1,0,0:0:0:0:" for i in range(100)]
+    text = head + "\n".join(points) + "\n[HitObjects]\n" + "\n".join(objects) + "\n"
+    assert [beat for _, beat, _ in red_lines(text)] == [500.0, 500.0, 500.0, 400.0]
+    chart = parse_osu(text)
+    assert [p["bpm"] for p in chart.timing["tempoMap"]] == [120.0, 150.0]
+    assert len(chart.notes) == 100 and len(chart.timing["meter"]) < 20

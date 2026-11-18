@@ -50,7 +50,7 @@ jobs:
         run: python scripts/mapper_probe.py --audio "$RUNNER_TEMP/song/$SONG" --out "$RUNNER_TEMP/out/base" --mode 8K --tiers HARD EXPERT
       - name: What the training needs besides the runtime
         run: |
-          "$GRG_MAPPER_HOME/uv/uv.exe" pip install --python "$GRG_MAPPER_HOME/venv/Scripts/python.exe" peft==0.18.1 soundfile
+          "$GRG_MAPPER_HOME/uv/uv.exe" pip install --python "$GRG_MAPPER_HOME/venv/Scripts/python.exe" peft==0.18.1 soundfile av
       - name: The dataset
         run: |
           # a folder as in an osu! Songs folder: the song (as the .osu files name it) and its charts
@@ -75,6 +75,11 @@ jobs:
             echo "## with the adapter"; python scripts/mapper_keymode_report.py "$RUNNER_TEMP/out/lora"
           } | tee -a "$GITHUB_STEP_SUMMARY"
           grep -i "lora" "$GRG_MAPPER_HOME/worker.log" || true
+      - name: The quick test's data and two steps on it (people's 4K charts of the dataset's first tar file, with their audio)
+        run: |
+          "$GRG_MAPPER_HOME/venv/Scripts/python.exe" scripts/lora/make_dataset.py --keys 4 --out "$RUNNER_TEMP/quick" --shards 0-0 2>&1 | tail -4 | tee "$RUNNER_TEMP/out/quick.txt"
+          du -sh "$RUNNER_TEMP/quick/data" | tee -a "$RUNNER_TEMP/out/quick.txt"
+          "$GRG_MAPPER_HOME/venv/Scripts/python.exe" scripts/lora/train.py --data "$RUNNER_TEMP/quick" --keys 4 --steps 2 --batch 2 --device cpu --precision no --no-install 2>&1 | tee "$RUNNER_TEMP/out/train-quick.log" | tail -3
       - name: Logs
         if: always()
         run: |

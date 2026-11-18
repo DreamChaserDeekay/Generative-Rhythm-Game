@@ -18,7 +18,7 @@ if not os.path.isdir(f"{HOME}/src"):
     run("git", "-C", f"{HOME}/src", "checkout", COMMIT)
 # the versions of config/mapper.json runtime.packages (the notebook's own PyTorch is kept)
 run(sys.executable, "-m", "pip", "install", "-q", "accelerate==1.12.0", "transformers==4.57.3", "hydra-core==1.3.2", "peft==0.18.1",
-    "pydub==0.25.1", "einops==0.8.1", "nnAudio==0.3.4", "rosu-pp-py==3.1.0", "wandb==0.24.2", "soundfile", "pyarrow", "pandas",
+    "pydub==0.25.1", "einops==0.8.1", "nnAudio==0.3.4", "rosu-pp-py==3.1.0", "wandb==0.24.2", "soundfile", "av", "pyarrow", "pandas",
     "slider @ https://github.com/OliBomby/slider/archive/ea28c484a0a542d6e094e25aa02e1529ff2c8313.zip")
 
 # %% 2. our two scripts (this repository is public)
