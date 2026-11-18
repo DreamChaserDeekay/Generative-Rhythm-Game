@@ -61,10 +61,12 @@ jobs:
       - name: Train three steps and install the adapter
         run: |
           "$GRG_MAPPER_HOME/venv/Scripts/python.exe" scripts/lora/train.py --data "$RUNNER_TEMP/dataset" --keys 8 --steps 3 --batch 2 --device cpu --precision no 2>&1 | tee "$RUNNER_TEMP/out/train.log"
-          ls -la "$GRG_MAPPER_HOME/lora/8K"
-          cat "$GRG_MAPPER_HOME/lora/8K/adapter_config.json" "$GRG_MAPPER_HOME/lora/8K/mapperatorinator_lora_metadata.json"
-          find "$RUNNER_TEMP/dataset/run" -type f | head -40
-          du -sh "$RUNNER_TEMP/dataset/run"
+          # what the training left: the adapter (the only part the app takes) and the checkpoint around it
+          {
+            ls -la "$GRG_MAPPER_HOME/lora/8K"
+            find "$RUNNER_TEMP/dataset/run" -type f -printf '%s %P\n'
+            du -sh "$RUNNER_TEMP/dataset/run" "$RUNNER_TEMP/dataset/data"
+          } | tee "$RUNNER_TEMP/out/files.txt"
       - name: A chart with the adapter the app finds
         run: |
           python scripts/mapper_probe.py --audio "$RUNNER_TEMP/song/$SONG" --out "$RUNNER_TEMP/out/lora" --mode 8K --tiers HARD --lora auto
