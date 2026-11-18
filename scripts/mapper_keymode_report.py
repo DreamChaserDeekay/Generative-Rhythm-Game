@@ -105,7 +105,12 @@ def main() -> None:
             mode = f"{int(m['KeyCount'])}K"
             text = (a.folder / "data" / m["BeatmapSetFolder"] / m["BeatmapFile"]).read_text(encoding="utf-8-sig")
             tier = min(TIERS, key=lambda t: abs(charts.stars_of(charts.target_level(mode, t, None), cfg) - float(m["DifficultyRating"])))
-            seconds = max(float(line.split(",")[2]) for line in text.split("[HitObjects]")[1].strip().splitlines()) / 1000.0
+            lines = text.split("[HitObjects]")[1].strip().splitlines()
+            seconds = max(float(line.split(",")[2]) for line in lines) / 1000.0
+            if seconds > 1800 or len(lines) > 20000:
+                # a marathon or a chart with a stray note hours in: the level estimate's bins would not end
+                print(f"skipped {m['BeatmapFile']}: {len(lines)} objects over {seconds:.0f} s")
+                continue
             try:
                 rows[(mode, tier)].append(chart_row(text, mode, tier, seconds))
             except Exception as e:  # noqa: BLE001  (a chart the app's parser does not take)
