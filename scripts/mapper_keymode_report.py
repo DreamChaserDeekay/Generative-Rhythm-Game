@@ -91,13 +91,17 @@ def main() -> None:
     ap.add_argument("--json", type=Path)
     ap.add_argument("--label", default="")
     ap.add_argument("--mmrs", action="store_true")
+    ap.add_argument("--sample", type=int, default=0, help="with --mmrs: about this many charts at most, evenly picked")
     a = ap.parse_args()
     rows: dict[tuple[str, str], list[dict]] = defaultdict(list)
     if a.mmrs:
         import pandas as pd
 
         cfg = mapper_config()
-        for _, m in pd.read_parquet(a.folder / "metadata.parquet").iterrows():
+        meta = pd.read_parquet(a.folder / "metadata.parquet").sort_values("Id")
+        if a.sample and len(meta) > a.sample:
+            meta = meta.iloc[:: len(meta) // a.sample]
+        for _, m in meta.iterrows():
             mode = f"{int(m['KeyCount'])}K"
             text = (a.folder / "data" / m["BeatmapSetFolder"] / m["BeatmapFile"]).read_text(encoding="utf-8-sig")
             tier = min(TIERS, key=lambda t: abs(charts.stars_of(charts.target_level(mode, t, None), cfg) - float(m["DifficultyRating"])))
