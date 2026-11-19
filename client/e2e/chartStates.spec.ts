@@ -26,6 +26,17 @@ test('each tier says whether its chart is made: made, being made, not made, fail
   expect((await look(2)).border).toBe('dashed');
   expect((await look(2)).stroke).not.toBe('0px');
   expect((await look(3)).border).toBe('dashed');
+  // the chart being made has stripes that run to the right (picked or not); the others' stand still
+  const run = (i: number) => plates.nth(i).evaluate((el) => getComputedStyle(el, '::before').animationName);
+  expect(await run(1)).toBe('plate-making');
+  expect([await run(0), await run(2), await run(3)]).toEqual(['none', 'none', 'none']);
+  const at = () => plates.nth(1).evaluate((el) => parseFloat(getComputedStyle(el, '::before').backgroundPositionX));
+  const shifts = new Set<number>();
+  for (let k = 0; k < 6; k++) {
+    shifts.add(Math.round(await at()));
+    await page.waitForTimeout(110);
+  }
+  expect(shifts.size).toBeGreaterThan(1);
   // the imported chart stands apart after the tiers
   await expect(page.getByTestId('saved-chart')).toHaveCount(1);
   // the list: the chosen tier (EXPERT) is made on the second song only (a song's charts are known once it has been on the cursor)

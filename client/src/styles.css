@@ -6025,6 +6025,32 @@ button.key-cap.clash:hover:not(:disabled) {
   background: color-mix(in srgb, var(--g-break) 28%, var(--surface));
 }
 
+/* A chart being made: its stripes run to the right for as long as it is made, faint while another
+   tier is picked. One tile is one stripe pair, so the run has no seam. */
+.difficulty.state-making::before {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--diff) 26%, transparent) 0 50%, transparent 50% 100%) 0 0 / 0.75rem 100%;
+  animation: plate-making 0.7s linear infinite;
+}
+
+.difficulty.state-making.active::before {
+  background: linear-gradient(90deg, var(--diff) 0 50%, color-mix(in srgb, var(--diff) 62%, var(--bg)) 50% 100%) 0 0 / 0.75rem 100%;
+}
+
+@keyframes plate-making {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: 0.75rem 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .difficulty.state-making::before {
+    animation: none;
+  }
+}
+
 .difficulty.state-unmade .diff-level,
 .difficulty.state-making .diff-level {
   color: transparent;
