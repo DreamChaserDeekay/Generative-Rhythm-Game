@@ -26,17 +26,29 @@ test('each tier says whether its chart is made: made, being made, not made, fail
   expect((await look(2)).border).toBe('dashed');
   expect((await look(2)).stroke).not.toBe('0px');
   expect((await look(3)).border).toBe('dashed');
-  // the chart being made has stripes that run to the right (picked or not); the others' stand still
-  const run = (i: number) => plates.nth(i).evaluate((el) => getComputedStyle(el, '::before').animationName);
-  expect(await run(1)).toBe('plate-making');
-  expect([await run(0), await run(2), await run(3)]).toEqual(['none', 'none', 'none']);
-  const at = () => plates.nth(1).evaluate((el) => parseFloat(getComputedStyle(el, '::before').backgroundPositionX));
-  const shifts = new Set<number>();
-  for (let k = 0; k < 6; k++) {
-    shifts.add(Math.round(await at()));
-    await page.waitForTimeout(110);
-  }
-  expect(shifts.size).toBeGreaterThan(1);
+  // the chart being made has stripes that run to the right (picked or not), moved by a transform so
+  // that they run smoothly; the other plates have none that run
+  await expect(plates.nth(1).locator('.plate-stripes')).toHaveCount(1);
+  for (const i of [0, 2, 3, 4]) await expect(plates.nth(i).locator('.plate-stripes')).toHaveCount(0);
+  const stripes = plates.nth(1).locator('.plate-stripes');
+  expect(await stripes.evaluate((el) => getComputedStyle(el, '::before').animationName)).toBe('plate-making');
+  // held at points of its 0.7 s: the strip moves right by 0.75 rem a run, by fractions of a pixel
+  // between frames (a transform, moved by the compositor; not whole pixels at a time)
+  const at = (ms: number) =>
+    stripes.evaluate((el, t) => {
+      const run = document.getAnimations().find((a) => (a as CSSAnimation).animationName === 'plate-making')!;
+      const running = run.playState === 'running';
+      run.pause();
+      run.currentTime = t;
+      const x = new DOMMatrix(getComputedStyle(el, '::before').transform).m41;
+      run.play();
+      return { running, x };
+    }, ms);
+  const steps = [await at(0), await at(100), await at(350), await at(690)];
+  expect(steps[0].running).toBe(true);
+  const rem = await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).fontSize));
+  expect(steps.map((s) => s.x)).toEqual([0, (0.75 * rem * 100) / 700, (0.75 * rem * 350) / 700, (0.75 * rem * 690) / 700].map((x) => expect.closeTo(x, 1)));
+  expect(Math.abs(steps[1].x - Math.round(steps[1].x))).toBeGreaterThan(0.05);
   // the imported chart stands apart after the tiers
   await expect(page.getByTestId('saved-chart')).toHaveCount(1);
   // the list: the chosen tier (EXPERT) is made on the second song only (a song's charts are known once it has been on the cursor)

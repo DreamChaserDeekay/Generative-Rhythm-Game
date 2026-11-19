@@ -6026,27 +6026,49 @@ button.key-cap.clash:hover:not(:disabled) {
 }
 
 /* A chart being made: its stripes run to the right for as long as it is made, faint while another
-   tier is picked. One tile is one stripe pair, so the run has no seam. */
-.difficulty.state-making::before {
+   tier is picked. They lie on a strip one stripe pair wider than the plate, clipped to the plate's
+   lean, and the strip is moved by a transform: the compositor moves it by fractions of a pixel at the
+   screen's rate (a background-position moved a whole pixel at a time, 17 times a second). */
+.difficulty.state-making::before,
+.difficulty.state-making.active::before {
+  background: transparent;
+}
+
+.plate-stripes {
+  position: absolute;
+  inset: 1px;
+  overflow: hidden;
+  transform: skewX(var(--skew));
+  pointer-events: none;
+}
+
+.plate-stripes::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -0.75rem;
+  right: 0;
   background: linear-gradient(90deg, color-mix(in srgb, var(--diff) 26%, transparent) 0 50%, transparent 50% 100%) 0 0 / 0.75rem 100%;
+  will-change: transform;
   animation: plate-making 0.7s linear infinite;
 }
 
-.difficulty.state-making.active::before {
+.difficulty.active .plate-stripes::before {
   background: linear-gradient(90deg, var(--diff) 0 50%, color-mix(in srgb, var(--diff) 62%, var(--bg)) 50% 100%) 0 0 / 0.75rem 100%;
 }
 
 @keyframes plate-making {
   from {
-    background-position: 0 0;
+    transform: translateX(0);
   }
   to {
-    background-position: 0.75rem 0;
+    transform: translateX(0.75rem);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .difficulty.state-making::before {
+  .plate-stripes::before {
     animation: none;
   }
 }
