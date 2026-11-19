@@ -26,9 +26,9 @@ from ..config import difficulty_config
 DEFAULTS: dict[str, Any] = {
     "enabled": True,  # off: a chart is the first the model makes, whatever its level (the tests' stand-in worker)
     "attempts": 4,  # charts made at most, the first included
-    "slope": 0.9,  # d log(rating) / d log(stars) before two tries give their own (the runner's 72 charts: 0.91)
-    "minSlope": 0.5,
-    "maxSlope": 1.5,
+    "slope": 0.9,  # d log(rating) / d log(stars) with neither two tries nor a table (the runner's 72 charts: 0.91)
+    "minSlope": 0.3,  # (the runner's 135 charts: about 2 under 2 stars, 1 at 2.3-3.4, 0.5 over 4.5)
+    "maxSlope": 3.0,
     "maxStep": 2.0,  # a correction moves the stars by this factor at most, either way
     "minStars": 0.5,
     "maxStars": 10.0,
@@ -86,13 +86,28 @@ def settings(cfg: dict[str, Any]) -> dict[str, Any]:
     return {**DEFAULTS, **{k: v for k, v in (cfg.get("levelFit") or {}).items() if not k.startswith("_")}}
 
 
-def next_stars(tries: list[tuple[float, float]], goal: float, fit: dict[str, Any]) -> float:
-    """The star rating to try next for a rating `goal`, from the tries so far ((stars, rating)):
-    log rating is taken as linear in log stars, with the slope of the two nearest tries when they
-    differ enough (within minSlope..maxSlope), else the given one; one step moves the stars by
-    maxStep at most, and they stay within minStars..maxStars."""
+def _along(x: float, pts: list[tuple[float, float]]) -> float:
+    """y at x on the straight lines through pts (sorted by x), carried on past either end."""
+    if x <= pts[0][0]:
+        (x0, y0), (x1, y1) = pts[0], pts[1]
+    elif x >= pts[-1][0]:
+        (x0, y0), (x1, y1) = pts[-2], pts[-1]
+    else:
+        k = next(i for i in range(1, len(pts)) if x <= pts[i][0])
+        (x0, y0), (x1, y1) = pts[k - 1], pts[k]
+    return y0 + (y1 - y0) * (x - x0) / (x1 - x0) if x1 != x0 else y0
+
+
+def next_stars(tries: list[tuple[float, float]], goal: float, fit: dict[str, Any], table: list[list[float]] | None = None) -> float:
+    """The star rating to try next for a rating `goal`, from the tries so far ((stars, rating)).
+    Two tries or more: log rating is taken as linear in log stars, with the slope of the two nearest
+    the goal when it is within minSlope..maxSlope. Else, with the key mode's table ([rating, stars]):
+    the song's charts are taken to land as far off the table everywhere as the last did (in log
+    rating), and the stars are the table's for the goal moved by that; without one, the given slope.
+    One step moves the stars by maxStep at most; they stay within minStars..maxStars."""
     stars, rating = tries[-1]
-    slope = float(fit["slope"])
+    rating = max(rating, 0.5)
+    out = None
     if len(tries) >= 2:
         # the two tries nearest the goal (log rating)
         near = sorted(tries, key=lambda p: abs(math.log(max(p[1], 0.5)) - math.log(goal)))[:2]
@@ -100,21 +115,27 @@ def next_stars(tries: list[tuple[float, float]], goal: float, fit: dict[str, Any
         if abs(math.log(s1) - math.log(s0)) > 1e-3:
             k = (math.log(max(r1, 0.5)) - math.log(max(r0, 0.5))) / (math.log(s1) - math.log(s0))
             if fit["minSlope"] <= k <= fit["maxSlope"]:
-                slope = k
-                stars, rating = near[0]
-    step = (math.log(goal) - math.log(max(rating, 0.5))) / slope
-    step = max(-math.log(fit["maxStep"]), min(math.log(fit["maxStep"]), step))
+                stars, rating = s0, max(r0, 0.5)
+                out = stars * math.exp((math.log(goal) - math.log(rating)) / k)
+    if out is None and table:
+        by_stars = sorted((float(st), float(r)) for r, st in table)
+        by_rating = sorted((float(r), float(st)) for r, st in table)
+        expected = max(0.5, _along(stars, by_stars))
+        out = max(0.01, _along(goal * expected / rating, by_rating))
+    if out is None:
+        out = stars * math.exp((math.log(goal) - math.log(rating)) / float(fit["slope"]))
+    step = max(-math.log(fit["maxStep"]), min(math.log(fit["maxStep"]), math.log(out / stars)))
     out = stars * math.exp(step)
     return round(max(float(fit["minStars"]), min(float(fit["maxStars"]), out)), 2)
 
 
-def first_stars(prior: list[tuple[float, float]], goal: float, table_stars: float, fit: dict[str, Any]) -> float:
+def first_stars(prior: list[tuple[float, float]], goal: float, table_stars: float, fit: dict[str, Any], table: list[list[float]] | None = None) -> float:
     """The star rating a chart is first asked at: the table's, or where the song's charts made
     before (`prior`: their (stars, rating), of the same model and key mode) put the rating aimed at
     (next_stars on them: a song's charts land higher or lower than the table's alike)."""
     if not prior:
         return table_stars
-    return next_stars(list(prior), goal, fit)
+    return next_stars(list(prior), goal, fit, table)
 
 
 # ---------- taking notes out ----------

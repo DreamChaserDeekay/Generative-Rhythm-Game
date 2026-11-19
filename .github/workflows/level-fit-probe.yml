@@ -80,18 +80,22 @@ jobs:
           audio_io.write_canonical(wav, pcm)
           report = {"audio": src.name, "seconds": round(len(pcm) / 44100, 1), "mode": mode, "tiers": {}}
           timing = None
+          tried = []  # where this song's charts landed (the app keeps them in the song's folder)
           try:
               for tier in os.environ["TIERS"].split():
                   t = time.time()
                   row = {}
                   try:
-                      chart = mapper.generate(analysis, mode, tier, None, None, {"title": src.stem}, wav, (lambda: timing) if timing else None)
+                      chart = mapper.generate(analysis, mode, tier, None, None, {"title": src.stem}, wav, (lambda: timing) if timing else None,
+                                              lambda: list(tried))
                       timing = timing or chart["timing"]
                       meta, gen = chart["meta"], chart["meta"]["generator"]
+                      tried += [[t["stars"], t["rating"]] for t in ((gen.get("fit") or {}).get("tries") or [{"stars": gen["stars"], "rating": float(meta["rating"])}])]
                       row = {"ok": True, "level": meta["level"], "rating": float(meta["rating"]), "notes": meta["noteCount"],
                              "stars": gen["stars"], "fit": gen.get("fit"), "thinned": gen.get("thinned"), "worker": gen.get("seconds")}
                       (out / f"{src.stem}.{mode}.{tier}.json").write_text(json.dumps(chart, separators=(",", ":")), encoding="utf-8")
                   except TierAbsent as e:
+                      tried += [[t["stars"], t["rating"]] for t in e.detail.get("tries", [])]
                       row = {"ok": True, "absent": True, **e.detail}
                   except Exception as e:  # noqa: BLE001  (the other tiers still count)
                       row = {"ok": False, "error": f"{type(e).__name__}: {e}"}

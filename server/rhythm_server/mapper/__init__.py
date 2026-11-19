@@ -119,7 +119,7 @@ class Mapper:
             rule = fit.settings(cfg)
             # the song's charts made before (other tiers): where they landed (`song_fit`)
             prior = [(float(s), float(r)) for s, r in (song_fit() if song_fit is not None and rule.get("enabled", True) else [])]
-            first_stars = fit.first_stars(prior, aim, charts.stars_of(aim, cfg, key_mode), rule)
+            first_stars = fit.first_stars(prior, aim, charts.stars_of(aim, cfg, key_mode), rule, charts.stars_table(cfg, key_mode))
 
             def make(on_timing: dict[str, Any] | None, name: str, stars: float = first_stars) -> dict[str, Any]:
                 beatmap = None
@@ -190,7 +190,7 @@ class Mapper:
             )
 
         while window.side(int(made[-1][0]["meta"]["level"])) != 0 and len(made) < int(rule["attempts"]):
-            nxt = fit.next_stars(tries, goal, rule)
+            nxt = fit.next_stars(tries, goal, rule, charts.stars_table(cfg, key_mode))
             if any(abs(nxt - s) < 0.005 for s, _ in tries):
                 break  # the stars are at their bound: another try would make the same chart
             log.info("chart %s level %s is outside %s-%s: made again at %.2f stars", cid, made[-1][0]["meta"]["level"], window.lo, window.hi, nxt)

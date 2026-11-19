@@ -34,11 +34,14 @@ def test_the_window_is_the_tiers_range_and_the_aim_its_middle() -> None:
 
 def test_the_next_stars_follow_the_tries() -> None:
     rule = dict(fit.DEFAULTS)
-    # one try, half the rating aimed at: up by the given slope, at most maxStep
+    # one try and no table: up by the given slope, at most maxStep
     assert fit.next_stars([(3.0, 10.0)], 13.0, rule) == pytest.approx(3.0 * (1.3 ** (1 / 0.9)), abs=0.01)
     assert fit.next_stars([(3.0, 4.0)], 13.0, rule) == 6.0
     assert fit.next_stars([(3.0, 20.0)], 8.5, rule) == 1.5
-    # two tries: their own slope (here 1.0: the rating follows the stars)
+    # one try with the table: as far off the table at the goal as it was where it landed
+    table = [[1.0, 1.0], [10.0, 2.0], [20.0, 4.0]]
+    assert fit.next_stars([(2.0, 8.0)], 15.0, rule, table) == pytest.approx(3.75, abs=0.01)  # 8 where 10 was due: the table's stars for 15 / 0.8
+        # two tries: their own slope (here 1.0: the rating follows the stars)
     assert fit.next_stars([(2.0, 8.0), (4.0, 16.0)], 12.0, rule) == pytest.approx(3.0, abs=0.01)
     # within the bounds
     assert fit.next_stars([(9.0, 10.0)], 20.0, rule) == 10.0 and fit.next_stars([(0.6, 9.0)], 3.5, rule) == 0.5
@@ -81,8 +84,10 @@ def test_one_still_too_high_is_thinned_into_range(fitting) -> None:
     meta = c.post(f"/api/songs/{sid}/charts", json={"keyMode": "4K", "difficulty": "EASY", "seed": 22}).json()["chart"]["meta"]
     assert meta["level"] <= 5
     gen = meta["generator"]
-    # tried down to the lowest stars (no lower: another try would make the same chart), all too high
-    assert gen["fit"]["tries"][-1]["stars"] == fit.DEFAULTS["minStars"] and all(t["level"] > 5 for t in gen["fit"]["tries"])
+    # every try too high, each at fewer stars, until the next would be the same chart or the last allowed
+    tries = gen["fit"]["tries"]
+    assert 2 <= len(tries) <= fit.DEFAULTS["attempts"] and all(t["level"] > 5 for t in tries)
+    assert [t["stars"] for t in tries] == sorted((t["stars"] for t in tries), reverse=True)
     assert gen["thinned"]["removed"] > 0 and meta["noteCount"] == gen["thinned"]["notes"] - gen["thinned"]["removed"]
 
 
