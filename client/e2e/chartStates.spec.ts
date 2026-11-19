@@ -10,7 +10,7 @@ test('each tier says whether its chart is made: made, being made, not made, fail
   await page.goto('/');
   const row = page.getByTestId('difficulty-row');
   const plates = row.locator('.difficulty');
-  await expect(row.getByRole('button')).toHaveText([/NORMAL/, /HARD/, /EXPERT/, /ELITE/, /MASTER/], { timeout: 30_000 });
+  await expect(row.getByRole('button')).toHaveText([/EASY/, /NORMAL/, /HARD/, /EXPERT/, /ELITE/], { timeout: 30_000 });
   await expect.poll(() => plates.evaluateAll((els) => els.map((e) => (e as HTMLElement).dataset.state))).toEqual(['made', 'making', 'unmade', 'failed', 'unmade']);
   await expect(plates.nth(0).locator('.diff-state')).toHaveCount(0);
   await expect(plates.nth(1).locator('.diff-state')).toHaveText('생성 중');
@@ -28,7 +28,7 @@ test('each tier says whether its chart is made: made, being made, not made, fail
   expect((await look(3)).border).toBe('dashed');
   // the imported chart stands apart after the tiers
   await expect(page.getByTestId('saved-chart')).toHaveCount(1);
-  // the list: the chosen tier (EXPERT) is made on the second song only (a song's charts are known once it has been on the cursor)
+  // the list: the chosen tier (HARD) is made on the second song only (a song's charts are known once it has been on the cursor)
   const cell = (title: string) => page.locator('.song-item', { hasText: title }).locator('.tier-level');
   for (const title of ['All Made', 'None Made']) {
     await page.locator('.song-item', { hasText: title }).click();

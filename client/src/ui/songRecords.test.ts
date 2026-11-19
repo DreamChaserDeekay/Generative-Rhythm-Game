@@ -28,8 +28,8 @@ describe('which songs the song select lists', () => {
   });
 
   it('keeps the bests of this key mode and the five tiers apart from the rest', () => {
-    // records of the removed EASY tier and the DJMAX and EZ2ON difficulty systems
-    const other = song('a', 'A', [record('NORMAL', 900_000, 'CLEAR', { keyMode: '8K' }), record('EASY', 900_000, 'CLEAR'), record('MX', 900_000, 'CLEAR'), record('SHD', 900_000, 'CLEAR')]);
+    // records of the MASTER tier before 2026-11-19 and of the DJMAX and EZ2ON difficulty systems
+    const other = song('a', 'A', [record('NORMAL', 900_000, 'CLEAR', { keyMode: '8K' }), record('MASTER', 900_000, 'CLEAR'), record('MX', 900_000, 'CLEAR'), record('SHD', 900_000, 'CLEAR')]);
     expect(recordsOn(other, '4K')).toEqual([]);
   });
 

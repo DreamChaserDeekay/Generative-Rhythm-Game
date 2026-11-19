@@ -239,12 +239,15 @@ describe('settings', () => {
     expect(sanitizeSettings({ songSort: 'added' as never }).songSort).toBeNull();
   });
 
-  it('drops the difficulty system of settings saved when there were three, and a tier gone with it or with EASY', () => {
-    expect(difficultyTiers.map((t) => t.id)).toEqual(['NORMAL', 'HARD', 'EXPERT', 'ELITE', 'MASTER']);
+  it('drops the difficulty system of settings saved when there were three, and keeps a tier there is now (MASTER as ELITE)', () => {
+    expect(difficultyTiers.map((t) => t.id)).toEqual(['EASY', 'NORMAL', 'HARD', 'EXPERT', 'ELITE']);
     const s = sanitizeSettings({ difficultySystem: 'DJMAX', lastDifficulty: 'MX' } as never);
     expect(s).not.toHaveProperty('difficultySystem');
     expect(s.lastDifficulty).toBe('NORMAL');
-    expect(sanitizeSettings({ lastDifficulty: 'EASY' }).lastDifficulty).toBe('NORMAL');
+    expect(sanitizeSettings({ lastDifficulty: 'EASY' }).lastDifficulty).toBe('EASY');
+    // the hardest tier before 2026-11-19 is the hardest now
+    expect(sanitizeSettings({ lastDifficulty: 'MASTER' }).lastDifficulty).toBe('ELITE');
+    expect(sanitizeSettings({ lastDifficulty: 7 } as never).lastDifficulty).toBe('NORMAL');
     expect(sanitizeSettings({ difficultySystem: 'GRG', lastDifficulty: 'EXPERT' } as never).lastDifficulty).toBe('EXPERT');
   });
 

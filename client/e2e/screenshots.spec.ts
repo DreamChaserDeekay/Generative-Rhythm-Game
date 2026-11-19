@@ -166,7 +166,7 @@ async function serveShowcase(page: Page): Promise<void> {
   const state = ((await (await page.request.get('/api/mapper')).json()) as { state?: string }).state;
   if (state === 'ready' || served.has(page)) return;
   served.add(page);
-  const levels: Record<string, number> = { NORMAL: 2, HARD: 6, EXPERT: 10, ELITE: 14, MASTER: 18 };
+  const levels: Record<string, number> = { EASY: 3, NORMAL: 8, HARD: 12, EXPERT: 16, ELITE: 20 };
   await page.route(
     (url) => /^\/api\/songs\/[^/]+\/charts$/.test(url.pathname),
     async (route) => {

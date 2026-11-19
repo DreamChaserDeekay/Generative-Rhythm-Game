@@ -184,7 +184,7 @@ export function SongSelectScreen(props: Props) {
   };
   useEffect(() => () => window.clearTimeout(saidTimer.current), []);
   // the edited and imported charts of a song (the one they are of: a list never shows on another song)
-  const [savedCharts, setSavedCharts] = useState<{ songId: string | null; charts: SavedChart[]; retired: RetiredCharts[] }>({ songId: null, charts: [], retired: [] });
+  const [savedCharts, setSavedCharts] = useState<{ songId: string | null; charts: SavedChart[]; retired: RetiredCharts[]; retiredRecords: number }>({ songId: null, charts: [], retired: [], retiredRecords: 0 });
   const [importReport, setImportReport] = useState<ImportResult | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const importInput = useRef<HTMLInputElement>(null);
@@ -313,13 +313,13 @@ export function SongSelectScreen(props: Props) {
   // Edited and imported charts of the selected song.
   const loadSaved = useCallback(async (songId: string | null) => {
     if (!songId) {
-      setSavedCharts({ songId, charts: [], retired: [] });
+      setSavedCharts({ songId, charts: [], retired: [], retiredRecords: 0 });
       return;
     }
     try {
       setSavedCharts({ songId, ...(await api.savedCharts(songId)) });
     } catch {
-      setSavedCharts({ songId, charts: [], retired: [] });
+      setSavedCharts({ songId, charts: [], retired: [], retiredRecords: 0 });
     }
   }, []);
   useEffect(() => {
@@ -333,6 +333,8 @@ export function SongSelectScreen(props: Props) {
   const savedOnMode = savedLoaded ? savedCharts.charts.filter((c) => c.keyMode === keyMode) : [];
   // its saved charts of a key mode taken out of the game (7K+1S): said on every key mode, as none is theirs
   const retiredCharts = savedLoaded ? savedCharts.retired : [];
+  // the song's generated charts of the tiers before 2026-11-19 that were played: their plays are kept, no record now
+  const retiredRecords = savedLoaded ? savedCharts.retiredRecords : 0;
   const pickKey = selected ? chartPickKey(selected.id, keyMode) : null;
   const picked = pickKey ? chartPickOf(settings, pickKey) : null;
   const savedEntry = (picked && savedOnMode.find((c) => c.chartId === picked)) || null;
@@ -1658,6 +1660,11 @@ export function SongSelectScreen(props: Props) {
                           <LampMark />
                           <span className="lamp-name">{other.lamp}</span>
                         </span>
+                      </span>
+                    )}
+                    {retiredRecords > 0 && (
+                      <span className="mark-chip other-best" data-testid="retired-records" title={`난이도 체계가 EASY 1–5 · NORMAL 6–10 · HARD 11–14 · EXPERT 15–18 · ELITE 19–20으로 바뀌어, 이전 체계로 만든 AI 채보 ${retiredRecords}개의 기록은 목록에 나오지 않습니다. 채보 파일과 기록은 보관함에 그대로 있습니다.`}>
+                        이전 난이도 기록 {retiredRecords}개 · 숨김
                       </span>
                     )}
                     {retiredCharts.map((r) => (

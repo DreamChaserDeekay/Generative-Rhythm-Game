@@ -27,9 +27,9 @@ test('upload a song, wait for analysis, generate a chart and autoplay it to PERF
   await page.getByRole('button', { name: /NORMAL/ }).click();
   await expect(page.getByTestId('chart-level')).toBeVisible({ timeout: 30_000 });
   const level = Number((await page.getByTestId('chart-level').textContent())?.replace('Lv.', ''));
-  // NORMAL is Lv.1–4 (a calm song takes the bottom of it, difficulty.json songFit)
-  expect(level).toBeGreaterThanOrEqual(1);
-  expect(level).toBeLessThanOrEqual(5);
+  // NORMAL is Lv.6–10 (a chart's level is kept in its tier's range, mapper/fit.py)
+  expect(level).toBeGreaterThanOrEqual(6);
+  expect(level).toBeLessThanOrEqual(10);
   await page.screenshot({ path: 'test-results/song-select.png' });
 
   await songInfo(page);

@@ -69,7 +69,7 @@ test('while a chart is made, only its plate says 생성 중: the tiers waiting t
       if (route.request().method() !== 'POST') return route.fulfill({ json: { charts: [] } });
       const body = JSON.parse(route.request().postData() ?? '{}');
       const tier = body.difficulty as string;
-      const level = ({ NORMAL: 3, HARD: 7, EXPERT: 11, ELITE: 15, MASTER: 19 } as Record<string, number>)[tier];
+      const level = ({ EASY: 3, NORMAL: 8, HARD: 12, EXPERT: 16, ELITE: 20 } as Record<string, number>)[tier];
       const meta = {
         chartId: `c${tier.slice(0, 2).toLowerCase()}${'d'.repeat(18)}`,
         songId: songs[0].id,
@@ -90,10 +90,10 @@ test('while a chart is made, only its plate says 생성 중: the tiers waiting t
   await page.addInitScript(() => localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '4K', lastDifficulty: 'ELITE' })));
   await page.goto('/');
   const plates = page.getByTestId('difficulty-row').getByRole('button');
-  await expect(plates).toHaveText([/NORMAL/, /HARD/, /EXPERT/, /ELITE/, /MASTER/], { timeout: 30_000 });
+  await expect(plates).toHaveText([/EASY/, /NORMAL/, /HARD/, /EXPERT/, /ELITE/], { timeout: 30_000 });
   await expect(page.locator('.difficulty', { hasText: 'NORMAL' }).locator('.diff-state')).toHaveText('생성 중');
   // the others, waiting or not asked for yet, are not made: 미생성 (never "대기")
-  for (const tier of ['HARD', 'EXPERT', 'ELITE', 'MASTER']) await expect(page.locator('.difficulty', { hasText: tier }).locator('.diff-state')).toHaveText('미생성');
+  for (const tier of ['EASY', 'HARD', 'EXPERT', 'ELITE']) await expect(page.locator('.difficulty', { hasText: tier }).locator('.diff-state')).toHaveText('미생성');
   await expect(page.getByTestId('difficulty-row')).not.toContainText('대기');
   await expect(page.getByTestId('difficulty-row')).not.toContainText('AI');
   expect(errors).toEqual([]);
@@ -126,7 +126,7 @@ test('a chart being made still says so on its plate after the settings and after
       if (route.request().method() !== 'POST') return route.fulfill({ json: { charts: [] } });
       const body = JSON.parse(route.request().postData() ?? '{}');
       const tier = body.difficulty as string;
-      const level = ({ NORMAL: 3, HARD: 7, EXPERT: 11, ELITE: 15, MASTER: 19 } as Record<string, number>)[tier];
+      const level = ({ EASY: 3, NORMAL: 8, HARD: 12, EXPERT: 16, ELITE: 20 } as Record<string, number>)[tier];
       const normal = tier === 'NORMAL';
       const base = { chartId: `c${tier.slice(0, 2).toLowerCase()}${'e'.repeat(18)}`, songId: songs[0].id, keyMode: '4K', difficulty: tier, level, durationMs: 60_000, rating: level };
       const done = { ...base, noteCount: 200, nps: { avg: 4, peak: 8, graph: [1, 2] }, generator: { seed: 7, version: 'now' } };
@@ -142,7 +142,7 @@ test('a chart being made still says so on its plate after the settings and after
   await page.addInitScript(() => localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '4K', lastDifficulty: 'NORMAL' })));
   await page.goto('/');
   const normal = page.locator('.difficulty', { hasText: 'NORMAL' });
-  await expect(page.getByTestId('difficulty-row').getByRole('button')).toHaveText([/NORMAL/, /HARD/, /EXPERT/, /ELITE/, /MASTER/], { timeout: 30_000 });
+  await expect(page.getByTestId('difficulty-row').getByRole('button')).toHaveText([/EASY/, /NORMAL/, /HARD/, /EXPERT/, /ELITE/], { timeout: 30_000 });
   await expect(normal.locator('.diff-state')).toHaveText('미생성');
 
   // Enter on a chart not made yet asks for it and stays

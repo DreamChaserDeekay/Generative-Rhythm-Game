@@ -114,7 +114,7 @@ export function sideLanesOf(mode: KeyModeId): number[] {
   return keyModes[mode].lanes.flatMap((l, i) => (l.kind === 'side' ? [i] : []));
 }
 
-/** A difficulty tier (NORMAL … MASTER). */
+/** A difficulty tier (EASY … ELITE). */
 export interface DifficultyTier {
   id: string;
   label: string;
@@ -125,8 +125,11 @@ export interface DifficultyTier {
   color: string;
 }
 
-const TIER_COLORS: Record<string, string> = { NORMAL: '#4fc3ff', HARD: '#ffc94f', EXPERT: '#ff6f8a', ELITE: '#ff5fd2', MASTER: '#c58bff' };
-const TIER_SHORT: Record<string, string> = { NORMAL: 'NM', HARD: 'HD', EXPERT: 'EX', ELITE: 'EL', MASTER: 'MX' };
+// the tiers of 2026-11-19 (EASY 1-5 … ELITE 19-20): the hardest keeps the purple of the MASTER before it
+const TIER_COLORS: Record<string, string> = { EASY: '#5fe08a', NORMAL: '#4fc3ff', HARD: '#ffc94f', EXPERT: '#ff6f8a', ELITE: '#c58bff' };
+const TIER_SHORT: Record<string, string> = { EASY: 'EZ', NORMAL: 'NM', HARD: 'HD', EXPERT: 'EX', ELITE: 'EL' };
+/** Tiers there are no more, by the one that took their place (MASTER, the hardest before 2026-11-19, is ELITE now). */
+const RENAMED_TIERS: Record<string, string> = { MASTER: 'ELITE' };
 const presets = difficultyJson.presets as unknown as Record<string, { levels: [number, number] }>;
 
 export const difficultyTiers: DifficultyTier[] = difficultyJson.order.map((t) => ({
@@ -138,9 +141,17 @@ export const difficultyTiers: DifficultyTier[] = difficultyJson.order.map((t) =>
 }));
 export const maxLevel = difficultyJson.levelEffectiveNps.length;
 
-/** The tier of a stored difficulty, else the first (an old EASY plays as NORMAL). */
+/** The tier of a stored difficulty (one there is no more: the one that took its place), else the first. */
 export function tierOf(difficulty: string): DifficultyTier {
-  return difficultyTiers.find((t) => t.id === difficulty) ?? difficultyTiers[0];
+  const id = RENAMED_TIERS[difficulty] ?? difficulty;
+  return difficultyTiers.find((t) => t.id === id) ?? difficultyTiers[0];
+}
+
+/** The tier a stored difficulty is now (one there is no more: the one that took its place), null for a name of none. */
+export function knownTier(difficulty: unknown): string | null {
+  if (typeof difficulty !== 'string') return null;
+  const id = RENAMED_TIERS[difficulty] ?? difficulty;
+  return difficultyTiers.some((t) => t.id === id) ? id : null;
 }
 
 /** The hardest of a song's tiers up to `tier` (its easiest when none is). */

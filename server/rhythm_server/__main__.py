@@ -119,14 +119,14 @@ def _mapper_probe(mapper, args: argparse.Namespace) -> None:
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     cfg = mapper.config()
-    level = charts.target_level(args.mode, args.difficulty, None)
+    level = charts.aim_of(args.mode, args.difficulty, None)
     pcm = audio_io.decode_audio(src)
     pcm = np.concatenate([pcm, np.zeros((int(44100 * args.pad), *pcm.shape[1:]), dtype=pcm.dtype)])
     duration = len(pcm) * 1000.0 / 44100
     quiet = quiet_spans(pcm, 44100, cfg["silence"])
     end = music_end(quiet, duration)
     report: dict = {"audio": src.name, "seconds": round(duration / 1000, 1), "padSeconds": args.pad, "model": cfg.get("model"), "mode": args.mode,
-                    "difficulty": args.difficulty, "stars": charts.stars_of(level, cfg), "quiet": quiet, "musicEndMs": end, "runs": {}}
+                    "difficulty": args.difficulty, "stars": charts.stars_of(level, cfg, args.mode), "quiet": quiet, "musicEndMs": end, "runs": {}}
     try:
         with tempfile.TemporaryDirectory() as tmp:
             wav = Path(tmp) / "song.wav"
