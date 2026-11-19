@@ -32,6 +32,14 @@
     "marginMs": 100,
     "endPadMs": 200
   },
+  "lora": {
+    "_comment": "LoRA adapters by key count (server/rhythm_server/mapper/lora.py, docs/MAPPER_LORA.md). The adapter of <N>K is the folder lora/<N>K in the runtime folder (%LOCALAPPDATA%\\Generative Rhythm\\mapper\\lora\\8K), holding adapter_config.json and adapter_model.safetensors; adapters names another folder for a key count ({\"8K\": \"8K-v2\"}: under lora/, or an absolute path). 4K+FX and 6K+FX use 4K's and 6K's. enabled false: the base model for every key count. A chart made with an adapter holds its tag in its id and in meta.generator.lora.",
+    "enabled": true,
+    "adapters": {}
+  },
+  "conditions": {
+    "_comment": "The model's other conditions by key count, none by default ({\"8K\": {\"negativeDescriptors\": [\"style/N+1\"], \"cfgScale\": 2.0}}): descriptors and negativeDescriptors (style tags of the model's 122), cfgScale (over 1: classifier-free guidance, the decoder runs twice a token), columnTemperature, mapperId, year. They are part of the chart id. docs/MAPPER_LORA.md."
+  },
   "cameraFrom": "notes",
   "camera": {
     "_comment": "The camera's cues from a chart's own notes (server/rhythm_server/chart/camera_notes.py). cameraFrom: \"notes\" (this, no song analysis) or \"structure\" (the analysed sections, as before). Sections are cut where the notes per beat of the next windowBars bars differ from the last ones' by `change` (of the song's busy level: the topPercentile of its bars) at least, minBars apart (a busier section starts at the first bar within plateauSlack of its usual level); a section of busyEnergy or more among the sections is a busy one (it leans and pulses). Bars that each fill up by rampStep before a busy section, rampBars at most, are a build-up; so is a stream of streamBeats or more (hits no further apart than streamGapBeats) ending before the next section.",
@@ -63,6 +71,7 @@
       "pydub==0.25.1", "PyYAML==6.0.3", "einops==0.8.1", "pandas==2.3.3", "pyarrow==22.0.0", "datasets==4.8.3",
       "wandb==0.24.2", "rich==14.2.0", "rosu-pp-py==3.1.0", "nnAudio==0.3.4", "scipy", "tqdm", "packaging", "safetensors"
     ],
+    "lora": ["peft==0.18.1"],
     "source": {
       "commit": "5884d1bcb57494f09fe3d74f3a6b58ca0d2960aa",
       "zip": "https://github.com/OliBomby/Mapperatorinator/archive/5884d1bcb57494f09fe3d74f3a6b58ca0d2960aa.zip"

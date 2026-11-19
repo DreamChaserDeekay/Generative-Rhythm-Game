@@ -1,0 +1,86 @@
+name: Mapper dataset stats
+
+# What people's osu!mania charts of a key count look like, in the numbers the model's charts are
+# measured by (scripts/mapper_keymode_report.py): the charts of the Hugging Face dataset
+# Mapperatorinator was trained on (project-riz/osu-beatmaps) are read through as they download, no
+# audio kept, and only aggregate numbers leave the job (docs/MAPPER_LORA.md). Nothing is committed.
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/mapper-lora]
+    paths:
+      - '.github/workflows/mapper-dataset-stats.yml'
+
+jobs:
+  stats:
+    strategy:
+      fail-fast: false
+      matrix:
+        keys: [4, 5, 6, 8]
+    name: ${{ matrix.keys }}K
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: server/pyproject.toml
+      - name: Install
+        run: python -m pip install -e ./server pandas pyarrow rosu-pp-py==3.1.0
+      - name: The charts of the key count (no audio)
+        run: python scripts/lora/make_dataset.py --keys ${{ matrix.keys }} --out "$RUNNER_TEMP/ds" --osu-only | tail -5
+      - name: Report
+        run: |
+          # a chart the measures do not finish on within 10 s is left out (the report says which)
+          timeout 900 python scripts/mapper_keymode_report.py "$RUNNER_TEMP/ds" --mmrs --sample 4000 --json "$RUNNER_TEMP/report-${{ matrix.keys }}K.json" --label "project-riz/osu-beatmaps ${{ matrix.keys }}K" | tee -a "$GITHUB_STEP_SUMMARY"
+          python - <<'PY' | tee -a "$GITHUB_STEP_SUMMARY"
+          import os, pandas as pd
+          d = pd.read_parquet(os.path.join(os.environ["RUNNER_TEMP"], "ds", "metadata.parquet"))
+          print("\n### 데이터\n")
+          print(f"- 채보 {len(d)}개, 곡 {d.BeatmapSetId.nunique()}개, 별점 중앙값 {d.DifficultyRating.median():.2f}")
+          print(f"- SpecialStyle: {int(d.SpecialStyle.sum())}개 ({d.SpecialStyle.mean():.1%})")
+          for limit in (0.25, 0.5, 0.75):
+              print(f"- 가장 적은 열이 고른 몫의 {limit} 미만: {int((d.MinColumnShare < limit).sum())}개 ({(d.MinColumnShare < limit).mean():.1%})")
+          print("- 상태(1 ranked · 2 approved · 4 loved): " + ", ".join(f"{k}: {v}" for k, v in d.Ranked.value_counts().sort_index().items()))
+          print("- 연도: " + ", ".join(f"{k}: {v}" for k, v in d.RankedDate.dt.year.value_counts().sort_index().items()))
+          print("- 별점(1점 구간): " + ", ".join(f"{k}: {v}" for k, v in d.DifficultyRating.astype(int).value_counts().sort_index().items()))
+          print("- 2024년까지의 ranked · approved(v32 학습 설정의 조건): " + str(int(((d.Ranked.isin([1, 2])) & (d.RankedDate.dt.year <= 2024)).sum())))
+          PY
+      - name: The charts the measures did not finish on (where they stay, and what the charts are like)
+        if: matrix.keys == 4 || matrix.keys == 6
+        run: |
+          cd scripts
+          python mapper_chart_diagnose.py "$RUNNER_TEMP/ds" 2571106 3774040 4223690 1537498 2>&1 | tee -a "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: dataset-stats-${{ matrix.keys }}K
+          path: ${{ runner.temp }}/report-*.json
+          if-no-files-found: warn
+          retention-days: 30
+
+  audio:
+    # the dataset's own audio (opus) through scripts/lora/make_dataset.py on Windows, one tar file:
+    # what the quick memory test of docs/MAPPER_LORA.md reads first. Nothing is kept.
+    name: one tar file with its audio (Windows)
+    runs-on: windows-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+      - run: python -m pip install soundfile av numpy pandas pyarrow rosu-pp-py==3.1.0
+      - name: 4K and 8K of the first tar file
+        run: |
+          export PYTHONUTF8=1
+          for keys in 4 8; do
+            python scripts/lora/make_dataset.py --keys $keys --out "$RUNNER_TEMP/ds$keys" --shards 0-0
+            du -sh "$RUNNER_TEMP/ds$keys/data" || true
+            DS="$RUNNER_TEMP/ds$keys" python -c "import os, glob, soundfile as sf; fs = glob.glob(os.environ['DS'] + '/data/*/audio.wav'); secs = [sf.info(f).duration for f in fs]; print(len(fs), 'songs', round(sum(secs) / 60, 1), 'minutes', round(sum(os.path.getsize(f) for f in fs) / 1e6, 1), 'MB')"
+          done

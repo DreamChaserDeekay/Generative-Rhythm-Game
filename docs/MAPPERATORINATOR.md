@@ -5,6 +5,7 @@
 - 2026-11-09 `claude/mapperatorinator` 브랜치에서 시작했다(요청: "generative rhythm에서 브랜치 따로 파서 이 mapperatorinator를 적용한 버전으로 새로 하나 빌드해줄래?"). 모든 키 모드를 Mapperatorinator로 만들고, 7K+1S는 8K로 만들어 맨 왼쪽 열을 스크래치로 쓴다.
 - 2026-11-11 `claude/mapper-only` 브랜치에서 예전의 규칙 기반 생성기를 지웠다(사용자 결정). 지운 것과 남은 일은 이 문서 끝의 "mapper 전용 정리"에 있다.
 - 2026-11-17 7K+1S 모드와 스크래치 레인을 없앴다(사용자 결정). 키 모드는 4K · 4K+FX · 5K · 6K · 6K+FX · 8K다. 8열 채보의 한 열을 스크래치로 쓰던 처리(`config/mapper.json`의 `scratchColumn`, `charts.column_lanes`)도 지웠다. 아래에서 7K+1S · 스크래치 열을 말하는 날짜 붙은 절은 그때까지의 기록이다.
+- 2026-11-18 5 · 6 · 8키 채보를 LoRA 학습으로 고칠 준비를 했다(`claude/mapper-lora`). 키 수별 기준 숫자, 모델 조건 시험, 학습 데이터, 학습 절차와 Windows에서의 증명, 키 수별 어댑터를 앱이 쓰는 길은 [`docs/MAPPER_LORA.md`](MAPPER_LORA.md)에 있다. 8열 채보의 한 열이 비는 것은 학습 데이터의 8K 채보가 58% `SpecialStyle`(7키 + 스크래치)이기 때문이다.
 
 ## 무엇이 바뀌었나
 
@@ -192,6 +193,7 @@
 | `server/rhythm_server/mapper/charts.py` | 요청·타이밍 `.osu`·변환·차트 ID·곡의 BPM |
 | `server/rhythm_server/mapper/steady.py` | 정박 곡의 박자를 템포 하나로(구역 나누기, BPM 반올림, 마디 자리, 노트 옮기기) |
 | `server/rhythm_server/mapper/fx.py` | 4K+FX · 6K+FX의 FX 노트(건반 노트를 FX 레인으로 옮기는 규칙) |
+| `server/rhythm_server/mapper/lora.py` | 키 수별 LoRA 어댑터(실행 환경 폴더의 `lora/<N>K`)와 채보 ID에 들어가는 태그. `docs/MAPPER_LORA.md` |
 | `server/rhythm_server/mapper/queue.py` | 채보를 하나씩, 연 채보 먼저 |
 | `server/rhythm_server/chart/` | 채보가 공통으로 쓰는 것: 템포 맵, 레인, 키음 표시, 카메라 연출(`effects.py` 구간 기반, `camera_notes.py` 노트 기반) |
 | `server/rhythm_server/difficulty/` | 레벨 측정(`estimator.py`), 티어의 레벨 범위(`tiers.py`), 패턴 요약 |

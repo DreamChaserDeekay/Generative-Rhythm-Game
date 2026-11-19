@@ -84,7 +84,26 @@ CHART_SETTINGS = ("model", "cameraFrom", "holdNoteRatio", "temperature", "starsF
 
 def settings_tag(cfg: dict[str, Any]) -> str:
     payload = {k: cfg.get(k) for k in CHART_SETTINGS}
+    # the adapters and conditions in use make other charts too (absent, the tag is what it was)
+    if cfg.get("_lora"):
+        payload["lora"] = {str(k): v["tag"] for k, v in sorted(cfg["_lora"].items())}
+    conditions = {k: v for k, v in (cfg.get("conditions") or {}).items() if not k.startswith("_") and v}
+    if conditions:
+        payload["conditions"] = conditions
     return hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()[:8]
+
+
+def lora_of(key_mode: str, cfg: dict[str, Any]) -> dict[str, Any] | None:
+    """The LoRA adapter a key mode's charts are made with ({"path", "tag", "r"}: lora.adapters, which
+    Mapper.config puts in the config as `_lora` by key count), None for the base model."""
+    return (cfg.get("_lora") or {}).get(len(columns(key_mode)))
+
+
+def conditions_of(key_mode: str, cfg: dict[str, Any]) -> dict[str, Any]:
+    """The model's other conditions for a key mode's charts (mapper.json `conditions`, by key count:
+    descriptors, negativeDescriptors, cfgScale, columnTemperature, mapperId, year). None by default."""
+    given = (cfg.get("conditions") or {}).get(f"{len(columns(key_mode))}K") or {}
+    return {k: given[k] for k in ("descriptors", "negativeDescriptors", "cfgScale", "columnTemperature", "mapperId", "year") if given.get(k) is not None}
 
 
 def chart_id(analysis: dict[str, Any], key_mode: str, difficulty: str, level: int, seed: int, cfg: dict[str, Any]) -> str:
@@ -107,6 +126,12 @@ def chart_id(analysis: dict[str, Any], key_mode: str, difficulty: str, level: in
         "parallel": bool(cfg.get("parallel", False)),
         "camera": cfg.get("cameraFrom", "notes"),
     }
+    # an adapter's or a condition's charts are other charts; without either the id is what it was
+    lora, conditions = lora_of(key_mode, cfg), conditions_of(key_mode, cfg)
+    if lora:
+        payload["lora"] = lora["tag"]
+    if conditions:
+        payload["conditions"] = conditions
     return "c" + hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()[:20]
 
 
@@ -500,6 +525,11 @@ def make_chart(
                 "targetLevel": level,
                 "stars": stars_of(level, cfg),
                 "keycount": len(columns(key_mode)),
+                # the LoRA adapter merged into the model for the notes (lora.py): its tag (of the
+                # weights file) and rank; absent for the base model
+                **({"lora": {"tag": lora_of(key_mode, cfg)["tag"], "r": lora_of(key_mode, cfg).get("r")}} if info.get("lora") and lora_of(key_mode, cfg) else {}),
+                # the model's other conditions it was made with (mapper.json conditions)
+                **({"conditions": conditions_of(key_mode, cfg)} if conditions_of(key_mode, cfg) else {}),
                 # "song": the timing of the song's first chart, given; "model": found for this chart
                 "timing": "song" if song_timing else "model",
                 # the tempos taken out of it, the song not following them (checked_timing)
@@ -548,4 +578,6 @@ def request_for(
         "parallel": bool(cfg.get("parallel", False)),
         "precision": cfg.get("precision", "auto"), "device": "cpu" if cfg.get("_cpu") else "auto",
         "title": meta.get("title"), "artist": meta.get("artist"),
+        **conditions_of(key_mode, cfg),
+        **({"lora": lora_of(key_mode, cfg)["path"]} if lora_of(key_mode, cfg) else {}),
     }

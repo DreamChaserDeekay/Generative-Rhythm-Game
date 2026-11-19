@@ -1,0 +1,94 @@
+name: Mapper LoRA smoke
+
+# Whether a LoRA for Mapperatorinator can be trained and used on Windows at all, end to end on the
+# runner's CPU (docs/MAPPER_LORA.md): the model's own 8K charts of a CC BY song stand in for a
+# dataset (scripts/lora/make_dataset.py), Mapperatorinator's LoRA training runs a few steps on them
+# (scripts/lora/train.py), the adapter goes to the runtime folder, and the app's worker makes a
+# chart with it. This proves the path, not the quality: three steps teach nothing. Nothing is
+# committed; the adapter is not kept.
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/mapper-lora]
+    paths:
+      - '.github/workflows/mapper-lora-smoke.yml'
+      - 'scripts/lora/**'
+
+jobs:
+  smoke:
+    name: train 3 steps, chart with the adapter
+    runs-on: windows-latest
+    timeout-minutes: 300
+    defaults:
+      run:
+        shell: bash
+    env:
+      GRG_MAPPER_ALLOW_CPU: '1'
+      GRG_MAPPER_MODEL: v32
+      SONG: chibi_ninja.mp3
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: server/pyproject.toml
+      - name: Install the server
+        run: |
+          python -m pip install -e ./server
+          echo "GRG_MAPPER_HOME=$RUNNER_TEMP/grg-mapper" >> "$GITHUB_ENV"
+          mkdir -p "$RUNNER_TEMP/out"
+      - name: Fetch the song
+        run: |
+          url=$(python -c "import json, os; print(next(s['download_url'] for s in json.load(open('design-mockups/_src/music/manifest.json', encoding='utf-8')) if s['file'] == os.environ['SONG']))" | tr -d '\r')
+          mkdir -p "$RUNNER_TEMP/song"
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/song/$SONG" "$url"
+      - name: Set the runtime up
+        working-directory: server
+        run: python -m rhythm_server mapper setup
+      - name: The base model's 8K charts (the stand-in dataset, and what the adapter's chart is held against)
+        run: python scripts/mapper_probe.py --audio "$RUNNER_TEMP/song/$SONG" --out "$RUNNER_TEMP/out/base" --mode 8K --tiers HARD EXPERT
+      - name: What the training needs besides the runtime
+        run: |
+          "$GRG_MAPPER_HOME/uv/uv.exe" pip install --python "$GRG_MAPPER_HOME/venv/Scripts/python.exe" peft==0.18.1 soundfile av
+      - name: The dataset
+        run: |
+          # a folder as in an osu! Songs folder: the song (as the .osu files name it) and its charts
+          mkdir -p "$RUNNER_TEMP/songs/set1"
+          cp "$RUNNER_TEMP/out/base/"*.osu "$RUNNER_TEMP/songs/set1/"
+          AUDIO="$RUNNER_TEMP/song/$SONG" WAV="$RUNNER_TEMP/songs/set1/song.wav" python -c "import os, soundfile as sf; from rhythm_server import audio_io; sf.write(os.environ['WAV'], audio_io.decode_audio(os.environ['AUDIO']), 44100, subtype='PCM_16')"
+          "$GRG_MAPPER_HOME/venv/Scripts/python.exe" scripts/lora/make_dataset.py --keys 8 --out "$RUNNER_TEMP/dataset" --local "$RUNNER_TEMP/songs"
+      - name: Train three steps and install the adapter
+        run: |
+          "$GRG_MAPPER_HOME/venv/Scripts/python.exe" scripts/lora/train.py --data "$RUNNER_TEMP/dataset" --keys 8 --steps 3 --batch 2 --device cpu --precision no 2>&1 | tee "$RUNNER_TEMP/out/train.log"
+          # what the training left: the adapter (the only part the app takes) and the checkpoint around it
+          {
+            ls -la "$GRG_MAPPER_HOME/lora/8K"
+            find "$RUNNER_TEMP/dataset/run" -type f -printf '%s %P\n'
+            du -sh "$RUNNER_TEMP/dataset/run" "$RUNNER_TEMP/dataset/data"
+          } | tee "$RUNNER_TEMP/out/files.txt"
+      - name: A chart with the adapter the app finds
+        run: |
+          python scripts/mapper_probe.py --audio "$RUNNER_TEMP/song/$SONG" --out "$RUNNER_TEMP/out/lora" --mode 8K --tiers HARD --lora auto
+          {
+            echo "## base"; python scripts/mapper_keymode_report.py "$RUNNER_TEMP/out/base"
+            echo "## with the adapter"; python scripts/mapper_keymode_report.py "$RUNNER_TEMP/out/lora"
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+          grep -i "lora" "$GRG_MAPPER_HOME/worker.log" || true
+      - name: The quick test's data and two steps on it (people's 4K charts of the dataset's first tar file, with their audio)
+        run: |
+          "$GRG_MAPPER_HOME/venv/Scripts/python.exe" scripts/lora/make_dataset.py --keys 4 --out "$RUNNER_TEMP/quick" --shards 0-0 2>&1 | tail -4 | tee "$RUNNER_TEMP/out/quick.txt"
+          du -sh "$RUNNER_TEMP/quick/data" | tee -a "$RUNNER_TEMP/out/quick.txt"
+          "$GRG_MAPPER_HOME/venv/Scripts/python.exe" scripts/lora/train.py --data "$RUNNER_TEMP/quick" --keys 4 --steps 2 --batch 2 --device cpu --precision no --no-install 2>&1 | tee "$RUNNER_TEMP/out/train-quick.log" | tail -3
+      - name: Logs
+        if: always()
+        run: |
+          cp "$GRG_MAPPER_HOME/worker.log" "$GRG_MAPPER_HOME/setup.log" "$RUNNER_TEMP/out/" 2>/dev/null || true
+          cp "$GRG_MAPPER_HOME/lora/8K/"*.json "$RUNNER_TEMP/out/" 2>/dev/null || true
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: lora-smoke
+          path: ${{ runner.temp }}/out
+          if-no-files-found: warn
+          retention-days: 30

@@ -17,6 +17,7 @@ from typing import Any, Callable
 from ..chart.keysounds import default_seed
 from ..formats.osu import parse_osu
 from . import charts
+from .lora import adapters
 from .steady import STEADY_VERSION, settled_timing
 from .runtime import Runtime, mapper_config
 from .service import MapperError, MapperService
@@ -43,6 +44,8 @@ class Mapper:
         cfg = dict(mapper_config())
         state = self.runtime.state() or {}
         cfg["_cpu"] = state.get("device") == "cpu"
+        # the LoRA adapter of each key count that has one (lora.py)
+        cfg["_lora"] = adapters(cfg, self.runtime.root)
         return cfg
 
     def plan(self, analysis: dict[str, Any], key_mode: str, difficulty: str, target_level: int | None, seed: int | None) -> tuple[int, int, str]:
@@ -93,6 +96,12 @@ class Mapper:
         elif timing is not None:
             timing, fixed, steadied, _ = settled_timing(timing, onsets, duration, check, steady)
         keycount = len(charts.columns(key_mode))
+        if charts.lora_of(key_mode, cfg):
+            # PEFT, which merges the adapter: a runtime set up before adapters has none
+            try:
+                self.runtime.ensure_lora()
+            except Exception as e:
+                raise MapperError(f"LoRA 어댑터를 쓰는 데 필요한 패키지(peft)를 설치하지 못했습니다: {e}") from e
         timeout = float(cfg.get("timeoutSeconds", 1800))
         jobs = self.runtime.root / "jobs"
         jobs.mkdir(parents=True, exist_ok=True)
