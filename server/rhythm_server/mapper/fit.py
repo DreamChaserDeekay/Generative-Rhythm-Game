@@ -100,7 +100,7 @@ def _along(x: float, pts: list[tuple[float, float]]) -> float:
 
 def next_stars(tries: list[tuple[float, float]], goal: float, fit: dict[str, Any], table: list[list[float]] | None = None) -> float:
     """The star rating to try next for a rating `goal`, from the tries so far ((stars, rating)).
-    Two tries or more: log rating is taken as linear in log stars, with the slope of the two nearest
+    Tries on both sides of the goal: between the nearest of each. Else two tries or more: log rating is taken as linear in log stars, with the slope of the two nearest
     the goal when it is within minSlope..maxSlope. Else, with the key mode's table ([rating, stars]):
     the song's charts are taken to land as far off the table everywhere as the last did (in log
     rating), and the stars are the table's for the goal moved by that; without one, the given slope.
@@ -108,6 +108,22 @@ def next_stars(tries: list[tuple[float, float]], goal: float, fit: dict[str, Any
     stars, rating = tries[-1]
     rating = max(rating, 0.5)
     out = None
+    lg = math.log(goal)
+    below = [p for p in tries if math.log(max(p[1], 0.5)) < lg]
+    above = [p for p in tries if math.log(max(p[1], 0.5)) > lg]
+    if below and above:
+        # tries on both sides of the goal: between the nearest of each (log stars against log
+        # rating), which a noisy secant or the table may leave
+        (s0, r0) = max(below, key=lambda p: p[1])
+        (s1, r1) = min(above, key=lambda p: p[1])
+        y0, y1 = math.log(max(r0, 0.5)), math.log(max(r1, 0.5))
+        x0, x1 = math.log(s0), math.log(s1)
+        if s0 < s1:
+            out = math.exp(x0 + (lg - y0) * (x1 - x0) / (y1 - y0))
+        else:
+            # more stars came out lower (the seed's noise): halfway
+            out = math.exp((x0 + x1) / 2.0)
+        return round(max(float(fit["minStars"]), min(float(fit["maxStars"]), out)), 2)
     if len(tries) >= 2:
         # the two tries nearest the goal (log rating)
         near = sorted(tries, key=lambda p: abs(math.log(max(p[1], 0.5)) - math.log(goal)))[:2]

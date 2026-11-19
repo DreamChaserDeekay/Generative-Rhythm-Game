@@ -115,3 +115,13 @@ def test_a_songs_later_chart_starts_where_its_earlier_ones_landed(fitting) -> No
     # the HARD tries told where this song lands: EXPERT is asked at more than the table's stars, and lands at once
     assert fit_info["prior"] >= 2 and len(fit_info["tries"]) == 1 and 15 <= later["level"] <= 18
     assert fit_info["tries"][0]["stars"] > charts.stars_of(17.0, mapper_config(), "4K")
+
+
+def test_tries_on_both_sides_of_the_goal_are_interpolated_between() -> None:
+    rule = dict(fit.DEFAULTS)
+    table = [[1.0, 0.8], [13.0, 3.13], [21.0, 7.0]]
+    # the runner's 4K HARD of one song: 3.0 stars gave 16, 2.46 gave 8; the next is between them
+    nxt = fit.next_stars([(3.0, 16.0), (2.46, 8.0)], 13.0, rule, table)
+    assert 2.46 < nxt < 3.0
+    # more stars that came out lower (noise): halfway between
+    assert fit.next_stars([(3.0, 8.0), (2.5, 16.0)], 13.0, rule, table) == pytest.approx((3.0 * 2.5) ** 0.5, abs=0.01)
