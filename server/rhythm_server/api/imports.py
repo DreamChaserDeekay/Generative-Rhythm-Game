@@ -11,7 +11,7 @@ from typing import Any
 
 import numpy as np
 
-from ..config import SAMPLE_RATE
+from ..config import SAMPLE_RATE, difficulty_config, tier_for_level
 from ..formats import FormatError, ParsedChart, assemble_chart
 from ..formats.images import MAX_IMAGE_BYTES, ImageIndex, image_kind, image_stem
 from ..formats.keysounds import SoundIndex, build_sprite, decode_sounds, full_mix, normalizing_gain
@@ -20,8 +20,9 @@ from .jobs import AnalysisQueue
 from ..mapper.charts import song_bpm
 from .library import Library
 
-# imported charts get our difficulty name from the level we rate them at
-DIFFICULTY_BY_LEVEL = ((4, "NORMAL"), (8, "HARD"), (12, "EXPERT"), (16, "ELITE"))
+# imported charts get our difficulty name from the level we rate them at: the tier whose range
+# (config/difficulty.json, EASY 1-5 · NORMAL 6-10 · HARD 11-14 · EXPERT 15-18 · ELITE 19-20) holds it
+DIFFICULTY_BY_LEVEL = tuple((int(difficulty_config()["presets"][t]["levels"][1]), t) for t in difficulty_config()["order"])
 DECODE_WORKERS = 4
 # "Song [ANOTHER]", "Song (7KEYS HYPER)" … → "Song" for the song entry shared by all difficulties
 DIFFICULTY_SUFFIX = re.compile(
@@ -31,10 +32,7 @@ DIFFICULTY_SUFFIX = re.compile(
 
 
 def difficulty_for_level(level: int) -> str:
-    for top, name in DIFFICULTY_BY_LEVEL:
-        if level <= top:
-            return name
-    return "MASTER"
+    return tier_for_level(level)
 
 
 def song_title(title: str) -> str:
@@ -59,7 +57,7 @@ def _assemble(parsed: ParsedChart, song: dict[str, Any], extra: dict[str, Any] |
         artist=song["artist"],
         song_id=song["id"],
         audio_hash=song["audioHash"],
-        difficulty="NORMAL",
+        difficulty=difficulty_for_level(1),
         source={"kind": "imported", "format": parsed.format, "file": parsed.source_name},
         duration_ms=song["durationMs"],
         chart_name=parsed.chart_name or Path(parsed.source_name).stem,

@@ -30,6 +30,11 @@ FAKE_WORKER = textwrap.dedent('''
         t0, beat = float(red.split(",")[0]), float(red.split(",")[1])
         keys = int(req["keycount"])
         objs = [f"{int((i % keys + 0.5) * 512 / keys)},192,{int(round(t0 + i * beat))},1,0,0:0:0:0:" for i in range(48)]
+        # seeds 21-23 (test_fit.py): notes for 50 s, as many a second as twice the stars asked for
+        # (a model that follows the stars), 25 (one that makes too many) or 2 (a song too calm)
+        rate = {21: 2.0 * float(req.get("difficulty") or 0), 22: 25.0, 23: 2.0}.get(req.get("seed"))
+        if rate:
+            objs = [f"{int(((i * 3) % keys + 0.5) * 512 / keys)},192,{int(round(t0 + i * 1000.0 / rate))},1,0,0:0:0:0:" for i in range(int(50 * rate))]
         out = Path(req["out"]) / "beatmap.osu"
         head = "osu file format v14\\n[General]\\nMode: 3\\n[Difficulty]\\nCircleSize:%d\\n[TimingPoints]\\n%s\\n[HitObjects]\\n" % (keys, red)
         out.write_text(head + "\\n".join(objs) + "\\n", encoding="utf-8")

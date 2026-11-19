@@ -1,101 +1,52 @@
 {
-  "description": "난이도 프리셋(4K 기준). 생성기 0.9.39부터 NORMAL · HARD · EXPERT · ELITE · MASTER 다섯 단계에 레벨 1–20(차례로 1–4 · 5–8 · 9–12 · 13–16 · 17–20)이다: NORMAL · HARD는 예전 레벨 4–6 · 7–9의 밀도 그대로 네 레벨로 나누고, 예전 EXPERT 아래 끝부터 MASTER 가운데까지를 EXPERT · ELITE · MASTER가 나눠 가장 어려운 두 단계 사이의 노트 수 차이를 줄였다(30곡 7K+1S 노트 수 중앙값 EXPERT 904 → MASTER 1465가 EXPERT 841 · ELITE 1039 · MASTER 1306). 레벨 20이 끝이라 MASTER도 20을 넘지 않는다(docs/PATTERN_DESIGN.md 73장). 아래 설명의 레벨 숫자는 예전 척도다. avgNps는 생성 시 첫 목표 밀도이고, 최종 레벨은 난이도 산정 루프가 levels 범위에 맞춘다. subdivisions는 박당 분할(1=4분, 2=8분, 3=8분 셋잇단, 4=16분, 6=16분 셋잇단, 8=32분), partialSubdivisions는 해당 분할의 최대 비율. maxTapChord는 단타 동치의 최대 노트 수(없으면 maxChord). scratchRate/sideRate는 스크래치·사이드 노트가 붙는 슬롯 비율. 생성기 0.9.4에서 프리셋의 일부를 BMS 사람 채보(같은 곡·같은 밀도의 짝, docs/PATTERN_DESIGN.md 20장)에 맞췄다. minJackMs는 사람 채보의 빠른 같은 레인 반복 간격의 하위 10%다(EASY 450 → 150, NORMAL 300 → 115, HARD 200 → 100, EXPERT 140 → 95, MASTER 100 → 85ms). scratchRate는 레벨 2·6에 맞는 사람 채보의 7.8%·6.1%를 따라 EASY 0 → 0.05, NORMAL 0.03 → 0.06, HARD 0.05 → 0.06이다. 분할은 사람 채보의 박자 분포(초당 2–4노트에서도 노트의 30% 가까이가 8분, 12%가 16분 자리)를 따라 EASY가 8분(35%까지)·16분(8%까지), NORMAL이 16분(20%까지)을 쓰고 HARD의 16분 한도는 25%다. chordRatio는 EASY 0.04 → 0.06, NORMAL 0.1 → 0.14, EXPERT 0.25 → 0.29, MASTER 0.32 → 0.47이다(EASY·NORMAL은 늘어난 8분·16분 단타가 예전에 후보가 모자라 생기던 동치 자리를 채워 사람보다 동치가 적어진 만큼). 레벨 14에 맞는 사람 채보는 동치 비율이 0.57, 단타 줄기 노트가 18%였다(생성 채보 0.32, 41%). 늘리면 노트 단위 일치(동치 노트까지 센 F1)가 0.620 → 0.626으로 올랐다. 생성기 0.9.7에서 EASY·NORMAL은 셋잇단 느낌의 곡(tripletFeel)에서 8분 셋잇단을 5%·7%까지 쓰고(사람 채보는 그런 곡의 레벨 2·6에서 노트의 3.2%·5.7%를 셋잇단 자리에 둔다), 한 손 2개 동치를 허용한다(handChordLimit 1 → 2: 사람 채보 레벨 2·6의 2개 동치 중 16–20%가 1+3 같은 한 손 동치다, docs/PATTERN_DESIGN.md 23장). 생성기 0.9.8에서 EASY·NORMAL의 고음역 가중(highBandWeight)을 0.35·0.5 → 0.7·0.8로 올렸다: 사람 채보가 레벨 2·6에서 고른 엇박의 28–33%가 고음역(하이햇·리드)이다(docs/PATTERN_DESIGN.md 24장). 생성기 0.9.11에서 scratchRate를 검증 곡 사람 채보의 스크래치 몫(레벨 2·6·10·14에서 9.0·6.2·6.2·5.7%)에 맞췄다: EASY 0.05 → 0.095, NORMAL 0.06 → 0.072, HARD 0.06 → 0.075, EXPERT 0.07 → 0.089, MASTER 0.09 → 0.103(동치가 많은 단계일수록 슬롯 비율보다 노트 몫이 작다, docs/PATTERN_DESIGN.md 27장). 생성기 0.9.37에서 MyMusicPlayer 곡 900곡으로 만든 채보를 BMS 폴더의 사람 7키 채보 164개와 견줘 chordRatio를 NORMAL 0.14 → 0.08, HARD 0.18 → 0.13으로, longNoteRatio를 NORMAL 0.12 → 0.075, HARD 0.15 → 0.05, EXPERT 0.18 → 0.05, MASTER 0.18 → 0.06으로 낮추고 MASTER에 16분 상한 0.24를 두었다(사람 채보의 동치 몫 레벨 4–6 · 7–9에서 0.07 · 0.13, 롱노트 몫 레벨 7–15에서 0.01–0.03, MASTER 16분 자리 0.22, docs/PATTERN_DESIGN.md 71장). 생성기 0.9.53에서 BMS 150곡 7K+1S 사람 채보(분석기 1.13.0)에 맞춰 EXPERT · ELITE · MASTER의 단타 동치 크기 상한(maxTapChord)을 3 · 3 · 4로 두고(maxChord는 한 순간 노트 수의 상한으로 그대로: 패드 · 곡 끝 화음의 롱노트 동치는 4 · 5 · 6까지), chordRatio를 EXPERT 0.29 → 0.31, ELITE 0.38 → 0.35, MASTER의 16분 상한을 0.24 → 0.36으로 바꿨다: 레벨 9–16 사람 채보에는 4노트 이상 동치가 거의 없고(우리 ELITE 5.4%), 동치가 크면 가장 어려운 몇 초가 레벨을 올려 레벨 맞춤이 채보 전체를 솎았다(레벨 13–16 초당 치는 횟수 사람 5.83 · 우리 4.96, 한 번에 노트 1.45 · 1.66). 사람 채보 레벨 17–20의 16분 자리 몫은 중앙 0.335(상위 4분의 1 0.395)다(docs/PATTERN_DESIGN.md 96장).",
-  "order": ["NORMAL", "HARD", "EXPERT", "ELITE", "MASTER"],
+  "description": "난이도 다섯 단계(2026-11-19, 생성기 Mapperatorinator 3): EASY 1–5 · NORMAL 6–10 · HARD 11–14 · EXPERT 15–18 · ELITE 19–20. AI 채보는 만든 노트를 앱이 잰 레벨이 그 단계의 구간 안에 들어야 한다(server/rhythm_server/mapper/fit.py, docs/MAPPERATORINATOR.md \"난이도 구간에 맞추기\"). Mapperatorinator가 쓰는 프리셋 값은 levels(구간), minJackMs(레벨 측정의 skillset에서 잭으로 치는 같은 레인 간격, 4K+FX · 6K+FX에서 FX 노트와 키 노트 사이 간격), sideRate(4K+FX · 6K+FX에서 FX 레인으로 옮기는 노트 순간의 몫)뿐이다. 두 값은 예전 다섯 단계(NORMAL 1–4 · HARD 5–8 · EXPERT 9–12 · ELITE 13–16 · MASTER 17–20)의 구간 가운데 값(minJackMs 115 · 100 · 95 · 90 · 85, sideRate 0.04 · 0.06 · 0.08 · 0.09 · 0.10)을 새 구간 가운데(3 · 8 · 12.5 · 16.5 · 19.5)로 보간해 정했다. 옛 규칙 기반 생성기의 프리셋 값(avgNps, chordRatio 등)은 Mapperatorinator가 쓰지 않아 뺐다. 아래는 그 생성기 시절의 기록이다. 난이도 프리셋(4K 기준). 생성기 0.9.39부터 NORMAL · HARD · EXPERT · ELITE · MASTER 다섯 단계에 레벨 1–20(차례로 1–4 · 5–8 · 9–12 · 13–16 · 17–20)이다: NORMAL · HARD는 예전 레벨 4–6 · 7–9의 밀도 그대로 네 레벨로 나누고, 예전 EXPERT 아래 끝부터 MASTER 가운데까지를 EXPERT · ELITE · MASTER가 나눠 가장 어려운 두 단계 사이의 노트 수 차이를 줄였다(30곡 7K+1S 노트 수 중앙값 EXPERT 904 → MASTER 1465가 EXPERT 841 · ELITE 1039 · MASTER 1306). 레벨 20이 끝이라 MASTER도 20을 넘지 않는다(docs/PATTERN_DESIGN.md 73장). 아래 설명의 레벨 숫자는 예전 척도다. avgNps는 생성 시 첫 목표 밀도이고, 최종 레벨은 난이도 산정 루프가 levels 범위에 맞춘다. subdivisions는 박당 분할(1=4분, 2=8분, 3=8분 셋잇단, 4=16분, 6=16분 셋잇단, 8=32분), partialSubdivisions는 해당 분할의 최대 비율. maxTapChord는 단타 동치의 최대 노트 수(없으면 maxChord). scratchRate/sideRate는 스크래치·사이드 노트가 붙는 슬롯 비율. 생성기 0.9.4에서 프리셋의 일부를 BMS 사람 채보(같은 곡·같은 밀도의 짝, docs/PATTERN_DESIGN.md 20장)에 맞췄다. minJackMs는 사람 채보의 빠른 같은 레인 반복 간격의 하위 10%다(EASY 450 → 150, NORMAL 300 → 115, HARD 200 → 100, EXPERT 140 → 95, MASTER 100 → 85ms). scratchRate는 레벨 2·6에 맞는 사람 채보의 7.8%·6.1%를 따라 EASY 0 → 0.05, NORMAL 0.03 → 0.06, HARD 0.05 → 0.06이다. 분할은 사람 채보의 박자 분포(초당 2–4노트에서도 노트의 30% 가까이가 8분, 12%가 16분 자리)를 따라 EASY가 8분(35%까지)·16분(8%까지), NORMAL이 16분(20%까지)을 쓰고 HARD의 16분 한도는 25%다. chordRatio는 EASY 0.04 → 0.06, NORMAL 0.1 → 0.14, EXPERT 0.25 → 0.29, MASTER 0.32 → 0.47이다(EASY·NORMAL은 늘어난 8분·16분 단타가 예전에 후보가 모자라 생기던 동치 자리를 채워 사람보다 동치가 적어진 만큼). 레벨 14에 맞는 사람 채보는 동치 비율이 0.57, 단타 줄기 노트가 18%였다(생성 채보 0.32, 41%). 늘리면 노트 단위 일치(동치 노트까지 센 F1)가 0.620 → 0.626으로 올랐다. 생성기 0.9.7에서 EASY·NORMAL은 셋잇단 느낌의 곡(tripletFeel)에서 8분 셋잇단을 5%·7%까지 쓰고(사람 채보는 그런 곡의 레벨 2·6에서 노트의 3.2%·5.7%를 셋잇단 자리에 둔다), 한 손 2개 동치를 허용한다(handChordLimit 1 → 2: 사람 채보 레벨 2·6의 2개 동치 중 16–20%가 1+3 같은 한 손 동치다, docs/PATTERN_DESIGN.md 23장). 생성기 0.9.8에서 EASY·NORMAL의 고음역 가중(highBandWeight)을 0.35·0.5 → 0.7·0.8로 올렸다: 사람 채보가 레벨 2·6에서 고른 엇박의 28–33%가 고음역(하이햇·리드)이다(docs/PATTERN_DESIGN.md 24장). 생성기 0.9.11에서 scratchRate를 검증 곡 사람 채보의 스크래치 몫(레벨 2·6·10·14에서 9.0·6.2·6.2·5.7%)에 맞췄다: EASY 0.05 → 0.095, NORMAL 0.06 → 0.072, HARD 0.06 → 0.075, EXPERT 0.07 → 0.089, MASTER 0.09 → 0.103(동치가 많은 단계일수록 슬롯 비율보다 노트 몫이 작다, docs/PATTERN_DESIGN.md 27장). 생성기 0.9.37에서 MyMusicPlayer 곡 900곡으로 만든 채보를 BMS 폴더의 사람 7키 채보 164개와 견줘 chordRatio를 NORMAL 0.14 → 0.08, HARD 0.18 → 0.13으로, longNoteRatio를 NORMAL 0.12 → 0.075, HARD 0.15 → 0.05, EXPERT 0.18 → 0.05, MASTER 0.18 → 0.06으로 낮추고 MASTER에 16분 상한 0.24를 두었다(사람 채보의 동치 몫 레벨 4–6 · 7–9에서 0.07 · 0.13, 롱노트 몫 레벨 7–15에서 0.01–0.03, MASTER 16분 자리 0.22, docs/PATTERN_DESIGN.md 71장). 생성기 0.9.53에서 BMS 150곡 7K+1S 사람 채보(분석기 1.13.0)에 맞춰 EXPERT · ELITE · MASTER의 단타 동치 크기 상한(maxTapChord)을 3 · 3 · 4로 두고(maxChord는 한 순간 노트 수의 상한으로 그대로: 패드 · 곡 끝 화음의 롱노트 동치는 4 · 5 · 6까지), chordRatio를 EXPERT 0.29 → 0.31, ELITE 0.38 → 0.35, MASTER의 16분 상한을 0.24 → 0.36으로 바꿨다: 레벨 9–16 사람 채보에는 4노트 이상 동치가 거의 없고(우리 ELITE 5.4%), 동치가 크면 가장 어려운 몇 초가 레벨을 올려 레벨 맞춤이 채보 전체를 솎았다(레벨 13–16 초당 치는 횟수 사람 5.83 · 우리 4.96, 한 번에 노트 1.45 · 1.66). 사람 채보 레벨 17–20의 16분 자리 몫은 중앙 0.335(상위 4분의 1 0.395)다(docs/PATTERN_DESIGN.md 96장).",
+  "order": [
+    "EASY",
+    "NORMAL",
+    "HARD",
+    "EXPERT",
+    "ELITE"
+  ],
   "presets": {
-    "NORMAL": {
-      "levels": [1, 4],
-      "avgNps": [3.0, 5.0],
-      "peakNps1s": 8,
-      "subdivisions": [1, 2, 3, 4],
-      "partialSubdivisions": { "3": 0.07, "4": 0.2 },
-      "maxChord": 2,
-      "chordRatio": 0.08,
-      "longNoteRatio": 0.075,
-      "minLnBeats": 1.0,
+    "EASY": {
+      "levels": [
+        1,
+        5
+      ],
       "minJackMs": 115,
-      "handChordLimit": 2,
-      "holdHandLimit": 0,
-      "maxHoldsPerHand": 1,
-      "sideRate": 0.04,
-      "highBandWeight": 0.8
+      "sideRate": 0.04
+    },
+    "NORMAL": {
+      "levels": [
+        6,
+        10
+      ],
+      "minJackMs": 100,
+      "sideRate": 0.07
     },
     "HARD": {
-      "levels": [5, 8],
-      "avgNps": [5.0, 8.0],
-      "peakNps1s": 12,
-      "subdivisions": [1, 2, 3, 4],
-      "partialSubdivisions": { "4": 0.25 },
-      "maxChord": 3,
-      "chordRatio": 0.13,
-      "longNoteRatio": 0.05,
-      "minLnBeats": 0.75,
-      "minJackMs": 100,
-      "handChordLimit": 2,
-      "holdHandLimit": 1,
-      "maxHoldsPerHand": 1,
-      "sideRate": 0.06,
-      "highBandWeight": 0.7
+      "levels": [
+        11,
+        14
+      ],
+      "minJackMs": 95,
+      "sideRate": 0.085
     },
     "EXPERT": {
-      "levels": [9, 12],
-      "avgNps": [8.0, 10.3],
-      "peakNps1s": 18,
-      "subdivisions": [1, 2, 3, 4, 6],
-      "partialSubdivisions": {
-        "6": 0.1
-      },
-      "maxChord": 4,
-      "maxTapChord": 3,
-      "chordRatio": 0.31,
-      "longNoteRatio": 0.05,
-      "minLnBeats": 0.5,
-      "minJackMs": 95,
-      "handChordLimit": 2,
-      "holdHandLimit": 2,
-      "maxHoldsPerHand": 1,
-      "sideRate": 0.08,
-      "highBandWeight": 0.85
+      "levels": [
+        15,
+        18
+      ],
+      "minJackMs": 90,
+      "sideRate": 0.095
     },
     "ELITE": {
-      "levels": [13, 16],
-      "avgNps": [10.3, 12.5],
-      "peakNps1s": 22,
-      "subdivisions": [1, 2, 3, 4, 6],
-      "partialSubdivisions": {
-        "6": 0.1
-      },
-      "maxChord": 5,
-      "maxTapChord": 3,
-      "chordRatio": 0.35,
-      "longNoteRatio": 0.055,
-      "minLnBeats": 1.0,
-      "minJackMs": 90,
-      "handChordLimit": 3,
-      "holdHandLimit": 2,
-      "maxHoldsPerHand": 1,
-      "sideRate": 0.09,
-      "highBandWeight": 0.92
-    },
-    "MASTER": {
-      "levels": [17, 20],
-      "avgNps": [12.5, 16.0],
-      "peakNps1s": 26,
-      "subdivisions": [1, 2, 3, 4, 6, 8],
-      "partialSubdivisions": {
-        "4": 0.36,
-        "8": 0.015
-      },
-      "maxChord": 6,
-      "maxTapChord": 4,
-      "chordRatio": 0.47,
-      "longNoteRatio": 0.06,
-      "minLnBeats": 0.5,
+      "levels": [
+        19,
+        20
+      ],
       "minJackMs": 85,
-      "handChordLimit": 3,
-      "holdHandLimit": 2,
-      "maxHoldsPerHand": 2,
-      "sideRate": 0.1,
-      "highBandWeight": 1.0
+      "sideRate": 0.1
     }
   },
   "keyModeNpsFactor": {
@@ -106,34 +57,159 @@
     "6K+FX": 1.25,
     "8K": 1.35
   },
-  "levelEffectiveNps": [3.2, 3.65, 4.16, 4.74, 5.4, 6.03, 6.73, 7.52, 8.4, 8.94, 9.51, 10.11, 10.76, 11.45, 12.18, 12.96, 13.78, 14.66, 15.6, 16.6],
+  "levelEffectiveNps": [
+    3.2,
+    3.65,
+    4.16,
+    4.74,
+    5.4,
+    6.03,
+    6.73,
+    7.52,
+    8.4,
+    8.94,
+    9.51,
+    10.11,
+    10.76,
+    11.45,
+    12.18,
+    12.96,
+    13.78,
+    14.66,
+    15.6,
+    16.6
+  ],
   "skillRatings": {
     "description": "단계값(0–1, 난이도에 따라 늘어나는 규칙의 척도) 환산표. 생성기 0.9.39에서 레벨을 1–20(난이도마다 네 레벨)으로 바꾸면서, config/의 단계값 문턱과 표는 모두 예전 레벨 1–15 척도에서 정한 값이라 레이팅을 [새 레이팅, 예전 레이팅] 점 사이 직선으로 예전 척도에 옮긴 뒤 (예전 레이팅 − 1) ÷ 14를 단계값으로 쓴다. 각 난이도의 가운데(NORMAL 3 · HARD 7 · EXPERT 11 · MASTER 19)는 예전 가운데(5.5 · 8.5 · 11.5 · 14.5)에 놓여 난이도마다 맞춰 온 규칙(동치 · 롱노트 · 엇박 · 손 규칙)이 그대로이고, 새 ELITE의 가운데(15)는 그 사이(13.0)다. config/ 설명문의 레벨 숫자는 예전 척도다(docs/PATTERN_DESIGN.md 73장).",
-    "points": [[1.0, 4.0], [3.0, 5.5], [7.0, 8.5], [11.0, 11.5], [15.0, 13.0], [19.0, 14.5], [21.0, 15.25]]
+    "points": [
+      [
+        1.0,
+        4.0
+      ],
+      [
+        3.0,
+        5.5
+      ],
+      [
+        7.0,
+        8.5
+      ],
+      [
+        11.0,
+        11.5
+      ],
+      [
+        15.0,
+        13.0
+      ],
+      [
+        19.0,
+        14.5
+      ],
+      [
+        21.0,
+        15.25
+      ]
+    ]
   },
   "styles": {
     "description": "생성 스타일. 프리셋 값에 곱하는 배율(chordRatio·density·longNoteRatio·minLnScale·minJackScale·partialScale)과 maxChordBonus, 후보 점수 가중(subdivisionBoost·offbeatBoost·downbeatBoost·harmonicBoost), 레인 배치 비용 가중(jackWeight·jackBonus·alternateWeight·pitchWeight·contourWeight), 16분 줄기의 세기 배율(runScale, patterns.json sectioned.runs: 생성기 0.9.53, 연타 스타일 0(연타 스타일은 줄기 대신 연타를 친다) · 스트림 스타일 1.5), 리듬 기준이 자동일 때 따르는 기준(rhythmSource: 멜로디 스타일은 멜로디의 음마다 노트를 둔다. 사용자가 고른 리듬 기준이 우선). 소리가 없는 곳에 노트를 만들지 않는 규칙은 스타일과 무관하게 유지된다.",
     "balanced": {},
-    "stream": { "runScale": 1.5, "chordRatio": 0.45, "density": 1.08, "subdivisionBoost": { "2": 1.15, "4": 1.35 }, "partialScale": 1.5, "jackWeight": 1.8, "alternateWeight": 1.6 },
-    "chord": { "chordRatio": 1.8, "maxChordBonus": 1, "density": 0.9, "downbeatBoost": 1.2 },
-    "jack": { "runScale": 0.0, "chordRatio": 0.8, "minJackScale": 0.75, "jackWeight": 0.0, "jackBonus": 1.8, "alternateWeight": 0.6 },
-    "longnote": { "longNoteRatio": 2.4, "minLnScale": 0.6, "density": 0.92, "harmonicBoost": 0.4 },
-    "technical": { "subdivisionBoost": { "3": 1.6, "4": 1.2, "6": 1.5, "8": 1.3 }, "offbeatBoost": 1.3, "partialScale": 1.8, "pitchWeight": 0.6, "jackWeight": 1.3 },
-    "melody": { "harmonicBoost": 0.8, "chordRatio": 0.7, "pitchWeight": 1.8, "contourWeight": 2.2, "rhythmSource": "melody" }
+    "stream": {
+      "runScale": 1.5,
+      "chordRatio": 0.45,
+      "density": 1.08,
+      "subdivisionBoost": {
+        "2": 1.15,
+        "4": 1.35
+      },
+      "partialScale": 1.5,
+      "jackWeight": 1.8,
+      "alternateWeight": 1.6
+    },
+    "chord": {
+      "chordRatio": 1.8,
+      "maxChordBonus": 1,
+      "density": 0.9,
+      "downbeatBoost": 1.2
+    },
+    "jack": {
+      "runScale": 0.0,
+      "chordRatio": 0.8,
+      "minJackScale": 0.75,
+      "jackWeight": 0.0,
+      "jackBonus": 1.8,
+      "alternateWeight": 0.6
+    },
+    "longnote": {
+      "longNoteRatio": 2.4,
+      "minLnScale": 0.6,
+      "density": 0.92,
+      "harmonicBoost": 0.4
+    },
+    "technical": {
+      "subdivisionBoost": {
+        "3": 1.6,
+        "4": 1.2,
+        "6": 1.5,
+        "8": 1.3
+      },
+      "offbeatBoost": 1.3,
+      "partialScale": 1.8,
+      "pitchWeight": 0.6,
+      "jackWeight": 1.3
+    },
+    "melody": {
+      "harmonicBoost": 0.8,
+      "chordRatio": 0.7,
+      "pitchWeight": 1.8,
+      "contourWeight": 2.2,
+      "rhythmSource": "melody"
+    }
   },
   "peakFollowsDensity": {
     "description": "노트 예산이 프리셋보다 줄면(밀도 설정 × 난이도 루프의 배율이 1 미만) 1초 최고 밀도(peakNps1s)도 그 배율의 제곱근만큼 줄인다. 롤 · 빽빽한 필인처럼 노트 예산 밖에서 들어오는 몰아치기가 그대로 남으면, 레벨을 맞추려고 고른 부분만 솎여 채보가 더 몰아친다(1초 최고 ÷ 평균 밀도: BMS 사람 7키 2.0–2.4, 생성기 0.9.32 2.5–2.9). 배율만큼 줄이면 EASY의 트릴이 거의 사라졌다(docs/PATTERN_DESIGN.md 65장)."
   },
   "overrideLimits": {
-    "density": [0.5, 1.5],
-    "longNoteRatio": [0.0, 0.5],
-    "sideRate": [0.0, 0.2]
+    "density": [
+      0.5,
+      1.5
+    ],
+    "longNoteRatio": [
+      0.0,
+      0.5
+    ],
+    "sideRate": [
+      0.0,
+      0.2
+    ]
   },
   "metrical": {
     "description": "후보 손 점수의 박자 위치 가중치 weights(downbeat는 마디 첫 박, 숫자는 분할: 1 정박, 2 8분 엇박, 4 16분, 3·6 셋잇단, 8 32분)와 거기에 거는 지수 power. power는 [단계값, 지수] 점 사이를 선형으로 잇는다. 쉬운 채보는 정박을 지키고(지수 1), 어려울수록 곡의 리듬(엇박·싱코페이션)을 그대로 따른다(지수가 작을수록 가중치 차이가 줄어든다). 큰 소리는 원래 정박에 몰려 있어서 가중치를 그대로 곱하면 노트가 후보보다 훨씬 정박에 쏠린다. push: 16분 자리 후보 가운데 16분 뒤 자리에 후보가 없거나 더 약한 것(박이나 엇박을 앞당기는 당김음)에 곱하는 배율. BMS 사람 쉬운 채보는 그런 16분 후보를 0.24, 다음 자리가 더 센 16분 후보를 0.12의 비율로 고른다(docs/PATTERN_DESIGN.md 39장). 손 점수에만 걸리므로 노트 고르기 모델의 몫이 1이 되는 단계값(config/pick.json의 share)부터는 효과가 없다.",
-    "weights": { "downbeat": 1.0, "1": 0.9, "2": 0.72, "3": 0.55, "4": 0.5, "6": 0.42, "8": 0.32 },
+    "weights": {
+      "downbeat": 1.0,
+      "1": 0.9,
+      "2": 0.72,
+      "3": 0.55,
+      "4": 0.5,
+      "6": 0.42,
+      "8": 0.32
+    },
     "push": 1.8,
-    "power": [[0.0, 1.0], [0.3, 1.0], [0.65, 0.45]]
+    "power": [
+      [
+        0.0,
+        1.0
+      ],
+      [
+        0.3,
+        1.0
+      ],
+      [
+        0.65,
+        0.45
+      ]
+    ]
   },
   "holds": {
     "description": "롱노트를 둘 수 있는 소리. 소리 자체가 minSoundMs 이상 울려야 하고(BMS-Generator: 키음이 350ms 이상인 노트만 롱노트), 멜로디의 음(존재도가 instruments.json의 rhythmSource.melody.note 이상)이거나, 드럼 비율이 drumsBelow 미만인 음 있는 소리로서 머리가 maxSubdivision 분할(2 = 8분) 위에 있어야 한다. 드럼 타격이 밑에 깔린 베이스·패드의 길이를 물려받은 것과 늦게 잡힌 느린 어택은 롱노트가 되지 않는다. 온셋 세기가 strengthAtLeast 미만인 소리도 롱노트가 되지 않는다. model(선택)은 분석값(지속 시간·조화음·멜로디·세기·드럼/보컬/그 외 스템 비율·저역 우세)으로 소리가 정말 350ms 넘게 울릴 확률을 내는 로지스틱 모델(BMS 키음 길이로 맞춤)이다. atLeast가 있으면 그 확률 이상인 소리만 롱노트가 되고, rank가 참이면 롱노트를 고르는 순위에 그 확률을 곱한다. 다른 소리 위에 겹친 작은 소리가 많고, 분석한 지속 시간은 대개 밑에 깔린 소리의 것이다(BMS 키음 비교, docs/PATTERN_DESIGN.md 20장). 스템 분석이 없는 예전 분석은 조화음 비율이 harmonicAtLeast 이상이면 된다. 난이도의 longNoteRatio는 상한일 뿐이라 이런 소리가 적은 곡은 롱노트도 적다. 사이드 롱노트도 같은 규칙을 쓴다. pad(60장): 화성 비율 harmonicAtLeast 이상, 드럼 비율 drumsBelow 미만, 8분 격자(maxSubdivision) 위, minBeats박 이상 울리는 소리(패드·콰이어·현)를 어택 세기와 상관없이 롱노트로 둘 수 있고(6키 EXPERT 40곡에서 이런 소리 556개 가운데 17개만 롱노트였다: 세기 0.4 문턱), 롱노트 순위에 valueBoost, 노트 고르기 점수에 pickBoost(숫자나 [단계값, 값]: HARD부터, 쉬운 채보에 약한 패드 노트를 끼우면 다른 노트가 건반을 건너뛰었다)를 곱한다. 롱노트 개수(61장): 오래 울리는 단음(멜로디 음)은 하나, 화음이나 풍부한 소리(멜로디 음이 아닌 패드·콰이어·현, 또는 음 있는 스템 둘 이상이 각각 stemShare 이상)는 둘에 음 있는 스템 하나마다 하나, longBeats박 이상이면 하나, 세기 strongAtLeast 이상이면 하나를 더해 단계값의 countMax([단계값, 개수]: NORMAL · HARD 1, EXPERT · MASTER 2)까지 둔다. 생성기 0.9.37에서 HARD 2 · EXPERT 3 · MASTER 6을 줄였다: 사람 BMS 7키 채보는 레벨 7–15의 롱노트가 노트의 1–3%인데 우리는 5–8%였다(라이브러리 299곡, docs/PATTERN_DESIGN.md 71장). 그 슬롯은 그만큼의 동치가 된다(난이도 최대 동치·키 수 안). 손마다 동시 롱노트는 프리셋 maxHoldsPerHand(EXPERT 2, MASTER 3)까지. 곡 끝 잔향(ending)이 2박 이상이면 마지막 화음은 ending.countMax개 롱노트로 끝난다(빈 키가 함께 잡는다). 생성기 0.9.49(87장): 드럼 스템이 가장 큰 소리에는 롱노트를 두지 않고(noDrums), 베이스 스템 소리는 음높이가 있고 화성 비율 bassHarmonicAtLeast 이상일 때만, 머리의 어택 확신이 headAttackAtLeast 미만이거나 드럼이 빠진 조용한 구간(melody.quiet, 패드 소리는 예외)이면 두지 않는다. retrigger: 같은 소리 묶음이나 같은 스템의 반음 pitchSemis 안 음, 또는 같은 스템이 stemShareAtLeast 이상인 타격이 minBeats박 뒤에 attackAtLeast 이상의 어택으로 다시 오면 그 소리는 거기서 끝난 것으로 본다(한 목소리 규칙을 멜로디 밖으로: 롱노트가 반복 연주 위에 걸리지 않는다. 소리 묶음·음높이만으로는 키음이 보여 주는 재타격의 5%만 잡혀 스템 규칙을 더했다). 드럼 스템 규칙은 멜로디 음(킥 위의 노래)에는 적용하지 않는다. maxBeats는 [단계값, 박]의 롱노트 최대 길이다. pad.chordHoldBelow 아래 단계에서는 둘 이상의 롱노트가 패드 같은 소리(멜로디 음이 아니고 longBeats박 이상)에만 가고, 긴 소리 · 센 소리 가산은 addersFrom 단계값부터다. EXPERT · ELITE는 손마다 롱노트 하나(maxHoldsPerHand 1), ELITE 롱노트는 1박부터. BMS 60곡 6K ELITE에서 드럼 스템 롱노트 16%, 롱노트 안 같은 악기 재타격 60%(사람 24%), 시작 때 동시 2개 이상 63%(사람 19%)였고, 적용 뒤에는 곡당 롱노트 중앙값 30→8개, 드럼 스템 0, 동시 1개 93%, 머리에서 울리던 드럼 아닌 키음이 안에서 다시 치는 롱노트 27%다. 곡 끝 화음(ending)은 그 뒤에 칠 것이 없으니 손마다 동치 한도까지 잡고 린터도 마지막 화음은 예외로 둔다.",
@@ -148,22 +224,105 @@
       "gapBelow": 0.45,
       "gapBeats": 1.0
     },
-    "pad": {"minBeats": 1.0, "harmonicAtLeast": 0.5, "drumsBelow": 0.4, "maxSubdivision": 2, "valueBoost": 2.0, "pickBoost": [[0.45, 1.0], [0.5, 1.6]], "countMax": [[0.45, 1], [0.5, 1], [0.75, 2], [0.96, 2]], "stemShare": 0.3, "longBeats": 2.0, "strongAtLeast": 0.7, "chordHoldBelow": 0.96, "addersFrom": 0.96},
+    "pad": {
+      "minBeats": 1.0,
+      "harmonicAtLeast": 0.5,
+      "drumsBelow": 0.4,
+      "maxSubdivision": 2,
+      "valueBoost": 2.0,
+      "pickBoost": [
+        [
+          0.45,
+          1.0
+        ],
+        [
+          0.5,
+          1.6
+        ]
+      ],
+      "countMax": [
+        [
+          0.45,
+          1
+        ],
+        [
+          0.5,
+          1
+        ],
+        [
+          0.75,
+          2
+        ],
+        [
+          0.96,
+          2
+        ]
+      ],
+      "stemShare": 0.3,
+      "longBeats": 2.0,
+      "strongAtLeast": 0.7,
+      "chordHoldBelow": 0.96,
+      "addersFrom": 0.96
+    },
     "noDrums": true,
     "bassHarmonicAtLeast": 0.5,
     "headAttackAtLeast": 0.5,
     "noQuiet": true,
-    "retrigger": {"attackAtLeast": 0.5, "minBeats": 0.25, "pitchSemis": 1.0, "stemShareAtLeast": 0.4},
-    "maxBeats": [[0.0, 4.0], [0.95, 4.0], [0.96, 8.0]]
+    "retrigger": {
+      "attackAtLeast": 0.5,
+      "minBeats": 0.25,
+      "pitchSemis": 1.0,
+      "stemShareAtLeast": 0.4
+    },
+    "maxBeats": [
+      [
+        0.0,
+        4.0
+      ],
+      [
+        0.95,
+        4.0
+      ],
+      [
+        0.96,
+        8.0
+      ]
+    ]
   },
   "ending": {
     "description": "곡의 끝(PATTERN_DESIGN 60장). 마지막 노트 뒤에 곡의 온셋 세기 중앙값의 clearStrength배 이상인 소리가 없고(뚜렷한 멜로디·드럼이 이어지면 단노트로 친다), 에너지 곡선이 마지막 노트 자리의 수준에서 dropLevel(0..1 곡선, 0.1 = 6 dB)만큼 떨어지거나 무음 수준 아래로 내려갈 때까지가 minBeats박(그리고 난이도의 최소 롱노트 길이) 이상이면 잔향만 남은 끝으로 보고, 마지막 노트를 잔향이 끝나는 반 박까지(maxBeats박까지) 롱노트로 늘린다. 잔향이 2박 이상이면 countMax개(EXPERT 3, MASTER 6, 생성기 0.9.37부터 곡 안의 화음 롱노트 holds.pad countMax와 따로)의 롱노트 화음으로, 마지막 노트에 빈 키가 함께하며 손마다 동치·롱노트 한도 안에서, 바깥 키부터(2박 미만이면 하나). 곧 조용해지는 곡은 그대로 끝난다.",
-    "tail": {"description": "곡의 마지막 큰 소리의 잔향(생성기 0.9.47, docs/PATTERN_DESIGN.md 82장): 곡의 온셋 세기 중앙값의 finalStrength배 이상인 마지막 온셋이 곡의 끝 withinMs 안에 있으면 그것이 마지막 타격이고, 그 뒤(60ms 넘게)의 소리 가운데 그 세기의 share배보다 약한 것은 후보에서 뺀다(채보는 그 타격에서 끝나고 위 규칙이 잔향 위로 롱노트를 늘인다). BMS 80곡의 6키 채보 160개 중 105개가 곡의 마지막 키음 뒤에 노트를 두었고(중앙값 3개, 많게는 36개, 키음 위 노트의 절반 세기), 마지막 타격 뒤 그 0.7배 아래 소리 위 노트의 88%가 키음이 없는 자리였다.", "finalStrength": 1.0, "withinMs": 20000, "share": 0.7},
+    "tail": {
+      "description": "곡의 마지막 큰 소리의 잔향(생성기 0.9.47, docs/PATTERN_DESIGN.md 82장): 곡의 온셋 세기 중앙값의 finalStrength배 이상인 마지막 온셋이 곡의 끝 withinMs 안에 있으면 그것이 마지막 타격이고, 그 뒤(60ms 넘게)의 소리 가운데 그 세기의 share배보다 약한 것은 후보에서 뺀다(채보는 그 타격에서 끝나고 위 규칙이 잔향 위로 롱노트를 늘인다). BMS 80곡의 6키 채보 160개 중 105개가 곡의 마지막 키음 뒤에 노트를 두었고(중앙값 3개, 많게는 36개, 키음 위 노트의 절반 세기), 마지막 타격 뒤 그 0.7배 아래 소리 위 노트의 88%가 키음이 없는 자리였다.",
+      "finalStrength": 1.0,
+      "withinMs": 20000,
+      "share": 0.7
+    },
     "clearStrength": 0.5,
     "dropLevel": 0.3,
     "minBeats": 1.0,
     "maxBeats": 8.0,
-    "countMax": [[0.45, 1], [0.5, 2], [0.7, 2], [0.75, 3], [0.96, 6]]
+    "countMax": [
+      [
+        0.45,
+        1
+      ],
+      [
+        0.5,
+        2
+      ],
+      [
+        0.7,
+        2
+      ],
+      [
+        0.75,
+        3
+      ],
+      [
+        0.96,
+        6
+      ]
+    ]
   },
   "tripletFeel": {
     "description": "셋잇단 격자를 열 마디. 곧은 곡에서 16분보다 조금 어긋난 온셋이 옆의 셋잇단에 붙는 것을 막는다(BMS 사람 채보는 셋잇단 자리 노트가 3.7%인데 생성 채보는 10.5%였다, 645곡, docs/PATTERN_DESIGN.md 17장; 롤 찾기는 그대로 모든 격자에서). 생성기 0.9.26부터 곡 단위 셋잇단 비율(예전 minShare) 대신 마디마다 swing 모델로 셋잇단 격자를 연다: 마디의 셋잇단 자리 온셋 세기 합(triplets)과 곧은 16분 자리 세기 합(sixteenths)의 log1p, 그 마디와 앞뒤 한 마디를 합친 같은 값(tripletsNear, sixteenthsNear), 곡 전체의 셋잇단 비율(songTripletShare)과 8분 자리 세기 몫(songEighthShare)을 표준화(mean, scale)해 weights로 더한 로지스틱 확률이 minP 이상인 마디만 셋잇단 분할을 쓴다. 온셋은 박의 0, 1/6, 1/4, 1/3, 1/2, 2/3, 3/4, 5/6 가운데 가장 가까운 자리에 toleranceBeats박 안이면 센다. BMS 사람 채보 755곡의 마디마다 사람 노트 가운데 엇박 노트의 셋잇단 몫을 맞춘 것이다: 확인용 152곡에서 이 모델이 여는 9%의 마디는 사람 셋잇단 몫이 레벨 6·10·14에서 21%·28%·27%이고(0.9.25의 규칙은 21%의 마디를 열고 11%·13%·8%), 레벨 6·10 셋잇단 노트의 55%·47%가 그 안에 있다(docs/PATTERN_DESIGN.md 56장). 열린 마디의 셋잇단 후보는 roles의 곧은 분할로 점수(박자 위치 가중치, 노트 고르기 모델의 분할 특성)와 분할 상한(partialSubdivisions)을 받는다: 셔플의 2/3박은 8분 엇박의 몫을 한다. 사람 채보는 그런 마디에서 레벨 6에도 노트의 21%를 셋잇단에 두는데, 셋잇단으로 점수를 매기고 EASY 5%·NORMAL 7% 상한을 걸면 셔플 곡의 레벨 6 채보에 6–9%만 남았다(0.9.26: 사람 채보와의 셋잇단 몫 채보별 오차 0.040 → 0.037, 상관 0.51 → 0.57).",
@@ -171,19 +330,58 @@
     "swing": {
       "toleranceBeats": 0.05,
       "minP": 0.25,
-      "features": ["triplets", "sixteenths", "tripletsNear", "sixteenthsNear", "songTripletShare", "songEighthShare"],
-      "mean": [0.4417, 0.7296, 0.939, 1.392, 0.3525, 0.26],
-      "scale": [0.3691, 0.4628, 0.5648, 0.652, 0.1723, 0.0699],
-      "weights": [0.433, -0.1546, 0.12, -0.6505, 0.1432, -0.7094],
+      "features": [
+        "triplets",
+        "sixteenths",
+        "tripletsNear",
+        "sixteenthsNear",
+        "songTripletShare",
+        "songEighthShare"
+      ],
+      "mean": [
+        0.4417,
+        0.7296,
+        0.939,
+        1.392,
+        0.3525,
+        0.26
+      ],
+      "scale": [
+        0.3691,
+        0.4628,
+        0.5648,
+        0.652,
+        0.1723,
+        0.0699
+      ],
+      "weights": [
+        0.433,
+        -0.1546,
+        0.12,
+        -0.6505,
+        0.1432,
+        -0.7094
+      ],
       "bias": -2.6412,
-      "roles": {"3": 2, "6": 4}
+      "roles": {
+        "3": 2,
+        "6": 4
+      }
     }
   },
   "songFit": {
     "description": "곡마다 다른 난이도(생성기 0.9.38, docs/PATTERN_DESIGN.md 72장). 가장 높은 난이도(MASTER)를 그 채보의 옵션과 기본 시드로, 레벨 맞춤 없이 한 번 만든 채보(tierPlan의 뼈대)의 레이팅이 곡의 세기다. 목표 레벨을 따로 정하지 않은 채보는 세기가 from이면 난이도 레벨 범위의 맨 아래, to면 맨 위를 노리고 그 사이는 고르게 나눈다. 세기가 from에 못 미치는 곡에는 가장 높은 난이도를 만들지 않는다(서버는 404로 답하고 선곡 화면은 그 칸을 비운다). 난이도의 밀도 하한(avgNps 아래 끝 × 0.8, 범위 안에 든 채보를 더 줄이지 않는 선)도 자리를 따라 내려 맨 아래에서 floorAtBottom배가 된다. 하한을 그대로 두면 300곡의 NORMAL이 모두 초당 3노트에서 멈춰 자리가 레벨로 이어지지 않았다. 사람 7키 BMS 곡 폴더 50개 가운데 13개는 가장 어려운 채보가 우리 레벨 12 이하이고, 같은 ANOTHER라도 9~15에 퍼진다. 0.9.37은 곡과 무관하게 범위 가운데를 노려 300곡의 81%가 MASTER 15였다. 생성기 0.9.39에서 from · to를 1–20 척도로 옮겼다(예전 14 · 22와 같은 유효 NPS, 60곡의 MASTER 첫 판 레이팅으로 확인: 17.0 · 31.1). strengthScale: 키 모드마다 세기에 곱하는 수(생성기 0.9.53). 16분 줄기(patterns.json sectioned.runs)와 작은 단타 동치로 MASTER 첫 판의 레이팅이 6K · 4K · 5K에서 7%쯤 올라(7K+1S · 8K는 그대로), 같은 곡의 모든 난이도가 범위 안에서 위를 노렸다(BMS 60곡 6K HARD 레벨 평균 6.20 → 6.52, ELITE 14.52 → 14.82). 키 모드마다 60곡의 범위 안 자리 평균이 0.9.52와 같아지는 값이다(docs/PATTERN_DESIGN.md 96-5). 목표 레벨을 정한 채보는 이 규칙과 무관하게 만든다",
     "from": 17.0,
     "to": 31.0,
-    "floorAtBottom": 0.7, "strengthScale": {"4K": 0.934, "4K+FX": 0.926, "5K": 0.929, "6K": 0.924, "6K+FX": 0.927, "8K": 0.987}
+    "floorAtBottom": 0.7,
+    "strengthScale": {
+      "4K": 0.934,
+      "4K+FX": 0.926,
+      "5K": 0.929,
+      "6K": 0.924,
+      "6K+FX": 0.927,
+      "8K": 0.987
+    }
   },
   "snapToleranceMs": 35,
   "lnTailGapBeats": 0.25,

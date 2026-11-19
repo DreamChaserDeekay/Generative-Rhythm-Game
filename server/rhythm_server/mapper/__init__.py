@@ -16,7 +16,7 @@ from typing import Any, Callable
 
 from ..chart.keysounds import default_seed
 from ..formats.osu import parse_osu
-from . import charts
+from . import charts, fit
 from .lora import adapters
 from .steady import STEADY_VERSION, settled_timing
 from .runtime import Runtime, mapper_config
@@ -57,7 +57,7 @@ class Mapper:
 
     def predicted(self, analysis: dict[str, Any], key_mode: str, difficulty: str, target_level: int | None, seed: int | None, meta: dict[str, Any]) -> dict[str, Any]:
         level, seed, cid = self.plan(analysis, key_mode, difficulty, target_level, seed)
-        return charts.predicted_meta(analysis, key_mode, difficulty, level, seed, cid, self.config(), meta)
+        return charts.predicted_meta(analysis, key_mode, difficulty, level, seed, cid, self.config(), meta, target_level)
 
     def generate(
         self, analysis: dict[str, Any], key_mode: str, difficulty: str, target_level: int | None, seed: int | None, meta: dict[str, Any],
@@ -113,14 +113,17 @@ class Mapper:
             quiet = quiet_spans(pcm, sr, cfg["silence"]) if cfg.get("silence") else []
             end = music_end(quiet, len(pcm) * 1000.0 / sr)
 
-            def make(on_timing: dict[str, Any] | None, name: str) -> dict[str, Any]:
+            aim = charts.aim_of(key_mode, difficulty, target_level)
+            first_stars = charts.stars_of(aim, cfg, key_mode)
+
+            def make(on_timing: dict[str, Any] | None, name: str, stars: float = first_stars) -> dict[str, Any]:
                 beatmap = None
                 if on_timing is not None:
                     beatmap = tmp / f"{name}-timing.osu"
                     beatmap.write_text(charts.timing_osu(on_timing, keycount, wav.name, meta.get("title", ""), meta.get("artist", "")), encoding="utf-8")
                 out = tmp / name
                 out.mkdir()
-                return self.service.generate(charts.request_for(key_mode, level, seed, cfg, wav, out, beatmap, meta, end), timeout)
+                return self.service.generate(charts.request_for(key_mode, aim, seed, cfg, wav, out, beatmap, meta, end, stars), timeout)
 
             answer = make(timing, "out")
             osu_text = Path(answer["osu"]).read_text(encoding="utf-8-sig")
@@ -139,14 +142,78 @@ class Mapper:
                         osu_text = Path(answer["osu"]).read_text(encoding="utf-8-sig")
                     elif found is model:
                         found = None
-                return charts.make_chart(
+                chart = charts.make_chart(
                     analysis, key_mode, difficulty, level, seed, cid, cfg, meta, osu_text, answer, target_level, timing, quiet,
-                    found_timing=found, timing_fixed=fixed or None, timing_steady=steadied, moves=moves,
+                    found_timing=found, timing_fixed=fixed or None, timing_steady=steadied, moves=moves, stars=first_stars,
+                )
+                return self._fitted(
+                    chart, osu_text, answer, first_stars, make, analysis, key_mode, difficulty, level, seed, cid, cfg, meta, target_level,
+                    timing, quiet, fixed, steadied,
                 )
             except ValueError as e:
                 raise MapperError(str(e)) from e
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
+
+    def _fitted(
+        self, chart: dict[str, Any], osu_text: str, answer: dict[str, Any], stars: float, make: Callable[..., dict[str, Any]],
+        analysis: dict[str, Any], key_mode: str, difficulty: str, level: int, seed: int, cid: str, cfg: dict[str, Any], meta: dict[str, Any],
+        target_level: int | None, timing: dict[str, Any] | None, quiet: list[tuple[float, float]], fixed: list[dict[str, Any]],
+        steadied: dict[str, Any] | None,
+    ) -> dict[str, Any]:
+        """The chart with its level in its tier's range (fit.py): made again at the star rating the
+        tries so far point to while it is not, at most levelFit.attempts charts in all, on the
+        timing the first was made on; the last too high, it is the one of them least over that is
+        thinned; all too low, the song has no chart of the tier (fit.TierAbsent)."""
+        rule = fit.settings(cfg)
+        if not rule.get("enabled", True):
+            return chart
+        window = fit.window_for(difficulty, target_level)
+        goal = fit.aim(window, target_level)
+        base = chart["timing"]
+        made = [(chart, osu_text, answer, stars)]
+        tries = [(stars, float(chart["meta"]["rating"]))]
+        record = [{"stars": stars, "level": int(chart["meta"]["level"]), "rating": float(chart["meta"]["rating"])}]
+        seconds = float(answer.get("seconds") or 0.0)
+
+        def again(text: str, ans: dict[str, Any], at: float, max_level: int | None = None) -> dict[str, Any]:
+            # on the timing the first chart has (the song's, or the one it found: still the song's first)
+            return charts.make_chart(
+                analysis, key_mode, difficulty, level, seed, cid, cfg, meta, text, ans, target_level, timing, quiet,
+                found_timing=None if timing is not None else base, timing_fixed=fixed or None, timing_steady=steadied, moves=None,
+                stars=at, max_level=max_level,
+            )
+
+        while window.side(int(made[-1][0]["meta"]["level"])) != 0 and len(made) < int(rule["attempts"]):
+            nxt = fit.next_stars(tries, goal, rule)
+            if any(abs(nxt - s) < 0.005 for s, _ in tries):
+                break  # the stars are at their bound: another try would make the same chart
+            log.info("chart %s level %s is outside %s-%s: made again at %.2f stars", cid, made[-1][0]["meta"]["level"], window.lo, window.hi, nxt)
+            ans = make(base, f"try{len(made)}", nxt)
+            seconds += float(ans.get("seconds") or 0.0)
+            text = Path(ans["osu"]).read_text(encoding="utf-8-sig")
+            c = again(text, ans, nxt)
+            made.append((c, text, ans, nxt))
+            tries.append((nxt, float(c["meta"]["rating"])))
+            record.append({"stars": nxt, "level": int(c["meta"]["level"]), "rating": float(c["meta"]["rating"])})
+        info = {"window": [window.lo, window.hi], "aim": goal, "tries": record}
+        inside = [m for m in made if window.holds(int(m[0]["meta"]["level"]))]
+        if inside:
+            out = inside[-1][0]
+        else:
+            over = [m for m in made if int(m[0]["meta"]["level"]) > window.hi]
+            if not over:
+                raise fit.TierAbsent(
+                    f"곡이 조용해 {difficulty}(레벨 {window.lo}–{window.hi}) 채보를 만들 수 없습니다 (가장 높은 레벨 {max(r['level'] for r in record)})",
+                    {"chartId": cid, "keyMode": key_mode, "difficulty": difficulty, **info},
+                )
+            least = min(over, key=lambda m: float(m[0]["meta"]["rating"]))
+            out = again(least[1], least[2], least[3], max_level=window.hi)
+        gen = out["meta"]["generator"]
+        if len(made) > 1 or "thinned" in gen:
+            gen["fit"] = info
+        gen["seconds"] = round(seconds, 2)
+        return out
 
     def close(self) -> None:
         self.service.close()

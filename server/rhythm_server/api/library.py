@@ -21,7 +21,7 @@ import soundfile as sf
 
 from .. import audio_io
 from ..analysis.stems import STEM_NAMES
-from ..config import SAMPLE_RATE, key_modes, load_config
+from ..config import SAMPLE_RATE, TIERS_SYSTEM, key_modes, load_config, saved_chart_tier
 from ..chart.keysounds import default_seed
 
 SCHEMA = """
@@ -96,6 +96,11 @@ MIGRATIONS = {
 # null = not read yet from the chart file, done when its records are first listed): their records
 # are left out
 GRG_SYSTEM = "GRG"
+# the tiers of 2026-11-19 (EASY 1-5 · NORMAL 6-10 · HARD 11-14 · EXPERT 15-18 · ELITE 19-20): the
+# charts the generator makes on them carry this system; the plays of a chart it made on the tiers
+# before (NORMAL 1-4 … MASTER 17-20, system GRG) are no record any more (they stay in the database,
+# their files on disk: retired_tier_records counts them). Edited and imported charts keep theirs.
+RECORD_SYSTEMS = {"generated": (TIERS_SYSTEM,), "edited": (GRG_SYSTEM, TIERS_SYSTEM), "imported": (GRG_SYSTEM, TIERS_SYSTEM)}
 CHART_MIGRATIONS = {
     "kind": "TEXT NOT NULL DEFAULT 'generated'",
     "name": "TEXT NOT NULL DEFAULT ''",
@@ -512,7 +517,7 @@ class Library:
                 (
                     meta["chartId"], song_id, meta["keyMode"], meta["difficulty"], meta["level"], int(generator.get("seed", 0)),
                     len(chart["notes"]), generator.get("version", source.get("format", kind)), time.time(), kind, meta.get("chartName", ""),
-                    GRG_SYSTEM, meta.get("sourceLevel"),
+                    meta.get("difficultySystem") or GRG_SYSTEM, meta.get("sourceLevel"),
                 ),
             )
             self._db.commit()
@@ -529,7 +534,7 @@ class Library:
             ).fetchall()
         return [
             {
-                "chartId": r["id"], "songId": r["song_id"], "keyMode": r["key_mode"], "difficulty": r["difficulty"], "level": r["level"],
+                "chartId": r["id"], "songId": r["song_id"], "keyMode": r["key_mode"], "difficulty": saved_chart_tier(r["difficulty"], r["level"]), "level": r["level"],
                 "noteCount": r["note_count"], "kind": r["kind"], "name": r["name"], "createdAt": r["created_at"],
                 "format": r["generator_version"] if r["generator_version"] in CHART_FORMATS else None, "sourceLevel": r["source_level"],
             }
@@ -549,6 +554,18 @@ class Library:
             if r["key_mode"] not in modes and self.chart_path(r["id"]).exists():
                 counts[r["key_mode"]] = counts.get(r["key_mode"], 0) + 1
         return [{"keyMode": mode, "count": n} for mode, n in sorted(counts.items())]
+
+    def retired_tier_records(self, song_id: str) -> int:
+        """How many of a song's generated charts made on the tiers before 2026-11-19 (system GRG:
+        NORMAL 1-4 … MASTER 17-20) were played: their plays are no record now (kept, not listed)."""
+        with self._lock:
+            rows = self._db.execute(
+                "SELECT c.id, c.system, c.key_mode FROM charts c WHERE c.song_id = ? AND c.kind = 'generated'"
+                " AND EXISTS (SELECT 1 FROM scores s WHERE s.chart_id = c.id)",
+                (_checked(SONG_ID, song_id),),
+            ).fetchall()
+        modes = key_modes()
+        return sum(1 for r in rows if r["key_mode"] in modes and (r["system"] or self._chart_system(r["id"])) == GRG_SYSTEM)
 
     def generated_chart_ids(self, song_id: str) -> list[str]:
         """The ids of a song's charts the generator made (not edited or imported ones)."""
@@ -590,11 +607,39 @@ class Library:
         self.chart_path(chart_id).unlink(missing_ok=True)
         self.chart_backup_path(chart_id).unlink(missing_ok=True)
 
+    def absent_path(self, chart_id: str) -> Path:
+        """Where it is kept that a generated chart could not be made in its tier's range, the song
+        being too calm for the tier (mapper/fit.py TierAbsent): the tier is absent for the song."""
+        return self.root / "charts-absent" / f"{_checked(CHART_ID, chart_id)}.json"
+
+    def save_absent(self, chart_id: str, detail: dict[str, Any]) -> None:
+        path = self.absent_path(chart_id)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({**detail, "at": time.time()}, ensure_ascii=False), encoding="utf-8")
+
+    def load_absent(self, chart_id: str) -> dict[str, Any] | None:
+        if not CHART_ID.fullmatch(chart_id):
+            return None
+        path = self.absent_path(chart_id)
+        try:
+            return json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
+        except (OSError, ValueError):
+            return None
+
     def load_chart(self, chart_id: str) -> dict[str, Any] | None:
         if not CHART_ID.fullmatch(chart_id):
             return None
         p = self.chart_path(chart_id)
-        return json.loads(p.read_text(encoding="utf-8")) if p.exists() else None
+        if not p.exists():
+            return None
+        chart = json.loads(p.read_text(encoding="utf-8"))
+        meta = chart.get("meta") or {}
+        if (meta.get("source") or {}).get("kind", "generated") != "generated":
+            # an edited or imported chart of a tier there is no more shows under the tier of its level
+            tier = saved_chart_tier(meta.get("difficulty"), meta.get("level"))
+            if tier is not None:
+                meta["difficulty"] = tier
+        return chart
 
     # ---------- scores ----------
     def add_score(self, record: dict[str, Any], replay: dict[str, Any] | None = None) -> int:
@@ -662,13 +707,13 @@ class Library:
             if cur is None:
                 if r["key_mode"] not in key_mode_ids:
                     continue
-                if (r["system"] or self._chart_system(r["chart_id"])) != GRG_SYSTEM:
+                if (r["system"] or self._chart_system(r["chart_id"])) not in RECORD_SYSTEMS.get(r["kind"], (GRG_SYSTEM,)):
                     continue
                 best[r["chart_id"]] = cur = {
                     "chartId": r["chart_id"],
                     "songId": r["song_id"],
                     "keyMode": r["key_mode"],
-                    "difficulty": r["difficulty"],
+                    "difficulty": r["difficulty"] if r["kind"] == "generated" else saved_chart_tier(r["difficulty"], r["level"]),
                     "level": r["level"],
                     "seed": r["seed"],
                     "kind": r["kind"],

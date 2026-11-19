@@ -12,6 +12,7 @@ import re
 from collections import defaultdict
 from typing import Any
 
+from ..config import tier_for_level
 from ..chart.tempo import TempoMap
 from .common import (
     FormatError,
@@ -31,12 +32,17 @@ KEY_CHANNEL = {c: ch for ch, c in P1_KEYS.items()}
 LN_CHANNEL = {c: ch for ch, c in P1_LN.items()}
 # our lane index -> BMS column, for the key mode of ours BMS players know
 LANE_COLUMNS = {"5K": [1, 2, 3, 4, 5]}
-DIFFICULTY_LEVEL = {"EASY": 1, "NORMAL": 2, "HARD": 3, "EXPERT": 4, "ELITE": 4, "MASTER": 5}
+# #DIFFICULTY of our tiers (EASY 1-5 BEGINNER … ELITE 19-20 INSANE)
+DIFFICULTY_LEVEL = {"EASY": 1, "NORMAL": 2, "HARD": 3, "EXPERT": 4, "ELITE": 5}
 DIFFICULTY_NAMES = {1: "BEGINNER", 2: "NORMAL", 3: "HYPER", 4: "ANOTHER", 5: "INSANE"}
 
 
 def bms_difficulty(meta: dict[str, Any]) -> int:
-    """#DIFFICULTY from the tier name (EASY: a chart from before the tier was taken out)."""
+    """#DIFFICULTY from the tier the chart's level is in (config/difficulty.json): a chart edited
+    from one of the earlier tiers (MASTER, an ELITE of 13-16) gets the tier its level is in now."""
+    level = meta.get("level")
+    if isinstance(level, (int, float)):
+        return DIFFICULTY_LEVEL[tier_for_level(level)]
     return DIFFICULTY_LEVEL.get(meta.get("difficulty", ""), 3)
 RESOLUTIONS = [1, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 192, 384, 768, 960, 1536, 1920, 3840]
 POSITION_TOLERANCE_MS = 0.5

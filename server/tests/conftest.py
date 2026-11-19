@@ -53,4 +53,7 @@ def fake_mapper_runtime(tmp_path_factory, monkeypatch):
     monkeypatch.setattr("rhythm_server.mapper.service.worker_script", lambda: script)
     monkeypatch.setattr(Runtime, "venv_python", property(lambda self: Path(sys.executable)))
     monkeypatch.setattr("rhythm_server.mapper.runtime.nvidia_gpus", lambda: [{"name": "NVIDIA GeForce RTX 2060", "memoryMB": 6144}])
+    # the stand-in's charts are the same at every star rating: a chart is the first one, at any level
+    # (test_fit.py turns this on, with a stand-in whose density follows the stars)
+    monkeypatch.setitem(__import__("rhythm_server.mapper.fit", fromlist=["DEFAULTS"]).DEFAULTS, "enabled", False)
     yield home

@@ -65,12 +65,18 @@ def test_columns_are_the_lanes_but_fx() -> None:
 
 
 def test_tiers_aim_at_the_middle_of_their_levels_in_stars() -> None:
-    table = mapper_config()["starsForLevel"]
-    levels = [charts.target_level("6K", t, None) for t in ("NORMAL", "HARD", "EXPERT", "ELITE", "MASTER")]
-    assert levels == sorted(levels) and levels[0] < levels[-1]
-    stars = [charts.stars_for(lv, table) for lv in levels]
-    assert stars == sorted(stars) and 0.5 < stars[0] < stars[-1] <= 8.0
-    assert charts.target_level("6K", "HARD", 9) == 9
+    cfg = mapper_config()
+    tiers = ("EASY", "NORMAL", "HARD", "EXPERT", "ELITE")
+    levels = [charts.target_level("6K", t, None) for t in tiers]
+    assert levels == [3, 8, 12, 16, 20]  # in each tier's range (1-5, 6-10, 11-14, 15-18, 19-20)
+    for mode in ("4K", "4K+FX", "5K", "6K", "6K+FX", "8K"):
+        aims = [charts.aim_of(mode, t, None) for t in tiers]
+        assert aims == [3.5, 8.5, 13.0, 17.0, 20.0]  # the middle of the ratings each range covers
+        stars = [charts.stars_of(a, cfg, mode) for a in aims]
+        assert stars == sorted(stars) and 0.5 <= stars[0] < stars[-1] <= 8.0
+    # each key count has its own table; 4K+FX and 6K+FX are made as 4K and 6K
+    assert charts.stars_table(cfg, "4K+FX") == charts.stars_table(cfg, "4K") != charts.stars_table(cfg, "8K")
+    assert charts.target_level("6K", "HARD", 9) == 9 and charts.aim_of("6K", "HARD", 9) == 9.5
 
 
 def test_the_osu_it_makes_becomes_a_chart_rated_by_our_estimate() -> None:
@@ -82,7 +88,8 @@ def test_the_osu_it_makes_becomes_a_chart_rated_by_our_estimate() -> None:
     meta = chart["meta"]
     assert meta["chartId"] == cid and meta["keyMode"] == "8K" and meta["noteCount"] == len(chart["notes"]) == 61
     assert meta["generator"]["name"] == "mapperatorinator" and meta["generator"]["keycount"] == 8 and meta["generator"]["timing"] == "model"
-    assert 1 <= meta["level"] <= 20 and meta["generator"]["stars"] == charts.stars_for(level, cfg["starsForLevel"])
+    assert 1 <= meta["level"] <= 20 and meta["generator"]["stars"] == charts.stars_of(charts.aim_of("8K", "EXPERT", None), cfg, "8K")
+    assert meta["difficultySystem"] == "GRG2"  # the tiers of 2026-11-19
     assert {n["lane"] for n in chart["notes"]} == set(range(8))
     # the timing is the .osu's own (the model's), and the analysed sections sit on its beats
     assert chart["timing"] == parse_osu(onset_osu(a, 8)).timing and all("beat" in n for n in chart["notes"])
@@ -152,7 +159,7 @@ def test_charts_come_from_mapperatorinator_once_its_runtime_is_set_up(mapped: Te
     brief2 = mapped.post(f"/api/songs/{sid}/charts", json={"keyMode": "8K", "difficulty": "EXPERT", "brief": True}).json()["meta"]
     assert "predicted" not in brief2 and brief2["noteCount"] == 48  # the made chart's own meta now
     # the other tiers of the key mode follow in the background, one at a time, and are saved
-    others = [t for t in ("NORMAL", "HARD", "ELITE", "MASTER")]
+    others = [t for t in ("EASY", "NORMAL", "HARD", "ELITE")]
     deadline = time.time() + 30
     made: dict[str, dict] = {}
     while time.time() < deadline and len(made) < len(others):
@@ -877,7 +884,7 @@ def test_some_key_notes_go_to_the_fx_lanes_by_the_tiers_rate(key_mode: str) -> N
     hand = {l.index: l.hand for l in lanes}
     off = {**mapper_config(), "fx": {**mapper_config()["fx"], "enabled": False}}
     shares = []
-    for tier in ("NORMAL", "HARD", "EXPERT", "MASTER"):
+    for tier in ("EASY", "NORMAL", "HARD", "EXPERT", "ELITE"):
         plain, chart = _fx_chart(key_mode, tier, off), _fx_chart(key_mode, tier)
         assert all(n["lane"] not in side for n in plain["notes"]) and "fx" not in plain["meta"]["generator"]
         notes, fx = chart["notes"], [n for n in chart["notes"] if n["lane"] in side]
