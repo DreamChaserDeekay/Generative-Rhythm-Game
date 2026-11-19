@@ -880,14 +880,16 @@ p.hint {
   object-fit: cover;
 }
 
-/* YouTube's player, scaled to cover the screen like the video file does */
+/* YouTube's player, covering the screen like the video file does: laid out no higher than the
+   quality setting (YouTube picks its stream by the player's size) and scaled up to the cover size
+   (ui/youtubeBga.ts youtubeBox sets the variables) */
 .bg-youtube iframe {
   position: absolute;
   top: 50%;
   left: 50%;
-  width: max(100%, 177.78vh);
-  height: max(100%, 56.25vw);
-  transform: translate(-50%, -50%);
+  width: var(--yt-w, max(100%, 177.78vh));
+  height: var(--yt-h, max(100%, 56.25vw));
+  transform: translate(-50%, -50%) scale(var(--yt-scale, 1));
   border: 0;
 }
 

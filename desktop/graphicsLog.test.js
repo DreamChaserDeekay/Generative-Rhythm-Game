@@ -177,6 +177,15 @@ test('of the GPU features, the ones that say whether the graphics card still dra
   assert.deepEqual(Object.values(featureFields(null)).filter(Boolean), []);
 });
 
+test('a play’s frames as it ended: a line of its own, nothing followed up', async () => {
+  const w = world();
+  w.watch.page({ type: 'page-play', canvas: 'play-canvas', about: { frames: '9120', seconds: '152', gapMs: 'p50=17 p95=18 p99=52 max=140', late: '34=88 50=31 100=4', bga: 'youtube', bgaStream: 'large', bgaCap: '480p' } });
+  await w.advance(GIVE_UP_MS);
+  assert.deepEqual(w.events(), ['page-play  canvas=play-canvas frames=9120 seconds=152 gapMs="p50=17 p95=18 p99=52 max=140" late="34=88 50=31 100=4" bga=youtube bgaStream=large bgaCap=480p']);
+  assert.equal(w.asked, 0);
+  assert.deepEqual(w.shots, []);
+});
+
 test('the GPU process gone in play: the server asked once, the window pictured a second after the page’s graphics are back', async () => {
   const w = world();
   w.watch.childGone(GPU_GONE);

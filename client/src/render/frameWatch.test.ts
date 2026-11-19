@@ -256,6 +256,35 @@ describe('a play’s frames watched for the desktop app’s log', () => {
     expect(w.told.at(-1)!.about).toEqual({ more: '1', moreMs: '607', moreLongest: '607', state: 'running' });
   });
 
+  it('tells as a play ends how its frames came while its picture moved, and the video behind it; a short one is not told', () => {
+    const w = world();
+    w.io.background = () => ({ bga: 'youtube', bgaStream: 'large', bgaCap: '480p' });
+    const trail = new Trail();
+    const watch = new FrameWatch(trail, w.io);
+    // 300 frames 7 ms apart, then four 40 ms late, one 60 ms, one 120 ms, and 30 more; a pause does not count
+    run(w, watch, trail, 300);
+    for (const late of [40, 40, 40, 40, 60, 120]) {
+      w.t += late - 7;
+      run(w, watch, trail, 1);
+    }
+    run(w, watch, trail, 30);
+    w.t += 5000;
+    run(w, watch, trail, 1, 'paused');
+    run(w, watch, trail, 1, 'paused');
+    watch.stop();
+    const line = w.told.find((r) => r.type === 'page-play');
+    expect(line).toEqual({
+      type: 'page-play',
+      canvas: 'play-canvas',
+      about: { frames: '335', seconds: '3', gapMs: 'p50=7 p95=7 p99=40 max=120', late: '34=6 50=2 100=1', bga: 'youtube', bgaStream: 'large', bgaCap: '480p' },
+    });
+    // the next play starts afresh; one shorter than PLAY_LINE_FRAMES is not told
+    const before = w.told.length;
+    run(w, watch, trail, 50);
+    watch.stop();
+    expect(w.told.slice(before).filter((r) => r.type === 'page-play')).toEqual([]);
+  });
+
   it('does nothing where there is no desktop window to tell (a browser)', () => {
     const trail = new Trail();
     const watch = new FrameWatch(trail, null);

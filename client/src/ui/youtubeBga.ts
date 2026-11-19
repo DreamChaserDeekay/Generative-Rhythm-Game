@@ -3,6 +3,12 @@
  * Player API, privacy-enhanced host) muted and kept on song time. Nothing is downloaded: the player
  * streams the video like any embed, so it needs a connection and only works for videos whose owner
  * allows embedding.
+ *
+ * YouTube picks the stream by the player's size on the screen: a player that covers a 1440p screen
+ * gets the 1440p stream, often at 60 frames a second, decoded while the play runs (on the processor
+ * where the graphics mode cannot hand decoded frames to the card: OpenGL). The player is laid out at
+ * most `maxPx` device pixels high (the setting, 480 by default: 480p and below are 30 frames a
+ * second) and scaled up to cover the screen; the background is dimmed under the track anyway.
  */
 
 /** The part of the YouTube IFrame player the background uses. */
@@ -16,6 +22,21 @@ export interface YouTubePlayerLike {
   setPlaybackRate(rate: number): void;
   mute(): void;
   destroy(): void;
+  /** The stream it plays ('large' is 480p, 'hd720', 'hd1080', …), where the player still tells it. */
+  getPlaybackQuality?(): string;
+}
+
+/**
+ * The player's box (CSS px) and the scale it is drawn at, for a screen of `width` × `height` CSS px at
+ * `dpr`: a 16:9 box that covers the screen, laid out no more than `maxPx` device pixels high and scaled
+ * up to the cover size when the screen is larger.
+ */
+export function youtubeBox(width: number, height: number, dpr: number, maxPx: number): { w: number; h: number; scale: number } {
+  const coverW = Math.max(width, (height * 16) / 9);
+  const coverH = (coverW * 9) / 16;
+  const capH = maxPx / Math.max(dpr, 0.1);
+  if (!(coverH > capH)) return { w: coverW, h: coverH, scale: 1 };
+  return { w: (capH * 16) / 9, h: capH, scale: coverH / capH };
 }
 
 interface YouTubeApi {
@@ -157,6 +178,9 @@ export class YouTubeSync {
   }
 }
 
+/** How often the stream the player plays is written on its element (for the app's log). */
+const QUALITY_EVERY_MS = 2000;
+
 /** The background video element: YouTube's player inside `container`, synced once it is ready. */
 export class YouTubeBackground {
   private player: YouTubePlayerLike | null = null;
@@ -164,12 +188,24 @@ export class YouTubeBackground {
   private disposed = false;
   private shown = false;
   private readonly container: HTMLElement;
+  private readonly maxPx: number;
+  private readonly resize: ResizeObserver | null = null;
+  private qualityAt = -Infinity;
 
-  constructor(container: HTMLElement, videoId: string, offsetMs: number, rate: number) {
+  constructor(container: HTMLElement, videoId: string, offsetMs: number, rate: number, maxPx = 480) {
     this.container = container;
+    this.maxPx = maxPx;
     // hidden until it plays on song time: the cover shows through meanwhile
     container.style.opacity = '0';
     container.style.transition = 'opacity 0.4s ease';
+    // the player laid out small and scaled up (see the top): again when the screen changes
+    container.dataset.cap = `${maxPx}p`;
+    this.fit();
+    if (typeof ResizeObserver === 'function') {
+      this.resize = new ResizeObserver(() => this.fit());
+      this.resize.observe(container);
+    }
+    window.addEventListener('resize', this.fit);
     const holder = document.createElement('div');
     container.appendChild(holder);
     loadYouTubeApi()
@@ -210,10 +246,32 @@ export class YouTubeBackground {
       this.shown = this.sync.visible;
       this.container.style.opacity = this.shown ? '1' : '0';
     }
+    if (perfNow - this.qualityAt >= QUALITY_EVERY_MS) {
+      this.qualityAt = perfNow;
+      try {
+        const quality = this.player?.getPlaybackQuality?.();
+        if (quality) this.container.dataset.quality = quality;
+      } catch {
+        // the player does not tell it any more
+      }
+    }
   }
+
+  /** The player's box and scale for the screen as it is now (CSS variables of the iframe's rule). */
+  private readonly fit = (): void => {
+    const rect = this.container.getBoundingClientRect();
+    const width = rect.width || window.innerWidth;
+    const height = rect.height || window.innerHeight;
+    const box = youtubeBox(width, height, window.devicePixelRatio || 1, this.maxPx);
+    this.container.style.setProperty('--yt-w', `${box.w.toFixed(2)}px`);
+    this.container.style.setProperty('--yt-h', `${box.h.toFixed(2)}px`);
+    this.container.style.setProperty('--yt-scale', box.scale.toFixed(4));
+  };
 
   dispose(): void {
     this.disposed = true;
+    this.resize?.disconnect();
+    window.removeEventListener('resize', this.fit);
     this.sync = null;
     this.container.style.opacity = '0';
     try {

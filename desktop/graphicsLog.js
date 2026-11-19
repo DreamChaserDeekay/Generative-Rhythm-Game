@@ -24,7 +24,7 @@ const GIVE_UP_MS = 6000;
 const QUIET_MS = 30_000;
 /** How many lines the page may have written in a minute (a page gone wrong must not fill the disk). */
 const PAGE_LINES_PER_MINUTE = 30;
-const PAGE_EVENTS = ['webglcontextlost', 'webglcontextrestored', 'page-stall', 'page-error'];
+const PAGE_EVENTS = ['webglcontextlost', 'webglcontextrestored', 'page-stall', 'page-error', 'page-play'];
 /** A stall's whole story (the frames before it, the window, the server, the card's memory) is written this often at most; the others are a line. */
 const STALL_FULL_EVERY_MS = 10_000;
 /** The states of a play its pulse tells (client/src/render/frameWatch.ts); 'off': no play. Its picture moves in the first two. */
@@ -746,6 +746,8 @@ function graphicsWatch(io) {
       if (!record || !pageMayWrite()) return;
       if (record.type === 'page-stall') stalled(record);
       else if (record.type === 'page-error') pageError(record);
+      // a play's frames as it ended (frameWatch.ts tellPlay): a line of its own
+      else if (record.type === 'page-play') log(record.type, { canvas: record.canvas, ...record.about });
       else if (record.type === 'webglcontextlost') {
         lostAt = ms();
         log(record.type, { canvas: record.canvas, ...record.about });
