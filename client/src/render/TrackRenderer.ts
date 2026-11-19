@@ -121,11 +121,25 @@ const WALL_TOP = 0.74;
 const WALL_FOOT = 0.3;
 const WALL_LIT = 0.16;
 const WALL_CROP = 0.55;
-/** Where a key note's picture lies over the track. */
+/** Where a key note's picture would lie over the track with no walls (a note is lifted half its walls over it: noteLift). */
 export const NOTE_Y = NOTE_HEIGHT * PICTURE_LIFT;
+
+/**
+ * How far a note's picture is lifted over where it would lie: half the walls that hang under it (`wall`,
+ * their depth). A note is its picture and the walls under it, and the two together, not the picture
+ * alone, are centred on the note's time as the eye sees them: the bar line and the judge line run
+ * through the middle of the whole note (DJMAX RESPECT V since v492: "MAX 100% when the centre of the
+ * judgment line meets the centre of the note"). With the picture alone on the line, the walls hung under
+ * it and an on-beat note looked hung under its bar line. Seen from the camera, a point half the walls
+ * over the line at the picture's far edge and one half the walls under it at the foot's near edge lie
+ * either side of the line's point as much (the view is near enough to straight over so short a reach).
+ */
+export function noteLift(wall: number): number {
+  return wall / 2;
+}
 /**
  * The judge line and its halo lie on the notes, a hair over them so they draw over them: a tap's
- * middle meets the line's at its time, in every camera. The covers lie over the notes; the opaque
+ * middle (its picture and its walls together, see noteLift) meets the line's at its time, in every camera. The covers lie over the notes; the opaque
  * deck over what runs on under it (notes, bar lines, long notes and their ends) about as far over
  * the line as ever, so its edge keeps its place under the line; its lights on it.
  */
@@ -793,6 +807,9 @@ export class TrackRenderer {
   private readonly barLines: boolean;
   private readonly fitWidth: number | null;
   private readonly noteGeometry: THREE.BufferGeometry;
+  /** The note style's thickness (noteThicknessOf) and how far a long note's body and ends are lifted (noteLift). */
+  private readonly noteThick: number;
+  private readonly longLift: number;
   /** A plain bar's depth, and the notes' as drawn: the coin's and the stars' keep their shape at the judge line (see fitNoteDepth). */
   private readonly barDepth: number;
   private noteDepth: number;
@@ -1006,8 +1023,10 @@ export class TrackRenderer {
     this.platePaint = platePaintOf(this.style, this.images);
     this.borderLook = borderLookOf(this.style, this.images);
     this.laneColors = options.laneColors?.length === options.mode.lanes.length ? [...options.laneColors] : laneColorsFor(options.skin, options.mode);
-    // the notes' pictures laid on the track as slabs, their tops just above it (a mesh is lifted half its height)
+    // the notes' pictures laid on the track as slabs, their tops just above it (a mesh is lifted half its
+    // height), and lifted half their walls more: the whole note is centred on its time (noteLift)
     const thick = noteThicknessOf(this.style.note);
+    this.noteThick = thick;
     this.noteGeometry = slabGeometry(PICTURE_LIFT - 0.5, SLAB_DEPTH * thick, WALL_CROP);
     this.barDepth = NOTE_DEPTH;
     this.noteDepth = this.barDepth;
@@ -1021,6 +1040,7 @@ export class TrackRenderer {
     this.long = longPaintOf(this.style.note, this.images);
     // as thick as a tap of the style
     const longThick = NOTE_HEIGHT * SLAB_DEPTH * thick;
+    this.longLift = noteLift(longThick);
     this.longBodyShape = longBodyGeometry(longThick, this.long.wall ?? LONG_WALL);
     this.longEndShape = endSlabGeometry(longThick, END_WALL);
     this.longEndWidth = this.long.endWidth ?? 1;
@@ -2155,7 +2175,8 @@ export class TrackRenderer {
     mesh.material = this.noteMaterial(color, kind);
     const { near, far } = noteSpan(z, depth, z, null, this.extent);
     mesh.scale.set(laneWidth * NOTE_WIDTH, height, near - far);
-    mesh.position.set(x, height / 2, (near + far) / 2);
+    // (its walls are SLAB_DEPTH × the style's thickness of its height deep: half of them over the track)
+    mesh.position.set(x, height / 2 + noteLift(height * SLAB_DEPTH * this.noteThick), (near + far) / 2);
   }
 
   /**
@@ -2178,7 +2199,7 @@ export class TrackRenderer {
     const far = open ? tailZ : tailZ + end;
     body.visible = near > far;
     body.scale.set(width, 1, Math.max(0.001, near - far));
-    body.position.set(lane.x, 0.02, (near + far) / 2);
+    body.position.set(lane.x, 0.02 + this.longLift, (near + far) / 2);
     this.setBodyUv(body, width * paint.tile, near, far, realTailZ);
     if (end <= 0) return;
     const capWidth = dots ? width : width * this.longEndWidth;
@@ -2196,7 +2217,7 @@ export class TrackRenderer {
     cap.material = this.endMaterial(color, state, dots);
     cap.scale.set(width, 1, head ? -end : end);
     cap.renderOrder = head ? 3.1 : 2.95;
-    cap.position.set(x, 0.021, z);
+    cap.position.set(x, 0.021 + this.longLift, z);
   }
 
   /**
