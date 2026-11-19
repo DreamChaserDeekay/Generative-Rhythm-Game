@@ -50,9 +50,9 @@ test('charts are generated on the five tiers, and settings saved on a removed di
 });
 
 // A song too calm for the top tier has none (the server answers 404: no try of the model came into
-// its range, mapper/fit.py): its cell on the list is left empty and, with ELITE chosen, Enter plays
-// its EXPERT; no notice says so.
-test('a song without an ELITE leaves its cell empty and plays its EXPERT, and the next song is on ELITE again', async ({ page }) => {
+// its range, mapper/fit.py): its plate is an empty place and, with ELITE chosen, Enter plays its
+// EXPERT (its cell on the list shows that level); no notice says so.
+test('a song without an ELITE has an empty plate and plays its EXPERT, and the next song is on ELITE again', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   const songs = fakeSongs(2, 'ready').map((s) => ({ ...s, analyzedAt: 1 }));
@@ -75,7 +75,7 @@ test('a song without an ELITE leaves its cell empty and plays its EXPERT, and th
   const plates = page.getByTestId('difficulty-row').getByRole('button');
   const cells = (i: number) => page.locator(`[data-song-id="${songs[i].id}"] .tier-level`);
 
-  await expect(cells(0)).toHaveText(['3', '8', '12', '16', '20'], { timeout: 30_000 });
+  await expect(cells(0)).toHaveText(['20'], { timeout: 30_000 });
   await expect(plates).toHaveText([/EASY/, /NORMAL/, /HARD/, /EXPERT/, /ELITE/]);
   await expect(page.locator('.difficulty.active')).toContainText('ELITE');
 
@@ -83,10 +83,9 @@ test('a song without an ELITE leaves its cell empty and plays its EXPERT, and th
   await expect(page.getByTestId('song-title')).toHaveText('Fake Song 02');
   await expect(plates).toHaveText([/EASY/, /NORMAL/, /HARD/, /EXPERT/], { timeout: 30_000 });
   await expect(page.locator('.difficulty.active')).toContainText('EXPERT');
-  await expect(cells(1)).toHaveText(['3', '8', '12', '16', '']);
-  await expect(cells(1).nth(4)).toHaveClass(/absent/);
-  await expect(cells(1).nth(3)).toHaveClass(/active/);
-  await expect(page.getByTestId('chart-level')).toHaveText('Lv.16');
+  await expect(page.locator('.difficulty.absent')).toHaveText(/ELITE/);
+  await expect(cells(1)).toHaveText(['16']);
+  await expect(page.getByTestId('chart-level')).toHaveText('16');
   // → past the song's last tier goes nowhere; the choice stays ELITE
   await page.keyboard.press('ArrowRight');
   await expect(page.locator('.difficulty.active')).toContainText('EXPERT');

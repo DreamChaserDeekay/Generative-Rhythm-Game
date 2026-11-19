@@ -164,6 +164,6 @@ test('a chart being made still says so on its plate after the settings and after
   // made: the plate shows its level and says nothing more
   release();
   await expect(normal.locator('.diff-state')).toHaveCount(0, { timeout: 20_000 });
-  await expect(page.getByTestId('chart-level')).toHaveText('3');
+  await expect(page.getByTestId('chart-level')).toHaveText('8');
   expect(errors).toEqual([]);
 });
