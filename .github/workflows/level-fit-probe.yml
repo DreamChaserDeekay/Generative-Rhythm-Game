@@ -1,0 +1,113 @@
+name: Level fit probe
+
+# Mapperatorinator (v32, on the runner's CPU) making a song's charts at the five tiers the way the
+# server does (rhythm_server.mapper.Mapper.generate: the first finds the timing, a chart outside its
+# tier's range is made again at corrected stars, thinned or found absent; mapper/fit.py), on a few
+# CC BY songs (design-mockups/_src/music/manifest.json). Reports each chart's level against its
+# tier's range, its tries and the time they took (docs/MAPPERATORINATOR.md, "난이도 구간에 맞추기").
+# The songs and charts stay in the run's artifacts; nothing is committed.
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/tiers-v2]
+    paths:
+      - '.github/workflows/level-fit-probe.yml'
+
+jobs:
+  probe:
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [4K, 5K, 6K, 8K]
+        song:
+          - chibi_ninja.mp3
+          - newer_wave.mp3
+          - the_cannery.mp3
+    name: ${{ matrix.mode }} ${{ matrix.song }}
+    runs-on: windows-latest
+    timeout-minutes: 355
+    defaults:
+      run:
+        shell: bash
+    env:
+      GRG_MAPPER_ALLOW_CPU: '1'
+      GRG_MAPPER_MODEL: v32
+      SONG: ${{ matrix.song }}
+      MODE: ${{ matrix.mode }}
+      TIERS: NORMAL EASY HARD EXPERT ELITE
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: server/pyproject.toml
+      - name: Install the server
+        run: |
+          python -m pip install -e ./server
+          echo "GRG_MAPPER_HOME=$RUNNER_TEMP/grg-mapper" >> "$GITHUB_ENV"
+      - name: Fetch the song
+        run: |
+          url=$(python -c "import json, os; print(next(s['download_url'] for s in json.load(open('design-mockups/_src/music/manifest.json', encoding='utf-8')) if s['file'] == os.environ['SONG']))" | tr -d '\r')
+          mkdir -p "$RUNNER_TEMP/song"
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/song/$SONG" "$url"
+      - name: Set the runtime up
+        working-directory: server
+        run: python -m rhythm_server mapper setup
+      - name: A chart at each tier, kept in its range
+        working-directory: server
+        run: |
+          AUDIO="$RUNNER_TEMP/song/$SONG" OUT="$RUNNER_TEMP/probe" python - <<'EOF'
+          import json
+          import os
+          import sys
+          import time
+          from pathlib import Path
+
+          from rhythm_server import audio_io
+          from rhythm_server.analysis.analyzer import analyze
+          from rhythm_server.mapper import Mapper
+          from rhythm_server.mapper.fit import TierAbsent
+
+          src, out, mode = Path(os.environ["AUDIO"]), Path(os.environ["OUT"]), os.environ["MODE"]
+          out.mkdir(parents=True, exist_ok=True)
+          mapper = Mapper()
+          if not mapper.active():
+              sys.exit("Mapperatorinator is not set up: " + json.dumps(mapper.runtime.status(), ensure_ascii=False, default=str))
+          pcm = audio_io.decode_audio(src)
+          analysis = analyze(pcm, 44100, "sha256:" + audio_io.file_sha256(src), backends={})
+          wav = out / "song.wav"
+          audio_io.write_canonical(wav, pcm)
+          report = {"audio": src.name, "seconds": round(len(pcm) / 44100, 1), "mode": mode, "tiers": {}}
+          timing = None
+          try:
+              for tier in os.environ["TIERS"].split():
+                  t = time.time()
+                  row = {}
+                  try:
+                      chart = mapper.generate(analysis, mode, tier, None, None, {"title": src.stem}, wav, (lambda: timing) if timing else None)
+                      timing = timing or chart["timing"]
+                      meta, gen = chart["meta"], chart["meta"]["generator"]
+                      row = {"ok": True, "level": meta["level"], "rating": float(meta["rating"]), "notes": meta["noteCount"],
+                             "stars": gen["stars"], "fit": gen.get("fit"), "thinned": gen.get("thinned"), "worker": gen.get("seconds")}
+                      (out / f"{src.stem}.{mode}.{tier}.json").write_text(json.dumps(chart, separators=(",", ":")), encoding="utf-8")
+                  except TierAbsent as e:
+                      row = {"ok": True, "absent": True, **e.detail}
+                  except Exception as e:  # noqa: BLE001  (the other tiers still count)
+                      row = {"ok": False, "error": f"{type(e).__name__}: {e}"}
+                  row["seconds"] = round(time.time() - t, 1)
+                  report["tiers"][tier] = row
+                  print(json.dumps({tier: row}, ensure_ascii=False), file=sys.stderr, flush=True)
+          finally:
+              mapper.close()
+              wav.unlink(missing_ok=True)
+          (out / f"{src.stem}.{mode}.report.json").write_text(json.dumps(report, ensure_ascii=False, indent=1), encoding="utf-8")
+          print(json.dumps(report, ensure_ascii=False))
+          EOF
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: level-fit-${{ matrix.mode }}-${{ matrix.song }}
+          path: ${{ runner.temp }}/probe
+          if-no-files-found: warn
+          retention-days: 30
