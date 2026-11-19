@@ -8,6 +8,7 @@ before the runtime is set up, or when a chart fails, the request is an error to 
 
 from __future__ import annotations
 
+import json
 import logging
 import shutil
 import tempfile
@@ -62,6 +63,7 @@ class Mapper:
     def generate(
         self, analysis: dict[str, Any], key_mode: str, difficulty: str, target_level: int | None, seed: int | None, meta: dict[str, Any],
         audio_path: Path, song_timing: Callable[[], dict[str, Any] | None] | None = None,
+        song_fit: Callable[[], list[list[float]]] | None = None,
     ) -> dict[str, Any]:
         """`song_timing`: asked when the chart's turn comes, for the timing the song's first chart
         found (None: this is the first, and the model finds it), as the song's kept record
@@ -114,7 +116,10 @@ class Mapper:
             end = music_end(quiet, len(pcm) * 1000.0 / sr)
 
             aim = charts.aim_of(key_mode, difficulty, target_level)
-            first_stars = charts.stars_of(aim, cfg, key_mode)
+            rule = fit.settings(cfg)
+            # the song's charts made before (other tiers): where they landed (`song_fit`)
+            prior = [(float(s), float(r)) for s, r in (song_fit() if song_fit is not None and rule.get("enabled", True) else [])]
+            first_stars = fit.first_stars(prior, aim, charts.stars_of(aim, cfg, key_mode), rule)
 
             def make(on_timing: dict[str, Any] | None, name: str, stars: float = first_stars) -> dict[str, Any]:
                 beatmap = None
@@ -148,7 +153,7 @@ class Mapper:
                 )
                 return self._fitted(
                     chart, osu_text, answer, first_stars, make, analysis, key_mode, difficulty, level, seed, cid, cfg, meta, target_level,
-                    timing, quiet, fixed, steadied,
+                    timing, quiet, fixed, steadied, len(prior),
                 )
             except ValueError as e:
                 raise MapperError(str(e)) from e
@@ -159,7 +164,7 @@ class Mapper:
         self, chart: dict[str, Any], osu_text: str, answer: dict[str, Any], stars: float, make: Callable[..., dict[str, Any]],
         analysis: dict[str, Any], key_mode: str, difficulty: str, level: int, seed: int, cid: str, cfg: dict[str, Any], meta: dict[str, Any],
         target_level: int | None, timing: dict[str, Any] | None, quiet: list[tuple[float, float]], fixed: list[dict[str, Any]],
-        steadied: dict[str, Any] | None,
+        steadied: dict[str, Any] | None, prior: int = 0,
     ) -> dict[str, Any]:
         """The chart with its level in its tier's range (fit.py): made again at the star rating the
         tries so far point to while it is not, at most levelFit.attempts charts in all, on the
@@ -196,7 +201,7 @@ class Mapper:
             made.append((c, text, ans, nxt))
             tries.append((nxt, float(c["meta"]["rating"])))
             record.append({"stars": nxt, "level": int(c["meta"]["level"]), "rating": float(c["meta"]["rating"])})
-        info = {"window": [window.lo, window.hi], "aim": goal, "tries": record}
+        info = {"window": [window.lo, window.hi], "aim": goal, "tries": record, **({"prior": prior} if prior else {})}
         inside = [m for m in made if window.holds(int(m[0]["meta"]["level"]))]
         if inside:
             out = inside[-1][0]
@@ -205,15 +210,27 @@ class Mapper:
             if not over:
                 raise fit.TierAbsent(
                     f"곡이 조용해 {difficulty}(레벨 {window.lo}–{window.hi}) 채보를 만들 수 없습니다 (가장 높은 레벨 {max(r['level'] for r in record)})",
-                    {"chartId": cid, "keyMode": key_mode, "difficulty": difficulty, **info},
+                    # what it was found with (all of it is in the chart id too: a change of any asks again)
+                    {"chartId": cid, "keyMode": key_mode, "difficulty": difficulty, "model": cfg.get("model", "v32"),
+                     "settings": charts.settings_tag(cfg), "stars": charts.stars_table(cfg, key_mode), "levelFit": rule, **info},
                 )
             least = min(over, key=lambda m: float(m[0]["meta"]["rating"]))
             out = again(least[1], least[2], least[3], max_level=window.hi)
         gen = out["meta"]["generator"]
-        if len(made) > 1 or "thinned" in gen:
+        if not window.holds(int(out["meta"]["level"])):
+            log.warning("chart %s: level %s is still outside %s-%s after thinning", cid, out["meta"]["level"], window.lo, window.hi)
+        if len(made) > 1 or "thinned" in gen or prior:
             gen["fit"] = info
         gen["seconds"] = round(seconds, 2)
         return out
+
+    def fit_key(self, key_mode: str) -> str:
+        """Under what a song keeps where its charts landed (Library.mapper_fit_tries): the model, the
+        key mode and the adapter and conditions of its key count (each lands elsewhere)."""
+        cfg = self.config()
+        lora = charts.lora_of(key_mode, cfg)
+        cond = charts.conditions_of(key_mode, cfg)
+        return f"{cfg.get('model', 'v32')}|{key_mode}|{lora['tag'] if lora else ''}|{json.dumps(cond, sort_keys=True) if cond else ''}"
 
     def close(self) -> None:
         self.service.close()

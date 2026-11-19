@@ -634,7 +634,10 @@ def create_app(
             return chart_id, None
         sid, model = song["id"], str(mapper.config().get("model", "v32"))
         # the song's timing is asked for when the chart's turn comes: its first chart has found it by then
-        args = (analysis, key_mode, tier, target, seed, chart_meta(song), library.audio_path(sid), lambda: library.mapper_timing_record(sid, model))
+        # and where the song's charts of the key mode made before landed (mapper/fit.py first_stars)
+        fit_key = mapper.fit_key(key_mode)
+        args = (analysis, key_mode, tier, target, seed, chart_meta(song), library.audio_path(sid), lambda: library.mapper_timing_record(sid, model),
+                lambda: library.mapper_fit_tries(sid, fit_key))
         job, new = mapper_queue.submit(chart_id, priority, args)
         if new:
             def done(j: Any, label: str = f"{song['title']} {key_mode} {tier}", j_cid: str = chart_id) -> None:
@@ -645,6 +648,8 @@ def create_app(
                     chart = j.result()
                     library.save_chart(chart, sid)
                     generator = chart["meta"]["generator"]
+                    tries = (generator.get("fit") or {}).get("tries") or [{"stars": generator.get("stars"), "rating": chart["meta"].get("rating")}]
+                    library.add_mapper_fit_tries(sid, fit_key, [[t["stars"], t["rating"]] for t in tries if t.get("stars") and t.get("rating")])
                     model_timing = mapper.model_timings.pop(chart["meta"]["chartId"], None)
                     if generator.get("timing") == "model" or generator.get("timingFixed") or generator.get("timingSteady"):
                         # the song's first chart: its timing is the song's from now on (the other
@@ -656,6 +661,7 @@ def create_app(
                 elif isinstance(e, TierAbsent):
                     # the song is too calm for the tier: kept, so it is not made again (the tier is absent)
                     library.save_absent(j_cid, e.detail)
+                    library.add_mapper_fit_tries(sid, fit_key, [[t["stars"], t["rating"]] for t in e.detail.get("tries", [])])
                     log.info("%s: %s", label, e)
                 else:
                     log.warning("Mapperatorinator could not make %s: %s", label, e)

@@ -513,25 +513,30 @@ def make_chart(
         raise ValueError("Mapperatorinator가 만든 채보에 노트가 없습니다")
     attach_sources(notes, analysis.get("onsets", []))
     notes = normalize_notes(notes, tempo)
-    # 4K+FX, 6K+FX: some of the key notes go to the FX lanes (the model has none)
-    notes, fx = fx_notes(notes, key_mode, difficulty, analysis.get("onsets", []), hits, cfg)
+    hands = lane_hands(key_mode)
+
+    def placed(ns: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], dict[str, Any] | None]:
+        # 4K+FX, 6K+FX: some of the key notes go to the FX lanes (the model has none)
+        return fx_notes(ns, key_mode, difficulty, analysis.get("onsets", []), hits, cfg)
+
+    thinned_from = None
+    if max_level is not None:
+        # notes are taken out before the FX lanes get theirs (they keep the tier's share), measured
+        # as the chart will be: with its FX notes
+        def level_of(ns: list[dict[str, Any]]) -> int:
+            return level_for(effective_nps(placed(ns)[0], hands)[0], key_mode, params.level_table, params.level_factor)[0]
+
+        before = len(notes)
+        notes, removed = thinned(notes, level_of, max_level)
+        if removed:
+            thinned_from = {"notes": before, "removed": removed}
+    notes, fx = placed(notes)
     problems = structural_problems(notes, len(lanes))
     if problems:
         raise ValueError("채보 구조 오류: " + "; ".join(problems[:5]))
     mark_sound_ends(notes, analysis)
     last = max(n.get("endT", n["t"]) for n in notes)
     span = max(duration, last + 1.0)
-    thinned_from = None
-    if max_level is not None:
-        hands = lane_hands(key_mode)
-
-        def level_of(ns: list[dict[str, Any]]) -> int:
-            return level_for(effective_nps(ns, hands)[0], key_mode, params.level_table, params.level_factor)[0]
-
-        before = len(notes)
-        notes, removed = thinned(notes, level_of, max_level)
-        if removed:
-            thinned_from = {"notes": before, "removed": removed}
     est = estimate(notes, key_mode, len(lanes), span, params.min_jack_ms, params.level_table, params.level_factor)
     sections = chart_sections(analysis, tempo)
     return {

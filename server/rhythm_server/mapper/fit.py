@@ -108,6 +108,15 @@ def next_stars(tries: list[tuple[float, float]], goal: float, fit: dict[str, Any
     return round(max(float(fit["minStars"]), min(float(fit["maxStars"]), out)), 2)
 
 
+def first_stars(prior: list[tuple[float, float]], goal: float, table_stars: float, fit: dict[str, Any]) -> float:
+    """The star rating a chart is first asked at: the table's, or where the song's charts made
+    before (`prior`: their (stars, rating), of the same model and key mode) put the rating aimed at
+    (next_stars on them: a song's charts land higher or lower than the table's alike)."""
+    if not prior:
+        return table_stars
+    return next_stars(list(prior), goal, fit)
+
+
 # ---------- taking notes out ----------
 
 def _beat_weight(beat: float) -> float:

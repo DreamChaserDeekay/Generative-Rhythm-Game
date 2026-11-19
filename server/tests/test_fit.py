@@ -96,3 +96,17 @@ def test_a_song_too_calm_for_a_tier_has_none(fitting) -> None:
     assert c.post(f"/api/songs/{sid}/charts", json=req).status_code == 404
     assert c.post(f"/api/songs/{sid}/charts", json={**req, "brief": True}).status_code == 404
     assert time.time() - t < 2.0
+
+
+def test_a_songs_later_chart_starts_where_its_earlier_ones_landed(fitting) -> None:
+    from rhythm_server.mapper import charts
+    from rhythm_server.mapper.runtime import mapper_config
+
+    c, sid = fitting
+    first = c.post(f"/api/songs/{sid}/charts", json={"keyMode": "4K", "difficulty": "HARD", "seed": 21}).json()["chart"]["meta"]
+    assert len(first["generator"]["fit"]["tries"]) >= 2
+    later = c.post(f"/api/songs/{sid}/charts", json={"keyMode": "4K", "difficulty": "EXPERT", "seed": 21}).json()["chart"]["meta"]
+    fit_info = later["generator"]["fit"]
+    # the HARD tries told where this song lands: EXPERT is asked at more than the table's stars, and lands at once
+    assert fit_info["prior"] >= 2 and len(fit_info["tries"]) == 1 and 15 <= later["level"] <= 18
+    assert fit_info["tries"][0]["stars"] > charts.stars_of(17.0, mapper_config(), "4K")

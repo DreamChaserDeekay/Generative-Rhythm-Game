@@ -427,6 +427,31 @@ class Library:
             return None
         return {"timing": kept["timing"], "steady": kept.get("steady"), "raw": kept.get("raw")}
 
+    def mapper_fit_path(self, song_id: str) -> Path:
+        return self.song_dir(_checked(SONG_ID, song_id)) / "mapper_fit.json"
+
+    def mapper_fit_tries(self, song_id: str, key: str) -> list[list[float]]:
+        """The (stars, rating) of the charts made of a song so far under `key` (a model and key mode,
+        mapper.Mapper.fit_key): where the song's charts land at a star rating (mapper/fit.py)."""
+        try:
+            kept = json.loads(self.mapper_fit_path(song_id).read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return []
+        return [[float(s), float(r)] for s, r in kept.get(key, [])]
+
+    def add_mapper_fit_tries(self, song_id: str, key: str, tries: list[list[float]]) -> None:
+        path = self.mapper_fit_path(song_id)
+        with self._lock:
+            try:
+                kept = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                kept = {}
+            # the latest 16 (a song's charts of a key mode, their tries)
+            kept[key] = ([*kept.get(key, []), *([round(float(s), 3), round(float(r), 3)] for s, r in tries)])[-16:]
+            tmp = path.with_suffix(".part")
+            tmp.write_text(json.dumps(kept), encoding="utf-8")
+            os.replace(tmp, path)
+
     def save_mapper_timing(
         self, song_id: str, model: str, timing: dict[str, Any], steady: int | None = None, raw: dict[str, Any] | None = None,
     ) -> None:
