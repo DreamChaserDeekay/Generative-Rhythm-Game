@@ -67,6 +67,13 @@ describe('settings', () => {
     expect(sanitizeSettings({ cameraPreset: 'TOP' }).cameraPreset).toBe('SDVX');
   });
 
+  it('plays a YouTube background at 480p unless a higher cap was picked (settings saved before the option: 480p)', () => {
+    expect(sanitizeSettings({}).bgaQuality).toBe('480p');
+    expect(sanitizeSettings({ bgaQuality: '720p' }).bgaQuality).toBe('720p');
+    expect(sanitizeSettings({ bgaQuality: '1080p' }).bgaQuality).toBe('1080p');
+    expect(sanitizeSettings({ bgaQuality: '4k' as never }).bgaQuality).toBe('480p');
+  });
+
   it('lays the side notes over half the keys whatever was saved, and shows no visualizer', () => {
     expect(DEFAULT_SETTINGS.sideNotes).toBe('half');
     for (const sideNotes of [undefined, 'lanes', 'half', 'djmax']) expect(sanitizeSettings({ sideNotes: sideNotes as never }).sideNotes).toBe('half');

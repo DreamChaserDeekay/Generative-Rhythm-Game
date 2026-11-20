@@ -357,6 +357,7 @@ export class PlayController {
       bgaYoutube: settings.bga ? (request.background?.bgaYoutube ?? null) : null,
       bgaOffsetMs: request.background?.bgaOffsetMs ?? 0,
       rate: setup.bufferPlacement.rate,
+      youtubeMaxPx: Number.parseInt(settings.bgaQuality, 10) || 480,
       brightness: settings.bgBrightness,
       visualizer: settings.visualizer,
       reducedFlash: settings.reducedFlash,

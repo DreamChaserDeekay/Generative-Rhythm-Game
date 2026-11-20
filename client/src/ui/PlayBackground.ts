@@ -16,6 +16,8 @@ export interface BackgroundOptions {
   bgaOffsetMs: number;
   /** Practice playback rate (the video plays at the same speed). */
   rate: number;
+  /** The YouTube player's highest layout (device pixels): YouTube streams no higher than its size. */
+  youtubeMaxPx: number;
   /** 0 = black, 1 = full brightness. */
   brightness: number;
   visualizer: boolean;
@@ -105,7 +107,7 @@ export class PlayBackground {
       const frame = document.createElement('div');
       frame.className = 'bg-youtube';
       this.root.appendChild(frame);
-      this.youtube = new YouTubeBackground(frame, options.bgaYoutube, options.bgaOffsetMs, options.rate);
+      this.youtube = new YouTubeBackground(frame, options.bgaYoutube, options.bgaOffsetMs, options.rate, options.youtubeMaxPx);
     }
     this.analyser = options.visualizer ? options.analyser : null;
     this.bins = new Uint8Array(this.analyser ? this.analyser.frequencyBinCount : 0);

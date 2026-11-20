@@ -177,6 +177,25 @@ test('of the GPU features, the ones that say whether the graphics card still dra
   assert.deepEqual(Object.values(featureFields(null)).filter(Boolean), []);
 });
 
+test('a play’s frames as it ended: a line of its own with what the server made as it began, then what it makes now and the card’s memory', async () => {
+  const w = world();
+  w.watch.pulse({ state: 'running', songMs: 0 });
+  await w.advance(0);
+  w.answer = { ok: true, body: { making: null, waiting: 0, loaded: true } };
+  w.watch.page({ type: 'page-play', canvas: 'play-canvas', about: { frames: '9120', seconds: '152', gapMs: 'p50=17 p95=18 p99=52 max=140', late: '34=88 50=31 100=4', bga: 'youtube', bgaStream: 'large', bgaCap: '480p' } });
+  await w.advance(0);
+  w.watch.pulse({ state: 'off' });
+  assert.deepEqual(w.events(), [
+    'page-play  canvas=play-canvas frames=9120 seconds=152 gapMs="p50=17 p95=18 p99=52 max=140" late="34=88 50=31 100=4" bga=youtube bgaStream=large bgaCap=480p makingAtStart=c0ffee',
+    'server  making=none waiting=0 loaded=yes',
+    'gpu-memory  vram="7421/8192MB 97%"',
+  ]);
+  assert.deepEqual(w.shots, []);
+  // a play's line with no play begun before it (the window opened mid-play): unknown
+  w.watch.page({ type: 'page-play', canvas: 'play-canvas', about: { frames: '200' } });
+  assert.ok(w.events().some((e) => e.endsWith('frames=200 makingAtStart=unknown')));
+});
+
 test('the GPU process gone in play: the server asked once, the window pictured a second after the page’s graphics are back', async () => {
   const w = world();
   w.watch.childGone(GPU_GONE);
@@ -690,12 +709,13 @@ test('a play’s pulse that stops while it runs: the page is hung, told with the
   assert.equal(w.lines.length, 6);
   w.watch.pulse({ state: 'running', songMs: 68000 });
   assert.equal(w.events().at(-1), 'page-resumed  afterMs=2500 state=running told=no');
-  assert.equal(w.asked, 1);
+  // (the server was asked once as the play began, for its line as it ends, and once for the hang)
+  assert.equal(w.asked, 2);
   // and followed up again once the quiet time is over
   await w.advance(QUIET_MS);
   w.watch.pulse({ state: 'running', songMs: 99000 });
   await wait(w, HUNG_MS);
-  assert.equal(w.asked, 2);
+  assert.equal(w.asked, 3);
   assert.equal(w.shots.length, 2);
 });
 

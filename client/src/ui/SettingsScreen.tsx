@@ -36,6 +36,7 @@ import {
   TURNTABLE_STEPS_MAX,
   withCovers,
   withPlayKey,
+  type BgaQuality,
   type DisplayMode,
   type HitEffectSize,
   type JudgePosition,
@@ -762,6 +763,22 @@ export function SettingsScreen({
             defaultValue={d.bga}
             onChange={(v) => set('bga', v)}
             help="곡에 등록한 배경 영상을 재생합니다."
+          />
+          <Choice
+            {...row}
+            label="유튜브 배경 화질"
+            testId="opt-bga-quality"
+            value={settings.bgaQuality}
+            defaultValue={d.bgaQuality}
+            options={
+              [
+                ['480p', '480p'],
+                ['720p', '720p'],
+                ['1080p', '1080p'],
+              ] as [BgaQuality, string][]
+            }
+            onChange={(v) => set('bgaQuality', v)}
+            help="유튜브 배경 영상을 이 화질까지만 받습니다. 높을수록 플레이 중 컴퓨터가 바빠져 버벅일 수 있습니다(720p부터 초당 60프레임). 배경은 어둡게 깔려 480p로도 충분합니다. 올린 영상 파일에는 쓰이지 않습니다."
           />
         </>
       );

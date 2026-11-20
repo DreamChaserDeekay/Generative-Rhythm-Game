@@ -24,7 +24,7 @@ const GIVE_UP_MS = 6000;
 const QUIET_MS = 30_000;
 /** How many lines the page may have written in a minute (a page gone wrong must not fill the disk). */
 const PAGE_LINES_PER_MINUTE = 30;
-const PAGE_EVENTS = ['webglcontextlost', 'webglcontextrestored', 'page-stall', 'page-error'];
+const PAGE_EVENTS = ['webglcontextlost', 'webglcontextrestored', 'page-stall', 'page-error', 'page-play'];
 /** A stall's whole story (the frames before it, the window, the server, the card's memory) is written this often at most; the others are a line. */
 const STALL_FULL_EVERY_MS = 10_000;
 /** The states of a play its pulse tells (client/src/render/frameWatch.ts); 'off': no play. Its picture moves in the first two. */
@@ -417,6 +417,8 @@ function graphicsWatch(io) {
   let watchOff = null;
   let checkedAt = 0;
   let stallToldAt = -Infinity;
+  /** What the server was making as the play began ({ making }: a chart's id, none or unknown); null with no play. */
+  let playStart = null;
   let errorLines = 0;
   let unresponsiveAt = null;
   const log = (event, fields, limit) => io.write(entry(io.now(), event, fields, limit));
@@ -721,6 +723,20 @@ function graphicsWatch(io) {
         if (!hung.away) log('page-resumed', { afterMs: now - hung.since, state, told: hung.told ? undefined : 'no' });
         hung = null;
       }
+      // a play begins: what the server is making then (a chart made in the background shares the card)
+      if (pulse.state === 'off' && state !== 'off') {
+        const start = { making: 'unknown' };
+        playStart = start;
+        Promise.resolve()
+          .then(() => io.queue())
+          .then(
+            (answer) => {
+              start.making = queueFields(answer).making;
+            },
+            () => undefined,
+          );
+      }
+      if (state === 'off') playStart = null;
       pulse = { at: now, state, songMs: Number.isFinite(raw.songMs) ? Math.round(raw.songMs) : undefined };
       if (moving() && !watchOff) {
         checkedAt = now;
@@ -746,6 +762,13 @@ function graphicsWatch(io) {
       if (!record || !pageMayWrite()) return;
       if (record.type === 'page-stall') stalled(record);
       else if (record.type === 'page-error') pageError(record);
+      // a play's frames as it ended (frameWatch.ts tellPlay): a line of its own
+      // a play's frames as it ended (frameWatch.ts tellPlay): a line of its own, with what the server was
+      // making as the play began; then what it makes now and the card's memory (its model shares the card)
+      else if (record.type === 'page-play') {
+        log(record.type, { canvas: record.canvas, ...record.about, makingAtStart: playStart ? playStart.making : 'unknown' });
+        around();
+      }
       else if (record.type === 'webglcontextlost') {
         lostAt = ms();
         log(record.type, { canvas: record.canvas, ...record.about });

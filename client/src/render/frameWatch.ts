@@ -16,6 +16,10 @@
  *   page cannot tell of itself.
  * - The page's errors are told once each and counted: the uncaught ones, promises rejected with no one to
  *   hear, and those a part of a frame threw while the rest of the frame was drawn all the same (guard).
+ * - When a play ends, one line of how its frames came while its picture moved (page-play): how many, how
+ *   far apart (the middle, 95th and 99th in a hundred, the longest), how many came late by a frame or more
+ *   (34, 50, 100 ms), and the video behind the play (a file, or YouTube with the stream it played). A play
+ *   that judders without ever standing still (no stall) leaves its trace there.
  *
  * Nothing is told in a browser (there is no desktop window to tell), and nothing is drawn or measured on the
  * graphics card: a few numbers a frame.
@@ -33,6 +37,13 @@ export const PULSE_MS = 500;
 const TICK_MS = 100;
 /** Stalls that follow one told within this long are counted and told together with the next (ms). */
 export const STALL_TOLD_EVERY_MS = 2000;
+/** A play's line (page-play) is told when its picture moved this many frames at least. */
+const PLAY_LINE_FRAMES = 120;
+/** Frame gaps are counted to the millisecond up to this (ms); longer ones in the last count. */
+const GAP_KEPT_MS = 400;
+/** The gaps a play's line counts (ms): a frame late by one or more at 60 Hz, three, six. */
+const LATE_MS = [34, 50, 100] as const;
+
 /** How many different errors are told in a run of the page, and how much of each. */
 const ERRORS_KEPT = 40;
 const STACK_FRAMES = 8;
@@ -41,7 +52,7 @@ const ERROR_AGAIN_MS = 10_000;
 
 /** What the app is told (desktop/preload.js: tellGraphics → graphics.log; every value a text). */
 export interface GraphicsRecord {
-  type: 'page-stall' | 'page-error';
+  type: 'page-stall' | 'page-error' | 'page-play';
   canvas?: string;
   about: Record<string, string>;
 }
@@ -57,6 +68,8 @@ export interface WatchIo {
   longTasks?(from: number, to: number): { n: number; max: number };
   /** The page as it is: shown or hidden, with the keyboard or not, how much memory its scripts hold. */
   page?(): { visible: string; focus: boolean; heapMB?: number };
+  /** The video behind the play: none, a file, or YouTube (with the stream it plays and its cap). */
+  background?(): Record<string, string>;
 }
 
 interface Shell {
@@ -114,6 +127,14 @@ export function desktopIo(): WatchIo | null {
     page() {
       const heap = (performance as Performance & { memory?: { usedJSHeapSize?: number } }).memory?.usedJSHeapSize;
       return { visible: document.visibilityState, focus: document.hasFocus(), heapMB: heap ? Math.round(heap / 1048576) : undefined };
+    },
+    background() {
+      // (ui/PlayBackground's elements; ui/youtubeBga.ts writes the stream YouTube plays and the cap on its own)
+      const youtube = document.querySelector<HTMLElement>('.play-bg .bg-youtube');
+      if (youtube) return { bga: 'youtube', ...(youtube.dataset.quality ? { bgaStream: youtube.dataset.quality } : {}), ...(youtube.dataset.cap ? { bgaCap: youtube.dataset.cap } : {}) };
+      const video = document.querySelector<HTMLVideoElement>('.play-bg .bg-video');
+      if (video) return { bga: 'file', ...(video.videoHeight ? { bgaStream: `${video.videoWidth}x${video.videoHeight}` } : {}) };
+      return { bga: 'none' };
     },
   };
 }
@@ -279,6 +300,12 @@ export class FrameWatch {
   private held = { n: 0, ms: 0, longest: 0 };
   private stallToldAt = -Infinity;
   private frames = 0;
+  /** The play's frame gaps while its picture moved, counted by the millisecond (for its line, page-play). */
+  private readonly gaps = new Uint32Array(GAP_KEPT_MS + 1);
+  private moved = 0;
+  private movedMs = 0;
+  private longestGap = 0;
+  private background: Record<string, string> = {};
   /** The long parts of the frame before (takeParts). */
   private lastParts = '';
 
@@ -310,8 +337,16 @@ export class FrameWatch {
       this.pulseAt = now;
       this.pulseState = state;
       io.pulse({ state, songMs: Math.round(songMs) });
+      // what is behind the play, kept as it is while it plays (the background may go before the play's end)
+      if (moves(state)) this.background = io.background?.() ?? {};
     }
     const gap = this.lastAt >= 0 ? frameAt - this.lastAt : 0;
+    if (moves(this.lastState) && moves(state) && gap > 0) {
+      this.gaps[Math.min(GAP_KEPT_MS, Math.round(gap))] += 1;
+      this.moved += 1;
+      this.movedMs += gap;
+      this.longestGap = Math.max(this.longestGap, gap);
+    }
     if (moves(this.lastState) && gap >= STALL_MS) {
       if (now - this.stallToldAt < STALL_TOLD_EVERY_MS) {
         this.held = { n: this.held.n + 1, ms: this.held.ms + gap, longest: Math.max(this.held.longest, gap) };
@@ -337,7 +372,12 @@ export class FrameWatch {
     if (!io) return;
     this.stopTicks?.();
     this.stopTicks = null;
+    if (this.moved >= PLAY_LINE_FRAMES) this.tellPlay(io);
     if (this.held.n > 0) this.tellHeld(io, io.now());
+    this.gaps.fill(0);
+    this.moved = 0;
+    this.movedMs = 0;
+    this.longestGap = 0;
     if (this.pulseState !== 'off') io.pulse({ state: 'off' });
     this.pulseState = 'off';
     this.lastState = 'off';
@@ -381,6 +421,36 @@ export class FrameWatch {
         // the frames up to the stall, and what happened from three seconds before it on (what the frame it ended with did is among it)
         trailFrames: this.trail.frames(this.lastAt, this.lastAt),
         trailEvents: this.trail.told(this.lastAt),
+      },
+    });
+  }
+
+  /** How the play's frames came while its picture moved, and what was behind it: one line as it ends. */
+  private tellPlay(io: WatchIo): void {
+    const at = (share: number): number => {
+      const want = Math.ceil(share * this.moved);
+      let seen = 0;
+      for (let ms = 0; ms <= GAP_KEPT_MS; ms++) {
+        seen += this.gaps[ms];
+        if (seen >= want) return ms;
+      }
+      return GAP_KEPT_MS;
+    };
+    const late = (from: number): number => {
+      let n = 0;
+      for (let ms = from; ms <= GAP_KEPT_MS; ms++) n += this.gaps[ms];
+      return n;
+    };
+    io.tell({
+      type: 'page-play',
+      canvas: 'play-canvas',
+      about: {
+        frames: String(this.moved),
+        seconds: String(Math.round(this.movedMs / 1000)),
+        // the gap between frames: the middle one is the screen's own (17 ms at 60 Hz); the 99th tells a judder
+        gapMs: `p50=${at(0.5)} p95=${at(0.95)} p99=${at(0.99)} max=${Math.round(this.longestGap)}`,
+        late: LATE_MS.map((ms) => `${ms}=${late(ms)}`).join(' '),
+        ...this.background,
       },
     });
   }

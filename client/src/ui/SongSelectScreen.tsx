@@ -2220,6 +2220,8 @@ function TierPlate(props: {
       onClick={props.onPick}
       title={`${said} (레벨 범위 Lv.${t.levels[0]}–${t.levels[1]})`}
     >
+      {/* a chart being made: stripes that run to the right (moved by the compositor, smoothly) */}
+      {kind === 'making' && <i className="plate-stripes" aria-hidden="true" />}
       <span className="diff-in">
         <span className="diff-name">{t.label}</span>
         {state?.[0] ? <span className="diff-state">{state[0]}</span> : <Lamp lamp={record?.lamp ?? props.other?.lamp ?? null} faint={!record} />}

@@ -56,7 +56,7 @@ contextBridge.exposeInMainWorld('grgDesktop', {
   /** Closes the app and opens it again. */
   restart: () => ipcRenderer.invoke('grg:restart'),
   /**
-   * A line for the app's log from the page (client/src/render/frameWatch.ts): { type: 'page-stall' | 'page-error',
+   * A line for the app's log from the page (client/src/render/frameWatch.ts): { type: 'page-stall' | 'page-error' | 'page-play',
    * canvas, about: { … } }. The window writes down what it knows of (graphicsLog.js's pageRecord), so many a minute.
    */
   tellGraphics: (record) => ipcRenderer.send('grg:graphics', record),

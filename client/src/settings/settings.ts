@@ -33,6 +33,10 @@ export type JudgePosition = 'low' | 'mid' | 'high';
 export type DisplayMode = 'window' | 'fullscreen';
 export const DISPLAY_MODES: readonly DisplayMode[] = ['window', 'fullscreen'];
 /** Which songs the song select lists: every song, or the favourites (keys 1 and 5). */
+/** The highest stream a YouTube background is played at (ui/youtubeBga.ts: its player is laid out no higher). */
+export type BgaQuality = '480p' | '720p' | '1080p';
+export const BGA_QUALITIES: readonly BgaQuality[] = ['480p', '720p', '1080p'];
+
 export type SongFolder = 'all' | 'favorites';
 export const SONG_FOLDERS: readonly SongFolder[] = ['all', 'favorites'];
 /** A name the song select orders its list by (keys 2, 3 and 4). */
@@ -157,6 +161,8 @@ export interface Settings {
   bgBrightness: number;
   visualizer: boolean;
   bga: boolean;
+  /** A YouTube background's highest stream: lower is lighter on the computer while the play runs. */
+  bgaQuality: BgaQuality;
   /** Song ids marked as favourites on the song select. */
   favorites: string[];
   songFolder: SongFolder;
@@ -245,6 +251,7 @@ export const DEFAULT_SETTINGS: Settings = {
   bgBrightness: 0.35,
   visualizer: false,
   bga: true,
+  bgaQuality: '480p',
   favorites: [],
   songFolder: 'all',
   songSort: null,
@@ -363,6 +370,7 @@ export function sanitizeSettings(raw: Partial<Settings>): Settings {
   // the background visualizer is no longer shown
   s.visualizer = false;
   s.bga = s.bga !== false;
+  s.bgaQuality = pick(s.bgaQuality, BGA_QUALITIES, d.bgaQuality);
   s.favorites = Array.isArray(raw.favorites) ? [...new Set(raw.favorites.filter((id) => typeof id === 'string'))].slice(0, 5000) : [];
   s.songFolder = pick(s.songFolder, SONG_FOLDERS, d.songFolder);
   s.songSort = sanitizeSongSort(raw.songSort);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { YouTubeSync, type YouTubePlayerLike } from './youtubeBga';
+import { youtubeBox, YouTubeSync, type YouTubePlayerLike } from './youtubeBga';
 
 /** Records what the background asks of YouTube's player. */
 class FakePlayer implements YouTubePlayerLike {
@@ -88,5 +88,36 @@ describe('YouTube background video', () => {
     const p = new FakePlayer();
     new YouTubeSync(p, 0, 0.75);
     expect(p.calls).toEqual(['mute', 'rate 0.75']);
+  });
+});
+
+describe('the YouTube player’s size (YouTube streams no higher than the player is laid out)', () => {
+  it('is laid out no higher than the cap in device pixels and scaled up to cover the screen', () => {
+    // a 1080p screen: 480 px high, scaled 2.25 times to 1080
+    expect(youtubeBox(1920, 1080, 1, 480)).toEqual({ w: (480 * 16) / 9, h: 480, scale: 2.25 });
+    // a 1440p screen with Windows at 150 %: 1706.67 × 960 CSS px; 480 device px are 320 CSS px
+    const scaled = youtubeBox(1706.67, 960, 1.5, 480);
+    expect(scaled.h).toBeCloseTo(320);
+    expect(scaled.h * 1.5).toBeCloseTo(480);
+    expect(scaled.h * scaled.scale).toBeCloseTo(960);
+    // 720p and 1080p caps
+    expect(youtubeBox(2560, 1440, 1, 720)).toEqual({ w: 1280, h: 720, scale: 2 });
+    expect(youtubeBox(2560, 1440, 1, 1080).h * youtubeBox(2560, 1440, 1, 1080).scale).toBeCloseTo(1440);
+  });
+
+  it('covers a screen of another shape: the 16:9 box as wide or as high as the screen, whichever is more', () => {
+    // 21:9: as wide as the screen, its top and bottom past the screen's edges
+    const wide = youtubeBox(2560, 1080, 1, 480);
+    expect(wide.w * wide.scale).toBeCloseTo(2560);
+    expect(wide.h * wide.scale).toBeCloseTo(1440);
+    // 4:3: as high as the screen
+    const square = youtubeBox(1024, 768, 1, 480);
+    expect(square.h * square.scale).toBeCloseTo(768);
+    expect(square.w * square.scale).toBeGreaterThan(1024);
+  });
+
+  it('a screen no larger than the cap: the player covers it at its own size, unscaled', () => {
+    expect(youtubeBox(800, 450, 1, 480)).toEqual({ w: 800, h: 450, scale: 1 });
+    expect(youtubeBox(1280, 720, 1, 1080)).toEqual({ w: 1280, h: 720, scale: 1 });
   });
 });
