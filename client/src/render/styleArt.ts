@@ -390,9 +390,11 @@ export function artPartsOf(style: SkinStyle, images: StyleImages): string[] {
 }
 
 /** The gear's plate: drawn from its pictures where they loaded. */
-export function platePaintOf(style: Pick<SkinStyle, 'deck'>, images: StyleImages): (g: CanvasRenderingContext2D, s: DeckSpec) => void {
+export function platePaintOf(style: Pick<SkinStyle, 'deck' | 'custom'>, images: StyleImages): (g: CanvasRenderingContext2D, s: DeckSpec) => void {
   const art = gearArtOf(style.deck, images);
-  return (g, s) => paintDeck(style.deck, g, s, art);
+  // a panel of the player's own: none of the gear's own panel's lit parts is on it
+  const own = !(style.custom?.deck && art.panel);
+  return (g, s) => paintDeck(style.deck, g, s, art, own);
 }
 
 /** The gear's border, the two lines down the track's edges from its far end past the gear: its frame, from its pictures where they loaded. */

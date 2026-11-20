@@ -251,9 +251,14 @@ function waitForHealth(port) {
   });
 }
 
+/** The game's data folder (the server's library): the player's asset packs are in its skins/ (docs/CUSTOM_ASSETS.md). */
+function dataFolder() {
+  return process.env.GRG_DATA_DIR || path.join(app.getPath('userData'), 'library');
+}
+
 async function startServer() {
   const { port, home } = await serverPort();
-  const dataDir = process.env.GRG_DATA_DIR || path.join(app.getPath('userData'), 'library');
+  const dataDir = dataFolder();
   fs.mkdirSync(dataDir, { recursive: true });
   const { cmd, args, env } = serverCommand(port, dataDir);
   // the server stops when asked with this token: by the next launch, should this one leave it behind
@@ -857,6 +862,13 @@ if (!primary) {
       writeState();
       graphics.note('graphics-mode', { picked: state.graphics.mode, running: launch.mode });
       return graphicsModeInfo();
+    });
+    // the settings' 에셋 폴더 열기: the asset packs' folder in the file manager (only that folder: nothing the page names)
+    ipcMain.handle('grg:open-skins-folder', async (event) => {
+      if (!fromGame(event)) return false;
+      const folder = path.join(dataFolder(), 'skins');
+      fs.mkdirSync(folder, { recursive: true });
+      return (await shell.openPath(folder)) === '';
     });
     ipcMain.handle('grg:restart', (event) => {
       if (!fromGame(event)) return false;

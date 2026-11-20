@@ -478,7 +478,7 @@ export function deckReadouts(style: GearStyle, s: Pick<DeckSpec, 'width' | 'room
  * camera that shows more of the deck than the picture, its last row run on into shade. The lights of what the plate
  * drew there go with it (their marks), and the picture's own parts take theirs (PANEL_MARKS).
  */
-function panelPainting(style: GearStyle, g: CanvasRenderingContext2D, s: DeckSpec, pic: Picture): void {
+function panelPainting(style: GearStyle, g: CanvasRenderingContext2D, s: DeckSpec, pic: Picture, ownMarks = true): void {
   const span = panelSpan(style, s, [pic.width, pic.height]);
   if (!span) return;
   const { top, tall } = span;
@@ -504,7 +504,7 @@ function panelPainting(style: GearStyle, g: CanvasRenderingContext2D, s: DeckSpe
   s.marks.length = 0;
   s.marks.push(...kept);
   // the picture's own parts: as wide as the picture has them across the deck, as deep as the picture is laid
-  for (const [name, [left, far, wide, deep]] of Object.entries(PANEL_MARKS[style] ?? {})) mark(s, name, { x: left * s.width, y: top + far * tall, w: wide * s.width, h: deep * tall });
+  for (const [name, [left, far, wide, deep]] of Object.entries((ownMarks && PANEL_MARKS[style]) || {})) mark(s, name, { x: left * s.width, y: top + far * tall, w: wide * s.width, h: deep * tall });
 }
 
 /** A readout's window: a dark well with a hairline round it, `r` round at its corners. */
@@ -3216,12 +3216,16 @@ const GEAR_PLATES: Record<GearStyle, (g: CanvasRenderingContext2D, s: DeckSpec, 
   piano: pianoPlate,
 };
 
-/** Paints the plate of `style` on `g`, whose units are plane px: a gear from its pictures `art` (in code where one is missing). */
-export function paintDeck(style: GearStyle, g: CanvasRenderingContext2D, spec: DeckSpec, art: GearArt = {}): void {
+/**
+ * Paints the plate of `style` on `g`, whose units are plane px: a gear from its pictures `art` (in code where one is
+ * missing). `panelMarks` false: its panel is a picture of the player's own (customPacks.ts), whose parts are not where
+ * the gear's own panel has the ones its lights light (PANEL_MARKS): those stay dark.
+ */
+export function paintDeck(style: GearStyle, g: CanvasRenderingContext2D, spec: DeckSpec, art: GearArt = {}, panelMarks = true): void {
   if (art.deck && deckFromPicture(style, spec, art)) deckPicture(g, spec, art.deck);
   else {
     GEAR_PLATES[style](g, spec, art);
-    if (art.panel) panelPainting(style, g, spec, art.panel);
+    if (art.panel) panelPainting(style, g, spec, art.panel, panelMarks);
     wallShade(g, spec, GEAR_FRAMES[style](art).height);
   }
 }

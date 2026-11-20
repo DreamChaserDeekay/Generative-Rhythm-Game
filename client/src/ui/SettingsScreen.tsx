@@ -7,7 +7,7 @@ import type { KeyModeId } from '../engine/types';
 import { GamepadPoller, isPadCode, MENU_BUTTONS, MENU_PAD_CODE, padCodeLabel, suspendMenuBridges, type MenuButton, type PadEvent } from '../input/gamepad';
 import { DEFAULT_PAD_PLAY, PAD_PLAY_BUTTONS, RETRY_HOLD_MS, type PadPlayButton } from '../input/padPlay';
 import { bindingOf, laneTakes, modifierOf, PLAY_ACTION_LABELS, PLAY_ACTIONS, sharedPlayKeys, type PlayAction } from '../input/playKeys';
-import type { SkinParts } from '../render/skins';
+import type { CustomPart, SkinParts } from '../render/skins';
 import {
   activeCovers,
   bindingLabel,
@@ -46,6 +46,7 @@ import {
 import type { CalibrationStep } from './CalibrationScreen';
 import { desktopShell, heldEscLeaves } from './displayMode';
 import { GRAPHICS_MODE_NAMES, graphicsModeHelp, graphicsShell, parseGraphicsModeInfo, type GraphicsMode, type GraphicsModeInfo } from './graphicsMode';
+import { CustomAssetRows, packChoices, partValue, usePacks, withPartValue } from './CustomAssets';
 import { GearPreview } from './GearPreview';
 import { KeyGhostTest } from './KeyGhostTest';
 import { NoteColorsPanel } from './NoteColorsPanel';
@@ -225,6 +226,9 @@ export function SettingsScreen({
   const set = <K extends keyof Settings>(key: K, value: Settings[K]) => onSettingsChange({ ...settings, [key]: value });
   const setPart = <K extends keyof SkinParts>(key: K, value: SkinParts[K]) => onSettingsChange({ ...settings, parts: { ...settings.parts, [key]: value } });
   const [tab, setTab] = useState<SettingsTab>(initialTab);
+  // the player's own asset packs (CustomAssets.tsx)
+  const { packs, version: packsVersion, reload: reloadPacks } = usePacks();
+  const setPartValue = (part: CustomPart, value: string) => onSettingsChange({ ...settings, parts: withPartValue(settings.parts, part, value) });
   /** The help of the row under the cursor, and how that row shows its default while its value is another. */
   const [help, setHelp] = useState('');
   const [helpDefault, setHelpDefault] = useState<string | null>(null);
@@ -563,11 +567,11 @@ export function SettingsScreen({
             {...row}
             label="기어"
             testId="opt-deck-style"
-            value={settings.parts.deck}
+            value={partValue(settings.parts, 'deck')}
             defaultValue={d.parts.deck}
-            options={PART_CHOICES.deck}
-            onChange={(v) => setPart('deck', v)}
-            help="트랙을 담는 기어입니다. 판정선 아래 받침, 트랙 양옆 테두리, 게이지·점수판의 모양과 숫자 글꼴이 함께 바뀝니다."
+            options={packChoices(PART_CHOICES.deck, 'deck', packs, settings.parts.custom?.deck)}
+            onChange={(v) => setPartValue('deck', v)}
+            help="트랙을 담는 기어입니다. 판정선 아래 받침, 트랙 양옆 테두리, 게이지·점수판의 모양과 숫자 글꼴이 함께 바뀝니다. 내 에셋은 기본 기어에 내 받침 그림을 깝니다."
           />
           <Choice
             {...row}
@@ -583,10 +587,10 @@ export function SettingsScreen({
             {...row}
             label="타격 효과"
             testId="opt-hit-style"
-            value={settings.parts.hit}
+            value={partValue(settings.parts, 'hit')}
             defaultValue={d.parts.hit}
-            options={PART_CHOICES.hit}
-            onChange={(v) => setPart('hit', v)}
+            options={packChoices(PART_CHOICES.hit, 'hit', packs, settings.parts.custom?.hit)}
+            onChange={(v) => setPartValue('hit', v)}
             help="노트를 치거나 롱노트를 누르고 있을 때의 효과 모양입니다. 크기는 연출·배경 탭의 타격 효과 크기에서 정합니다."
           />
           <Choice
@@ -662,6 +666,7 @@ export function SettingsScreen({
             onChange={(v) => set('barLines', v)}
             help="마디마다 트랙을 가로지르는 선을 긋습니다."
           />
+          <CustomAssetRows row={row} parts={['deck', 'hit']} packs={packs} reload={reloadPacks} />
         </>
       );
       break;
@@ -672,11 +677,11 @@ export function SettingsScreen({
             {...row}
             label="노트"
             testId="opt-note-style"
-            value={settings.parts.note}
+            value={partValue(settings.parts, 'note')}
             defaultValue={d.parts.note}
-            options={PART_CHOICES.note}
-            onChange={(v) => setPart('note', v)}
-            help="노트 모양입니다. 롱노트도 고른 노트에 맞는 모양으로 함께 바뀝니다."
+            options={packChoices(PART_CHOICES.note, 'note', packs, settings.parts.custom?.note)}
+            onChange={(v) => setPartValue('note', v)}
+            help="노트 모양입니다. 롱노트도 고른 노트에 맞는 모양으로 함께 바뀝니다. 내 에셋의 노트는 레인 색으로 칠해집니다."
           />
           <Choice
             {...row}
@@ -693,6 +698,7 @@ export function SettingsScreen({
             help="4K+FX·6K+FX 사이드 노트의 모양입니다. 사이드 노트는 건반 레인의 왼쪽·오른쪽 절반을 덮습니다."
           />
           <NoteColorsPanel settings={settings} onSettingsChange={onSettingsChange} onHelp={row.onHelp} mode={colorMode} onMode={setColorMode} onDraft={setColorDraft} />
+          <CustomAssetRows row={row} parts={['note']} packs={packs} reload={reloadPacks} />
         </>
       );
       break;
@@ -895,7 +901,7 @@ export function SettingsScreen({
               <b data-testid="green-number">{Math.round(greenNumber(settings.hiSpeed, activeCovers(settings)))}ms</b>
             </span>
           </div>
-          <GearPreview settings={settings} keyMode={previewMode} laneColors={tab === 'notes' ? colorDraft ?? undefined : undefined} visibleTime={false} />
+          <GearPreview artVersion={packsVersion} settings={settings} keyMode={previewMode} laneColors={tab === 'notes' ? colorDraft ?? undefined : undefined} visibleTime={false} />
         </aside>
       </div>
       <HintBar

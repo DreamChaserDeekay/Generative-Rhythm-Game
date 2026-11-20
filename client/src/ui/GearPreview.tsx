@@ -50,11 +50,14 @@ export function GearPreview({
   keyMode,
   laneColors,
   visibleTime = true,
+  artVersion = 0,
 }: {
   settings: PreviewSettings;
   keyMode: KeyModeId;
   laneColors?: readonly number[];
   visibleTime?: boolean;
+  /** Bumped when the player's asset packs were read again: the gear is built again with what was read. */
+  artVersion?: number;
 }) {
   const box = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
@@ -107,7 +110,7 @@ export function GearPreview({
       if (renderer.current === made) renderer.current = null;
       made?.dispose();
     };
-  }, [keyMode, parts, laneWidthScale, reducedFlash, barLines, hitEffectSize, sideNotes]);
+  }, [keyMode, parts, laneWidthScale, reducedFlash, barLines, hitEffectSize, sideNotes, artVersion]);
 
   useEffect(() => renderer.current?.setLaneColors(shownColours.current), [built, colourKey]);
 

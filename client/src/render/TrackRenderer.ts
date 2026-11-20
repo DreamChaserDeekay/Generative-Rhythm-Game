@@ -773,6 +773,8 @@ export class TrackRenderer {
   readonly geometry: TrackGeometry;
   /** The parts drawn from art (render/styleArt.ts), e.g. "notes long side gear hit"; empty when all are drawn in code. */
   readonly artParts: string;
+  /** The parts drawn from the player's own packs (SkinArt.packed), for the canvas's data-custom. */
+  readonly packedParts: string;
   /** Not for good: after a loss of the graphics the track goes on on a renderer of a new canvas (recover). */
   private renderer: THREE.WebGLRenderer;
   /** The canvas the page gave: its place in the page, its data- attributes and classes. The track is drawn on it until its context is lost. */
@@ -1057,6 +1059,7 @@ export class TrackRenderer {
     const hit = this.hit;
     // a hit drawn from art draws its code stand-in while its flipbooks are missing
     this.flipbook = isArtHit(hit) && Boolean(this.art.hitBurst);
+    this.packedParts = (options.art?.packed ?? []).join(' ');
     this.artParts = [...artPartsOf(this.style, this.images), ...(this.flipbook ? ['hit'] : [])].join(' ');
     this.hitSheet = hit === 'none' || this.flipbook ? null : effectSheet(hit);
     if (this.hitSheet) this.own(this.hitSheet.texture);

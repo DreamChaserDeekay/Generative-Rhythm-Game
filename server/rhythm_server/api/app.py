@@ -44,6 +44,7 @@ from .jobs import AnalysisQueue
 from .library import BGA_EXTENSIONS, Library, SongNotFound
 from ..mapper import Mapper, MapperError
 from ..mapper.fit import TierAbsent
+from ..skins import Packs
 from ..mapper.charts import MAPPER_VERSION, settings_tag, song_bpm
 from ..mapper.steady import STEADY_VERSION, hold_ticks, retimed_chart, same_timing, settled_timing
 from ..mapper.runtime import public_settings, save_settings
@@ -172,6 +173,8 @@ def create_app(
     an earlier one left behind on its port); None: no such route. `mapper`: Mapperatorinator, the
     chart generator (docs/MAPPERATORINATOR.md); charts are made once its runtime is set up."""
     library = Library(root or data_dir())
+    # the player's own asset packs (skins.py, docs/CUSTOM_ASSETS.md)
+    packs = Packs(root or data_dir())
     mapper = mapper or Mapper()
     # Mapperatorinator's charts, one at a time (one GPU): the one opened first, then the other
     # tiers of its key mode in the background
@@ -921,6 +924,30 @@ def create_app(
     def song_scores(song_id: str) -> dict[str, Any]:
         song_or_404(song_id)
         return {"records": library.best_scores(song_id)}
+
+    # ---------- the player's asset packs (docs/CUSTOM_ASSETS.md) ----------
+
+    @app.get("/api/skins")
+    def list_skins() -> dict[str, Any]:
+        """Every pack of the data folder's skins/ and its parts: built (once) or why not."""
+        return {"folder": str(packs.root), "packs": packs.list()}
+
+    @app.get("/api/skins/templates/{kind}.png")
+    def skin_template(kind: str) -> Response:
+        from ..skins import template
+
+        if kind not in ("panel", "note"):
+            raise HTTPException(404, "밑그림이 없습니다")
+        name = f"layout-{kind}.png"
+        return Response(content=template(kind), media_type="image/png", headers={"Content-Disposition": f'attachment; filename="{name}"', "Cache-Control": "no-store"})
+
+    @app.get("/api/skins/{pack}/files/{name}")
+    def skin_file(pack: str, name: str) -> FileResponse:
+        path = packs.file(pack, name)
+        if path is None:
+            raise HTTPException(404, "에셋을 찾을 수 없습니다")
+        media = "image/png" if name.endswith(".png") else "image/webp"
+        return FileResponse(path, media_type=media, headers={"Cache-Control": "no-cache"})
 
     if client_dist is not None and (Path(client_dist) / "index.html").exists():
         app.mount("/", StaticFiles(directory=str(client_dist), html=True), name="client")

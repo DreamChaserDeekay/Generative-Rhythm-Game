@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { Skin } from './skins';
+import { loadPacks, packOverrides, type PackList } from './customPacks';
 import { styleImageIds, styleTextures, type ArtImage, type HitSlot, type StyleImages } from './styleArt';
 
 /** A flipbook sheet: `frames` cells of a cols × rows grid, read row by row from the top left. */
@@ -65,6 +66,8 @@ export interface SkinArt {
   /** By manifest id (render/styleArt.ts). */
   images: StyleImages;
   effects: MediaEffects;
+  /** The parts drawn from the player's own packs (customPacks.ts): "note", "deck", "hit". */
+  packed?: string[];
 }
 
 const DEFAULT_EFFECTS: MediaEffects = { reducedFlashOpacity: 0.45, reducedFlashScale: 0.8 };
@@ -170,6 +173,8 @@ export interface ArtSources {
   texture(url: string): Promise<THREE.Texture>;
   /** A picture decoded for drawing on a canvas (without it, none is loaded). */
   image?(url: string): Promise<ArtImage>;
+  /** The player's own packs (customPacks.ts); without it, none. */
+  packs?(): Promise<PackList>;
 }
 
 /**
@@ -195,6 +200,7 @@ const BROWSER: ArtSources = {
   manifest: loadManifest,
   texture: (url) => new THREE.TextureLoader().loadAsync(url),
   image: decodeImage,
+  packs: loadPacks,
 };
 
 /**
@@ -210,15 +216,24 @@ export async function loadSkinArt(skin: Skin, sources: ArtSources = BROWSER): Pr
   if (wanted.length === 0 && pictures.length === 0) return null;
   const media = await sources.manifest().catch(() => null);
   if (!media) return null;
+  // the pictures of the player's own packs picked, in place of the game's own they stand in for (customPacks.ts)
+  const packs = style.custom && sources.packs ? await sources.packs().catch(() => null) : null;
+  const own = packs ? packOverrides(style, packs) : {};
+  const source = (id: string): { url: string; spec: MediaTexture } | undefined => {
+    if (Object.hasOwn(own, id)) return own[id];
+    const spec = media.textures[id];
+    return spec && { url: mediaUrl(spec.file), spec };
+  };
   const slots: SkinArt['slots'] = {};
   const images: Record<string, ArtImage> = {};
   const fits = (image: { width?: number; height?: number }, size: [number, number]) => image.width === size[0] && image.height === size[1];
   await Promise.all([
     ...wanted.map(async ([slot, id]) => {
-      const spec = media.textures[id];
-      if (!spec) return;
+      const found = source(id);
+      if (!found) return;
+      const { spec } = found;
       try {
-        const texture = await sources.texture(mediaUrl(spec.file));
+        const texture = await sources.texture(found.url);
         if (!fits(texture.image as { width?: number; height?: number }, spec.size)) {
           texture.dispose();
           return;
@@ -230,18 +245,25 @@ export async function loadSkinArt(skin: Skin, sources: ArtSources = BROWSER): Pr
       }
     }),
     ...pictures.map(async (id) => {
-      const spec = media.textures[id];
-      if (!spec || !sources.image) return;
+      const found = source(id);
+      if (!found || !sources.image) return;
       try {
-        const image = await sources.image(mediaUrl(spec.file));
-        if (fits(image, spec.size)) images[id] = image;
+        const image = await sources.image(found.url);
+        if (fits(image, found.spec.size)) images[id] = image;
         else closeImage(image);
       } catch {
         // as a texture's: drawn in code
       }
     }),
   ]);
-  return Object.keys(slots).length > 0 || Object.keys(images).length > 0 ? { slots, images, effects: media.effects } : null;
+  // which parts the packs' pictures that loaded draw
+  const fromPack = (id: string) => Object.hasOwn(own, id) && images[id] !== undefined;
+  const packed = [
+    ...(fromPack('notes/flat') ? ['note'] : []),
+    ...(fromPack('standard/panel') ? ['deck'] : []),
+    ...(Object.hasOwn(own, 'basic/hitBurst') && slots.hitBurst ? ['hit'] : []),
+  ];
+  return Object.keys(slots).length > 0 || Object.keys(images).length > 0 ? { slots, images, effects: media.effects, ...(packed.length ? { packed } : {}) } : null;
 }
 
 function closeImage(image: ArtImage): void {
