@@ -8089,3 +8089,40 @@ button.key-cap.clash:hover:not(:disabled) {
 .editor-help kbd {
   margin-left: 0;
 }
+
+/* the player's own asset packs (설정 → 기어 · 노트 → 내 에셋): each pack, and what of it can be used and why not */
+.pack-list {
+  list-style: none;
+  margin: var(--sp-2) 0 0;
+  padding: 0 0.875rem;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+
+.pack-line + .pack-line {
+  margin-top: var(--sp-2);
+}
+
+.pack-line > b {
+  color: var(--text);
+}
+
+.pack-line ul {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 0.75rem;
+}
+
+.pack-line li[data-status='ok'] .pack-part {
+  color: #7cf7a8;
+}
+
+.pack-line li[data-status='error'] .pack-part,
+.pack-problem {
+  color: #ff8fa3;
+}
+
+.pack-warning {
+  color: #ffd27a;
+}

@@ -15,6 +15,8 @@ dependencies = [
   "scipy>=1.12",
   "soundfile>=0.12",
   "av>=12",
+  # the player's asset packs (skins.py)
+  "pillow>=10",
 ]
 
 [project.optional-dependencies]

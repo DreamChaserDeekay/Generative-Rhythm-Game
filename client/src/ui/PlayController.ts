@@ -341,6 +341,8 @@ export class PlayController {
     setup.canvas.dataset.style = [style.note, LONG_OF[style.note], style.side, style.deck, style.hit].join(' ');
     // and which of them are drawn from art (data-art; not shown)
     setup.canvas.dataset.art = this.renderer.artParts;
+    // and which of them from the player's own packs (data-custom)
+    setup.canvas.dataset.custom = this.renderer.packedParts;
     // and in which colours, lane by lane (data-lane-colors; not shown)
     setup.canvas.dataset.laneColors = laneColors.map(hexString).join(' ');
     this.cameraFx = new CameraFx(this.chart.effects ?? [], this.chart.timing, settings.cameraFx * (settings.reducedFlash ? 0.5 : 1));

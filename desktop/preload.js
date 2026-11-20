@@ -53,6 +53,8 @@ contextBridge.exposeInMainWorld('grgDesktop', {
   graphicsMode: () => ipcRenderer.invoke('grg:graphics-mode'),
   /** Keeps `mode` for the next start; resolves with the same as graphicsMode. */
   setGraphicsMode: (mode) => ipcRenderer.invoke('grg:set-graphics-mode', String(mode)),
+  /** Opens the asset packs' folder (the data folder's skins/) in the file manager; resolves with whether it opened. */
+  openSkinsFolder: () => ipcRenderer.invoke('grg:open-skins-folder'),
   /** Closes the app and opens it again. */
   restart: () => ipcRenderer.invoke('grg:restart'),
   /**

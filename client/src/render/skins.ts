@@ -83,7 +83,24 @@ export interface SkinParts {
   /** The gear under the judge line and down the track's edges (render/deckArt.ts). */
   deck: GearStyle;
   hit: HitStyle;
+  /**
+   * The player's own asset packs picked for a part (설정's "내 에셋: <팩>", docs/CUSTOM_ASSETS.md), by the pack's folder
+   * name: its pictures stand in for the default note's (and its long note's), the default gear's panel or the default
+   * flash's flipbooks (render/customPacks.ts). Left out where none is picked.
+   */
+  custom?: CustomParts;
 }
+
+/** The parts a player's own pack may stand in for. */
+export type CustomPart = 'note' | 'deck' | 'hit';
+export const CUSTOM_PARTS: readonly CustomPart[] = ['note', 'deck', 'hit'];
+export type CustomParts = Partial<Record<CustomPart, string>>;
+
+/** The part of the game a pack's pictures go on: the default note (its long note the plain one), the default gear, the flash. */
+export const CUSTOM_BASE = { note: 'flat', deck: 'standard', hit: 'flash' } as const satisfies { note: NoteStyle; deck: GearStyle; hit: HitStyle };
+
+/** A pack's name as kept: a folder's name, not empty, not hidden, no path in it. */
+export const isPackName = (v: unknown): v is string => typeof v === 'string' && v.length > 0 && v.length <= 128 && !v.startsWith('.') && !/[\\/\u0000-\u001f]/.test(v);
 
 /** How the track is drawn: the parts picked (sizes in px are px of the approved sheets' track, 73.65 px to a track unit at the judge line). */
 export type SkinStyle = SkinParts;
@@ -139,17 +156,38 @@ const pick = <T,>(v: unknown, allowed: readonly T[], fallback: T): T => (allowed
  */
 export function sanitizeParts(raw: unknown): SkinParts {
   const r = (typeof raw === 'object' && raw !== null ? raw : {}) as Record<string, unknown>;
-  return {
+  const parts: SkinParts = {
     note: pick(r.note, NOTE_STYLES, DEFAULT_PARTS.note),
     side: pick(r.side, SIDE_STYLES, DEFAULT_PARTS.side),
     deck: pick(r.deck, GEAR_STYLES, DEFAULT_PARTS.deck),
     hit: pick(r.hit, HIT_STYLES, DEFAULT_PARTS.hit),
   };
+  const custom = customOf(r.custom);
+  if (custom) parts.custom = custom;
+  return parts;
 }
 
-/** The track with the parts the player picked. */
+/** The packs picked, by part: what is not a pack's name is left out; undefined where none is left. */
+function customOf(raw: unknown): CustomParts | undefined {
+  if (typeof raw !== 'object' || raw === null) return undefined;
+  const r = raw as Record<string, unknown>;
+  const out: CustomParts = {};
+  for (const part of CUSTOM_PARTS) if (isPackName(r[part])) out[part] = r[part] as string;
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
+/**
+ * The track with the parts the player picked. A part a pack is picked for is drawn as the part its pictures stand in
+ * for (CUSTOM_BASE), from them where they load, so the part picked before it is what shows again when it is put back.
+ */
 export function withParts(skin: Skin, parts: SkinParts): Skin {
-  return { ...skin, style: { note: parts.note, side: parts.side, deck: parts.deck, hit: parts.hit } };
+  const style: SkinStyle = { note: parts.note, side: parts.side, deck: parts.deck, hit: parts.hit };
+  const custom = customOf(parts.custom);
+  if (custom) {
+    style.custom = custom;
+    for (const part of CUSTOM_PARTS) if (custom[part]) Object.assign(style, { [part]: CUSTOM_BASE[part] });
+  }
+  return { ...skin, style };
 }
 
 export function hex(color: string): number {

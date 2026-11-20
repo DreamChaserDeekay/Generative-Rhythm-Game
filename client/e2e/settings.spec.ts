@@ -73,7 +73,7 @@ test('a row’s help says what the row is, not what each of its values is, and n
   await expect(page.locator('.settings-rows .opt-name').first()).toHaveText('기어');
   await expect(page.getByTestId('opt-skin-set')).toHaveCount(0);
   // the gear's help is the same two sentences whichever gear is picked (it went through every gear before)
-  const GEAR = '트랙을 담는 기어입니다. 판정선 아래 받침, 트랙 양옆 테두리, 게이지·점수판의 모양과 숫자 글꼴이 함께 바뀝니다.';
+  const GEAR = '트랙을 담는 기어입니다. 판정선 아래 받침, 트랙 양옆 테두리, 게이지·점수판의 모양과 숫자 글꼴이 함께 바뀝니다. 내 에셋은 기본 기어에 내 받침 그림을 깝니다.';
   await gear.focus();
   await expect(help.locator('p')).toHaveText(GEAR);
   await expect(help.locator('.help-picked')).toHaveCount(0);
@@ -100,7 +100,7 @@ test('a row’s help says what the row is, not what each of its values is, and n
   await expect(help.locator('p')).toHaveText('노트를 치거나 롱노트를 누르고 있을 때의 효과 모양입니다. 크기는 연출·배경 탭의 타격 효과 크기에서 정합니다.');
   await settingsTab(page, 'notes');
   await page.getByTestId('opt-note-style').focus();
-  await expect(help.locator('p')).toHaveText('노트 모양입니다. 롱노트도 고른 노트에 맞는 모양으로 함께 바뀝니다.');
+  await expect(help.locator('p')).toHaveText('노트 모양입니다. 롱노트도 고른 노트에 맞는 모양으로 함께 바뀝니다. 내 에셋의 노트는 레인 색으로 칠해집니다.');
   await page.getByTestId('opt-side-style').focus();
   await expect(help.locator('p')).toHaveText('4K+FX·6K+FX 사이드 노트의 모양입니다. 사이드 노트는 건반 레인의 왼쪽·오른쪽 절반을 덮습니다.');
   // (the row of the note colours is named for what it picks: it was 프리셋)
