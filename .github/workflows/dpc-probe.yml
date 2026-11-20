@@ -1,7 +1,7 @@
 name: DPC probe
 
 # Mapperatorinator (v32, on the runner's CPU) on CC BY songs (design-mockups/_src/music/manifest.json)
-# in the key modes of the DPC2026 review sheet (4K, 5K, 6K, 8K) at HARD, EXPERT and MASTER, the way
+# in the key modes of the DPC2026 review sheet (4K, 5K, 6K, 8K) at NORMAL, EXPERT and ELITE (HARD, EXPERT and MASTER of the tiers before 2026-11-19), the way
 # the server makes a song's charts: the first finds the timing, the others are given it. Keeps the
 # raw .osu files, to measure them against the sheet's rules (docs/MAPPERATORINATOR.md, "DPC2026
 # 평가지와 견주기"). The songs and the .osu files stay in the run's artifacts; nothing is committed.
@@ -36,7 +36,7 @@ jobs:
       GRG_MAPPER_MODEL: v32
       SONG: ${{ matrix.song }}
       MODE: ${{ matrix.mode }}
-      TIERS: HARD EXPERT MASTER
+      TIERS: NORMAL EXPERT ELITE
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
@@ -99,7 +99,7 @@ jobs:
                   wav = Path(tmp) / "song.wav"
                   sf.write(wav, pcm, 44100, subtype="PCM_16")
                   for tier in os.environ["TIERS"].split():
-                      level = charts.target_level(mode, tier, None)
+                      level = charts.aim_of(mode, tier, None)
                       seed = default_seed(audio_hash, mode, tier, None)
                       made = Path(tmp) / tier
                       made.mkdir()
@@ -116,7 +116,7 @@ jobs:
                           if timing is None:
                               timing = parse_osu(text).timing
                           report["runs"][tier] = {
-                              "ok": True, "level": level, "stars": charts.stars_of(level, cfg), "seed": seed, "seconds": round(time.time() - t, 1),
+                              "ok": True, "level": level, "stars": charts.stars_of(level, cfg, mode), "seed": seed, "seconds": round(time.time() - t, 1),
                               "worker": answer.get("seconds"), "timing": "song" if beatmap else "model", "endTime": request["endTime"],
                               "notes": len(charts.notes_from_osu(text, charts.columns(mode))), "device": answer.get("device"),
                               "precision": answer.get("precision"),

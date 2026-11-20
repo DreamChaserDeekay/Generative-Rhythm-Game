@@ -43,6 +43,7 @@ from .imports import import_package
 from .jobs import AnalysisQueue
 from .library import BGA_EXTENSIONS, Library, SongNotFound
 from ..mapper import Mapper, MapperError
+from ..mapper.fit import TierAbsent
 from ..mapper.charts import MAPPER_VERSION, settings_tag, song_bpm
 from ..mapper.steady import STEADY_VERSION, hold_ticks, retimed_chart, same_timing, settled_timing
 from ..mapper.runtime import public_settings, save_settings
@@ -629,14 +630,17 @@ def create_app(
         """Queues a Mapperatorinator chart (None for the job when it is saved already): its id and
         job. A made chart is saved by its job, whoever waits for it."""
         _, seed, chart_id = mapper.plan(analysis, key_mode, tier, target, seed)
-        if library.chart_path(chart_id).exists():
+        if library.chart_path(chart_id).exists() or library.load_absent(chart_id) is not None:
             return chart_id, None
         sid, model = song["id"], str(mapper.config().get("model", "v32"))
         # the song's timing is asked for when the chart's turn comes: its first chart has found it by then
-        args = (analysis, key_mode, tier, target, seed, chart_meta(song), library.audio_path(sid), lambda: library.mapper_timing_record(sid, model))
+        # and where the song's charts of the key mode made before landed (mapper/fit.py first_stars)
+        fit_key = mapper.fit_key(key_mode)
+        args = (analysis, key_mode, tier, target, seed, chart_meta(song), library.audio_path(sid), lambda: library.mapper_timing_record(sid, model),
+                lambda: library.mapper_fit_tries(sid, fit_key))
         job, new = mapper_queue.submit(chart_id, priority, args)
         if new:
-            def done(j: Any, label: str = f"{song['title']} {key_mode} {tier}") -> None:
+            def done(j: Any, label: str = f"{song['title']} {key_mode} {tier}", j_cid: str = chart_id) -> None:
                 if j.cancelled():
                     return
                 e = j.exception()
@@ -644,6 +648,8 @@ def create_app(
                     chart = j.result()
                     library.save_chart(chart, sid)
                     generator = chart["meta"]["generator"]
+                    tries = (generator.get("fit") or {}).get("tries") or [{"stars": generator.get("stars"), "rating": chart["meta"].get("rating")}]
+                    library.add_mapper_fit_tries(sid, fit_key, [[t["stars"], t["rating"]] for t in tries if t.get("stars") and t.get("rating")])
                     model_timing = mapper.model_timings.pop(chart["meta"]["chartId"], None)
                     if generator.get("timing") == "model" or generator.get("timingFixed") or generator.get("timingSteady"):
                         # the song's first chart: its timing is the song's from now on (the other
@@ -652,12 +658,24 @@ def create_app(
                         steady = STEADY_VERSION if mapper.config().get("timingSteady", True) else None
                         library.save_mapper_timing(sid, model, chart["timing"], steady, model_timing)
                         library.update_song(sid, **song_bpm_fields(chart["timing"], chart["meta"]["durationMs"]))
+                elif isinstance(e, TierAbsent):
+                    # the song is too calm for the tier: kept, so it is not made again (the tier is absent)
+                    library.save_absent(j_cid, e.detail)
+                    library.add_mapper_fit_tries(sid, fit_key, [[t["stars"], t["rating"]] for t in e.detail.get("tries", [])])
+                    log.info("%s: %s", label, e)
                 else:
                     log.warning("Mapperatorinator could not make %s: %s", label, e)
                     mapper.last_error = {"chart": label, "error": str(e), "at": time.time()}
 
             job.add_done_callback(done)
         return chart_id, job
+
+    def absent_message(detail: dict[str, Any]) -> str:
+        lo, hi = (detail.get("window") or [None, None])[:2]
+        top = max((int(t.get("level", 0)) for t in detail.get("tries") or []), default=None)
+        span = f"(레벨 {lo}–{hi})" if lo is not None else ""
+        reach = f" 가장 높게 만든 채보가 레벨 {top}입니다." if top is not None else ""
+        return f"곡이 조용해 {detail.get('difficulty', '')}{span} 채보가 없습니다.{reach}"
 
     def mapper_unavailable() -> str:
         """Why Mapperatorinator cannot make a chart now (there is no other generator)."""
@@ -689,6 +707,10 @@ def create_app(
         cached = library.load_chart(chart_id)
         if cached is not None:
             return {"meta": cached["meta"], "cached": True} if req.brief else {"chart": cached, "cached": True}
+        absent = library.load_absent(chart_id)
+        if absent is not None:
+            # the song is too calm for the tier: none of the tries came into its range (mapper/fit.py)
+            raise HTTPException(404, absent_message(absent))
         if req.brief:
             meta = mapper.predicted(analysis, req.keyMode, req.difficulty, req.targetLevel, seed, chart_meta(song))
             state = mapper_queue.state(chart_id)
@@ -705,11 +727,15 @@ def create_app(
                     pass  # a tier this key mode does not have
         if job is None:  # saved meanwhile
             chart = library.load_chart(chart_id)
+            if chart is None and library.load_absent(chart_id) is not None:
+                raise HTTPException(404, absent_message(library.load_absent(chart_id) or {}))
             if chart is None:
                 raise HTTPException(502, "만든 채보를 읽지 못했습니다. 다시 시도해 주세요.")
             return {"chart": chart, "cached": True}
         try:
             chart = await asyncio.wrap_future(job)
+        except TierAbsent as e:
+            raise HTTPException(404, absent_message(e.detail)) from e
         except MapperError as e:
             raise HTTPException(502, f"AI 채보를 만들지 못했습니다: {e} — 다시 시도해 주세요.") from e
         except asyncio.CancelledError:
@@ -741,7 +767,9 @@ def create_app(
     def saved_charts(song_id: str) -> dict[str, Any]:
         song_or_404(song_id)
         # retired: its saved charts of key modes the game no longer has, counted (not listed, not playable)
-        return {"charts": library.list_charts(song_id), "retired": library.retired_charts(song_id)}
+        # retiredRecords: how many of its generated charts of the tiers before 2026-11-19 were played
+        # (their plays are kept, not listed)
+        return {"charts": library.list_charts(song_id), "retired": library.retired_charts(song_id), "retiredRecords": library.retired_tier_records(song_id)}
 
     @app.post("/api/songs/{song_id}/charts/custom", status_code=201)
     def save_custom_chart(song_id: str, req: CustomChartRequest) -> dict[str, Any]:

@@ -55,6 +55,23 @@
     "streamGapBeats": 0.26
   },
   "starsForLevel": [[1, 1.0], [4, 1.8], [7, 2.6], [10, 3.4], [13, 4.3], [15, 5.0], [17, 5.7], [20, 7.0]],
+  "_starsForLevelByMode": "The star rating a rating is asked at, by the key count the model makes (4K+FX and 6K+FX as 4K and 6K): [rating, stars] points, joined by straight lines (12.5 is the middle of level 12; a tier aims at the middle of its range). Fitted to the level the app measures of the model's charts (the geometric mean over three songs at 0.8-7.5 stars, 135 charts on the runner; 5K between 4K and 6K) (docs/MAPPERATORINATOR.md, the section on the tiers' ranges of 2026-11-19); starsForLevel is for a key count not here.",
+  "starsForLevelByMode": {
+    "4K": [[1.0, 0.8], [3.5, 1.42], [8.5, 2.22], [13.0, 3.13], [17.0, 4.61], [20.0, 6.41], [21.0, 7.0]],
+    "5K": [[1.0, 0.8], [3.5, 1.52], [8.5, 2.38], [13.0, 3.15], [17.0, 4.56], [20.0, 6.55], [21.0, 7.25]],
+    "6K": [[1.0, 0.8], [3.5, 1.61], [8.5, 2.55], [13.0, 3.16], [17.0, 4.52], [20.0, 6.7], [21.0, 7.5]],
+    "8K": [[1.0, 0.8], [3.5, 1.65], [8.5, 2.51], [13.0, 3.46], [17.0, 4.43], [20.0, 6.09], [21.0, 8.39]]
+  },
+  "levelFit": {
+    "_comment": "A chart's level must be in its tier's range (server/rhythm_server/mapper/fit.py): one outside it is made again, at most `attempts` charts in all, at the stars a secant in log stars and log rating gives (slope until two tries give theirs, kept within minSlope..maxSlope; a step moves the stars by maxStep at most; stars within minStars..maxStars); the last still too high is thinned (the weakest notes out), all too low leave the song without the tier.",
+    "attempts": 4,
+    "slope": 0.9,
+    "minSlope": 0.3,
+    "maxSlope": 3.0,
+    "maxStep": 2.0,
+    "minStars": 0.5,
+    "maxStars": 10.0
+  },
   "runtime": {
     "python": "3.11",
     "uv": {

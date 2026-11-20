@@ -135,7 +135,7 @@ def main() -> None:
         for _, m in meta.iterrows():
             mode = f"{int(m['KeyCount'])}K"
             text = (a.folder / "data" / m["BeatmapSetFolder"] / m["BeatmapFile"]).read_text(encoding="utf-8-sig")
-            tier = min(TIERS, key=lambda t: abs(charts.stars_of(charts.target_level(mode, t, None), cfg) - float(m["DifficultyRating"])))
+            tier = min(TIERS, key=lambda t: abs(charts.stars_of(charts.aim_of(mode, t, None), cfg, mode) - float(m["DifficultyRating"])))
             lines = text.split("[HitObjects]")[1].strip().splitlines()
             seconds = max(float(line.split(",")[2]) for line in lines) / 1000.0
             if seconds > 1800 or len(lines) > 20000:

@@ -12,8 +12,9 @@ beat late in a song (a tempo of 2.9 BPM from 160 s on), so a tempo the song's on
 is taken out first (checked_timing), and a first chart made on such a beat is made again.
 
 Difficulty: a tier aims at the middle of its level range (or the level asked for), turned into an
-osu! star rating by mapper.json starsForLevel; the chart's level is then our own estimate of the
-notes it got, as for every chart.
+osu! star rating by mapper.json starsForLevel (by key count: starsForLevelByMode); the chart's level
+is then our own estimate of the notes it got, as for every chart, and it must be in the tier's
+range: a chart outside it is made again at other stars, or thinned (fit.py).
 """
 
 from __future__ import annotations
@@ -26,9 +27,9 @@ from pathlib import Path
 from typing import Any
 
 from ..analysis.stems import STEM_NAMES
-from ..config import key_modes
+from ..config import TIERS_SYSTEM, key_modes
 from ..difficulty.consistency import chart_consistency
-from ..difficulty.estimator import estimate
+from ..difficulty.estimator import effective_nps, estimate, lane_hands, level_for
 from ..difficulty.patterns import pattern_summary
 from ..formats.common import drop_conflicts, measures, normalize_notes, structural_problems
 from ..formats.osu import OSU_WIDTH, _pairs, _sections, parse_osu, timing_from_reds
@@ -38,10 +39,11 @@ from ..chart.keysounds import keysound_meta, mark_sound_ends
 from ..chart.lanes import lane_infos
 from ..chart.tempo import TempoMap
 from ..difficulty.tiers import resolve_tier
+from .fit import thinned
 from .fx import fx_notes
 
 # the request and conversion's form; part of every chart id (a new one makes charts anew)
-MAPPER_VERSION = "2"
+MAPPER_VERSION = "3"
 # a note within this of an analysed onset follows that onset's stem (keysounds)
 SRC_TOLERANCE_MS = 45.0
 # holds shorter than this are taps
@@ -72,14 +74,37 @@ def stars_for(level: float, table: list[list[float]]) -> float:
     return pts[-1][1]
 
 
-def stars_of(level: float, cfg: dict[str, Any]) -> float:
-    """The star rating asked for: the table's (starsForLevel) times the settings' starsScale."""
-    return round(stars_for(level, cfg["starsForLevel"]) * float(cfg.get("starsScale") or 1.0), 2)
+def stars_table(cfg: dict[str, Any], key_mode: str | None = None) -> list[list[float]]:
+    """The level -> star rating table of a key mode's charts: starsForLevelByMode of its key count
+    (4K+FX and 6K+FX are made as 4K and 6K), else starsForLevel."""
+    if key_mode is not None:
+        by_mode = cfg.get("starsForLevelByMode") or {}
+        table = by_mode.get(f"{len(columns(key_mode))}K")
+        if table:
+            return table
+    return cfg["starsForLevel"]
+
+
+def stars_of(level: float, cfg: dict[str, Any], key_mode: str | None = None) -> float:
+    """The star rating asked for a level (a rating: 12.5 is the middle of level 12): the key mode's
+    table (stars_table) times the settings' starsScale."""
+    return round(stars_for(level, stars_table(cfg, key_mode)) * float(cfg.get("starsScale") or 1.0), 2)
+
+
+def aim_of(key_mode: str, difficulty: str, target_level: int | None) -> float:
+    """The rating a chart aims at (fit.aim): the level asked for, else its tier's middle."""
+    from .fit import aim, window_for
+
+    resolve_tier(key_mode, difficulty, target_level)
+    return aim(window_for(difficulty, target_level), target_level)
 
 
 # the settings a chart depends on: a chart id holds them, and so does the generator tag the song
 # select keeps its briefs under (a change of them makes other charts)
-CHART_SETTINGS = ("model", "cameraFrom", "holdNoteRatio", "temperature", "starsForLevel", "starsScale", "hitsounds", "lookback", "lookahead", "parallel")
+CHART_SETTINGS = (
+    "model", "cameraFrom", "holdNoteRatio", "temperature", "starsForLevel", "starsForLevelByMode", "starsScale", "levelFit", "hitsounds",
+    "lookback", "lookahead", "parallel",
+)
 
 
 def settings_tag(cfg: dict[str, Any]) -> str:
@@ -118,8 +143,10 @@ def chart_id(analysis: dict[str, Any], key_mode: str, difficulty: str, level: in
         "mapper": f"{cfg.get('model', 'v32')}-{MAPPER_VERSION}",
         "holdNoteRatio": cfg.get("holdNoteRatio"),
         "temperature": cfg.get("temperature"),
-        "stars": cfg.get("starsForLevel"),
+        "stars": stars_table(cfg, key_mode),
         "starsScale": float(cfg.get("starsScale") or 1.0),
+        # how a chart is kept in its tier's range (fit.py)
+        "levelFit": {k: v for k, v in (cfg.get("levelFit") or {}).items() if not k.startswith("_")},
         "hitsounds": bool(cfg.get("hitsounds", True)),
         "lookback": float(cfg.get("lookback", 0.5)),
         "lookahead": float(cfg.get("lookahead", 0.4)),
@@ -441,15 +468,17 @@ def attach_sources(notes: list[dict[str, Any]], onsets: list[dict[str, Any]]) ->
 
 
 def predicted_meta(
-    analysis: dict[str, Any], key_mode: str, difficulty: str, level: int, seed: int, cid: str, cfg: dict[str, Any], meta: dict[str, Any]
+    analysis: dict[str, Any], key_mode: str, difficulty: str, level: int, seed: int, cid: str, cfg: dict[str, Any], meta: dict[str, Any],
+    asked: int | None = None,
 ) -> dict[str, Any]:
     """What the song select shows for a tier before its chart is made (it is made when opened):
-    the level it aims at."""
+    the level it aims at, in the tier's range (`asked`: the level asked for, None for the tier's
+    default chart)."""
     return {
         "chartId": cid, "audioHash": analysis.get("audioHash", ""), "songId": meta.get("songId"), "title": meta.get("title", "Untitled"),
         "artist": meta.get("artist", ""), "keyMode": key_mode, "lanes": [l["id"] for l in key_modes()[key_mode]["lanes"]],
         "difficulty": difficulty, "level": level, "noteCount": 0, "predicted": True,
-        "generator": {"name": "mapperatorinator", "model": cfg.get("model", "v32"), "seed": seed, "stars": stars_of(level, cfg)},
+        "generator": {"name": "mapperatorinator", "model": cfg.get("model", "v32"), "seed": seed, "stars": stars_of(aim_of(key_mode, difficulty, asked), cfg, key_mode)},
     }
 
 
@@ -458,6 +487,7 @@ def make_chart(
     osu_text: str, info: dict[str, Any], target_level: int | None = None, song_timing: dict[str, Any] | None = None,
     quiet: list[tuple[float, float]] | None = None, found_timing: dict[str, Any] | None = None,
     timing_fixed: list[dict[str, Any]] | None = None, timing_steady: dict[str, Any] | None = None, moves: Any = None,
+    stars: float | None = None, max_level: int | None = None, fit: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """One of our charts from the .osu Mapperatorinator made (`target_level`: the level asked for,
     None for a tier's default chart; `song_timing`: the timing it was given, None when it found
@@ -465,7 +495,9 @@ def make_chart(
     found, checked, when the .osu was made again on it; `timing_fixed`: the tempos checked_timing
     took out of the timing, which the song keeps from now on; `timing_steady`: what
     steady.steady_timing did to the timing; `moves`: where the times of the grid the .osu was made on
-    lie on that timing, for a first chart's notes)."""
+    lie on that timing, for a first chart's notes; `stars`: the star rating it was made at, when not
+    the level's (a try of fit.py); `max_level`: notes are taken out until its level is this at most
+    (fit.thinned); `fit`: what fit.py did, for the meta)."""
     params = resolve_tier(key_mode, difficulty, level)
     lanes = lane_infos(key_mode)
     timing = song_timing or found_timing or parse_osu(osu_text).timing
@@ -481,14 +513,31 @@ def make_chart(
         raise ValueError("Mapperatorinator가 만든 채보에 노트가 없습니다")
     attach_sources(notes, analysis.get("onsets", []))
     notes = normalize_notes(notes, tempo)
-    # 4K+FX, 6K+FX: some of the key notes go to the FX lanes (the model has none)
-    notes, fx = fx_notes(notes, key_mode, difficulty, analysis.get("onsets", []), hits, cfg)
+    hands = lane_hands(key_mode)
+
+    def placed(ns: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], dict[str, Any] | None]:
+        # 4K+FX, 6K+FX: some of the key notes go to the FX lanes (the model has none)
+        return fx_notes(ns, key_mode, difficulty, analysis.get("onsets", []), hits, cfg)
+
+    thinned_from = None
+    if max_level is not None:
+        # notes are taken out before the FX lanes get theirs (they keep the tier's share), measured
+        # as the chart will be: with its FX notes
+        def level_of(ns: list[dict[str, Any]]) -> int:
+            return level_for(effective_nps(placed(ns)[0], hands)[0], key_mode, params.level_table, params.level_factor)[0]
+
+        before = len(notes)
+        notes, removed = thinned(notes, level_of, max_level)
+        if removed:
+            thinned_from = {"notes": before, "removed": removed}
+    notes, fx = placed(notes)
     problems = structural_problems(notes, len(lanes))
     if problems:
         raise ValueError("채보 구조 오류: " + "; ".join(problems[:5]))
     mark_sound_ends(notes, analysis)
     last = max(n.get("endT", n["t"]) for n in notes)
-    est = estimate(notes, key_mode, len(lanes), max(duration, last + 1.0), params.min_jack_ms, params.level_table, params.level_factor)
+    span = max(duration, last + 1.0)
+    est = estimate(notes, key_mode, len(lanes), span, params.min_jack_ms, params.level_table, params.level_factor)
     sections = chart_sections(analysis, tempo)
     return {
         "formatVersion": 1,
@@ -501,6 +550,7 @@ def make_chart(
             "keyMode": key_mode,
             "lanes": [l["id"] for l in key_modes()[key_mode]["lanes"]],
             "difficulty": difficulty,
+            "difficultySystem": TIERS_SYSTEM,
             "level": est["level"],
             "rating": est["rating"],
             "durationMs": duration,
@@ -523,8 +573,12 @@ def make_chart(
                 # what the client asks for again for a new pattern of the same chart
                 "params": {"difficulty": difficulty, "targetLevel": target_level},
                 "targetLevel": level,
-                "stars": stars_of(level, cfg),
+                "stars": stars if stars is not None else stars_of(aim_of(key_mode, difficulty, target_level), cfg, key_mode),
                 "keycount": len(columns(key_mode)),
+                # how the chart was kept in its tier's range (fit.py): the tries (stars, level, rating)
+                # and the notes taken out of the last
+                **({"fit": fit} if fit else {}),
+                **({"thinned": thinned_from} if thinned_from else {}),
                 # the LoRA adapter merged into the model for the notes (lora.py): its tag (of the
                 # weights file) and rank; absent for the base model
                 **({"lora": {"tag": lora_of(key_mode, cfg)["tag"], "r": lora_of(key_mode, cfg).get("r")}} if info.get("lora") and lora_of(key_mode, cfg) else {}),
@@ -565,14 +619,16 @@ def make_chart(
 
 
 def request_for(
-    key_mode: str, level: int, seed: int, cfg: dict[str, Any], audio: Path, out: Path, beatmap: Path | None, meta: dict[str, Any],
-    end_ms: float | None = None,
+    key_mode: str, level: float, seed: int, cfg: dict[str, Any], audio: Path, out: Path, beatmap: Path | None, meta: dict[str, Any],
+    end_ms: float | None = None, stars: float | None = None,
 ) -> dict[str, Any]:
-    """`end_ms`: where the music ends when the song ends in a silence (the model stops there)."""
+    """`level`: the rating aimed at (its star rating: stars_of); `stars`: a star rating to ask for
+    instead (a try of fit.py); `end_ms`: where the music ends when the song ends in a silence (the
+    model stops there)."""
     return {
         "endTime": None if end_ms is None else int(round(end_ms + float((cfg.get("silence") or {}).get("endPadMs", 200.0)))),
         "audio": str(audio), "out": str(out), "beatmap": str(beatmap) if beatmap else None, "model": cfg.get("model", "v32"),
-        "keycount": len(columns(key_mode)), "difficulty": stars_of(level, cfg), "seed": int(seed),
+        "keycount": len(columns(key_mode)), "difficulty": stars if stars is not None else stars_of(level, cfg, key_mode), "seed": int(seed),
         "holdNoteRatio": cfg.get("holdNoteRatio"), "temperature": cfg.get("temperature"),
         "hitsounds": bool(cfg.get("hitsounds", True)), "lookback": float(cfg.get("lookback", 0.5)), "lookahead": float(cfg.get("lookahead", 0.4)),
         "parallel": bool(cfg.get("parallel", False)),

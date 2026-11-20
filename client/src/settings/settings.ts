@@ -5,7 +5,7 @@ import {
   gaugeTypeIds,
   judgementConfig,
   keyModes,
-  tierOf,
+  knownTier,
   type GaugeTypeId,
   type JudgementModeId,
 } from '../engine/config';
@@ -108,7 +108,7 @@ export interface Settings {
   /** Per song and key mode (chartPickKey): the edited or imported chart chosen last (none: a difficulty). */
   chartPicks: Record<string, string>;
   lastKeyMode: KeyModeId;
-  /** Difficulty tier (NORMAL … MASTER). */
+  /** Difficulty tier (EASY … ELITE; a MASTER kept from before is ELITE). */
   lastDifficulty: string;
   ruleset: RulesetId;
   gaugeType: GaugeTypeId;
@@ -335,7 +335,7 @@ export function sanitizeSettings(raw: Partial<Settings>): Settings {
   s.hiSpeed = num(s.hiSpeed, HI_SPEED_MIN, HI_SPEED_MAX, d.hiSpeed);
   s.cameraPreset = pick(s.cameraPreset, Object.keys(cameraConfig.presets), d.cameraPreset);
   s.lastKeyMode = pick(s.lastKeyMode, Object.keys(keyModes) as KeyModeId[], d.lastKeyMode);
-  s.lastDifficulty = tierOf(String(s.lastDifficulty)).id;
+  s.lastDifficulty = knownTier(s.lastDifficulty) ?? d.lastDifficulty;
   s.ruleset = pick(s.ruleset, rulesetIds, d.ruleset);
   s.gaugeType = pick(s.gaugeType, gaugeTypeIds, d.gaugeType);
   s.fever = pick(s.fever, ['AUTO', 'MANUAL', 'OFF'] as FeverMode[], d.fever);

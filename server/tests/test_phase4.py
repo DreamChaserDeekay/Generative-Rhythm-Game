@@ -63,7 +63,7 @@ def test_osu_export_round_trip(mode: str) -> None:
 
 def test_bms_and_bmson_export_round_trip() -> None:
     mode = "5K"
-    chart = on_grid(made_chart(analysis(), mode, "MASTER", 4))
+    chart = on_grid(made_chart(analysis(), mode, "ELITE", 4))
     text, ext = export_bms(chart, "song.ogg")
     assert ext == ".bms"
     bms = parse_bms(text.encode("utf-8"), "x" + ext)

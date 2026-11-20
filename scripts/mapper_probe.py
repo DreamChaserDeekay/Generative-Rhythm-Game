@@ -34,7 +34,7 @@ def main() -> None:
     ap.add_argument("--audio", type=Path, required=True)
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--mode", default="8K")
-    ap.add_argument("--tiers", nargs="+", default=["HARD", "EXPERT", "MASTER"])
+    ap.add_argument("--tiers", nargs="+", default=["NORMAL", "EXPERT", "ELITE"])
     ap.add_argument("--conditions", default="")
     ap.add_argument("--lora", help="an adapter's folder, or `auto`: the adapters the app finds (runtime folder lora/<N>K)")
     a = ap.parse_args()
@@ -72,7 +72,7 @@ def main() -> None:
             wav = Path(tmp) / "song.wav"
             sf.write(wav, pcm, 44100, subtype="PCM_16")
             for tier in a.tiers:
-                level = charts.target_level(mode, tier, None)
+                level = charts.aim_of(mode, tier, None)
                 seed = default_seed(audio_hash, mode, tier, None)
                 made = Path(tmp) / tier
                 made.mkdir()
@@ -89,7 +89,7 @@ def main() -> None:
                     if timing is None:
                         timing = parse_osu(text).timing
                     report["runs"][tier] = {
-                        "ok": True, "level": level, "stars": charts.stars_of(level, cfg), "seed": seed, "seconds": round(time.time() - t, 1),
+                        "ok": True, "level": level, "stars": charts.stars_of(level, cfg, mode), "seed": seed, "seconds": round(time.time() - t, 1),
                         "timing": "song" if beatmap else "model", "notes": len(charts.notes_from_osu(text, charts.columns(mode))),
                         "device": answer.get("device"), "precision": answer.get("precision"), "lora": answer.get("lora"),
                     }

@@ -33,7 +33,7 @@ def test_health(client: TestClient) -> None:
     r = client.get("/api/health")
     assert r.status_code == 200
     body = r.json()
-    assert body["ok"] and "4K" in body["keyModes"] and "MASTER" in body["difficulties"]
+    assert body["ok"] and "4K" in body["keyModes"] and "ELITE" in body["difficulties"] and body["difficulties"][0] == "EASY"
     assert "difficultySystems" not in body
 
 
@@ -456,3 +456,44 @@ def test_charts_and_records_of_a_key_mode_taken_out_stay_on_disk_and_are_not_lis
         assert c.post(f"/api/songs/{sid}/charts/custom", json={"baseChartId": gone_id, "name": "x", "notes": base["notes"]}).status_code == 410
         assert c.post(f"/api/songs/{sid}/charts", json={"keyMode": "7K+1S", "difficulty": "NORMAL"}).status_code == 400
         assert path.exists() and c.get(f"/api/charts/{kept_id}").status_code == 200
+
+
+def test_records_of_charts_made_on_the_tiers_before_are_kept_but_not_listed(tmp_path) -> None:
+    """The tiers became EASY 1-5 … ELITE 19-20 (2026-11-19): a generated chart made on the tiers before
+    (system GRG, NORMAL 1-4 … MASTER 17-20; HARD, EXPERT and ELITE are names of both) keeps its file and
+    plays, but they are no record (no lamp of it on a tier of the same name), and the song says how
+    many such charts were played. Edited and imported charts stay, under the tier of their level."""
+    import json
+    import sqlite3
+
+    from rhythm_server.config import saved_chart_tier
+    from rhythm_server.formats.bms import bms_difficulty
+
+    data = tmp_path / "data"
+    with TestClient(create_app(data, client_dist=None, synchronous_jobs=True)) as c:
+        sid = c.post("/api/songs/demo", json={"bpm": 140, "bars": 8, "seed": 3}).json()["song"]["id"]
+        ids = [c.post(f"/api/songs/{sid}/charts", json={"keyMode": "4K", "difficulty": t}).json()["chart"]["meta"]["chartId"] for t in ("HARD", "EXPERT")]
+        for cid in ids:
+            score = {"chartId": cid, "songId": sid, "score": 900000, "rate": 90.0, "maxCombo": 10, "lamp": "CLEAR", "judgementMode": "NORMAL", "breaks": 1}
+            assert c.post("/api/scores", json=score).status_code == 201
+        assert {r["chartId"] for r in c.get(f"/api/songs/{sid}/scores").json()["records"]} == set(ids)
+        assert c.get(f"/api/songs/{sid}/charts").json()["retiredRecords"] == 0
+    # the second one as made before: its file has no system, nor has the library's row
+    path = data / "charts" / f"{ids[1]}.json"
+    chart = json.loads(path.read_text(encoding="utf-8"))
+    del chart["meta"]["difficultySystem"]
+    path.write_text(json.dumps(chart), encoding="utf-8")
+    db = sqlite3.connect(data / "library.sqlite3")
+    db.execute("UPDATE charts SET system = NULL WHERE id = ?", (ids[1],))
+    db.commit()
+    db.close()
+    with TestClient(create_app(data, client_dist=None, synchronous_jobs=True)) as c:
+        assert [r["chartId"] for r in c.get(f"/api/songs/{sid}/scores").json()["records"]] == [ids[0]]
+        assert [r["chartId"] for r in {s["id"]: s for s in c.get("/api/songs").json()["songs"]}[sid]["records"]] == [ids[0]]
+        assert c.get(f"/api/songs/{sid}/charts").json()["retiredRecords"] == 1
+        assert path.exists() and c.get(f"/api/charts/{ids[1]}").status_code == 200  # kept, and opens
+    # edited and imported charts show under the tier of their level when theirs is gone or does not hold it
+    assert [saved_chart_tier(d, lv) for d, lv in (("MASTER", 18), ("ELITE", 14), ("HARD", 7), ("HARD", 12), ("NORMAL", None))] == [
+        "EXPERT", "HARD", "NORMAL", "HARD", "NORMAL"]
+    # BMS #DIFFICULTY by the tier of the level
+    assert [bms_difficulty({"difficulty": "MASTER", "level": lv}) for lv in (3, 8, 12, 16, 20)] == [1, 2, 3, 4, 5]

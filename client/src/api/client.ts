@@ -371,9 +371,10 @@ export const api = {
   },
   deleteCover: (id: string) => request<void>(`/api/songs/${id}/cover`, { method: 'DELETE' }),
   savedCharts: async (songId: string) => {
-    const { charts, retired } = await request<{ charts: SavedChart[]; retired?: RetiredCharts[] }>(`/api/songs/${songId}/charts`);
-    // only charts of the key modes there are (the server leaves the others out; one that did not is not shown either)
-    return { charts: charts.filter((c) => c.keyMode in keyModes), retired: retired ?? [] };
+    const { charts, retired, retiredRecords } = await request<{ charts: SavedChart[]; retired?: RetiredCharts[]; retiredRecords?: number }>(`/api/songs/${songId}/charts`);
+    // only charts of the key modes there are (the server leaves the others out; one that did not is not shown either);
+    // retiredRecords: how many of the song's generated charts of the tiers before 2026-11-19 were played (no record now)
+    return { charts: charts.filter((c) => c.keyMode in keyModes), retired: retired ?? [], retiredRecords: retiredRecords ?? 0 };
   },
   chart: async (chartId: string) => (await request<{ chart: ServerChart }>(`/api/charts/${chartId}`)).chart,
   saveEditedChart: async (songId: string, baseChartId: string, notes: Chart['notes'], name: string) =>

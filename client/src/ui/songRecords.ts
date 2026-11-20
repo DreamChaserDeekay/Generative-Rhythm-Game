@@ -16,7 +16,7 @@ export const isSaved = (r: ScoreRecord) => r.kind !== undefined && r.kind !== 'g
 
 const TIER_IDS = new Set(difficultyTiers.map((t) => t.id));
 
-/** The song's bests of generated charts on a key mode (records of the removed EASY, DJMAX and EZ2ON tiers left out). */
+/** The song's bests of generated charts on a key mode (of tiers there are now: the server leaves out those made on the tiers before 2026-11-19). */
 export function recordsOn(song: Song, keyMode: KeyModeId): ScoreRecord[] {
   return (song.records ?? []).filter((r) => r.keyMode === keyMode && !isSaved(r) && TIER_IDS.has(r.difficulty));
 }
