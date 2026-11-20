@@ -9,8 +9,15 @@ import { chooseSetting, settingsTab, tool } from './songSelect';
  */
 const python = existsSync('../server/.venv/bin/python') ? '../server/.venv/bin/python' : process.platform === 'win32' ? '../server/.venv/Scripts/python.exe' : 'python3';
 
+const SKINS = 'test-results/e2e-data/skins';
+
 test.beforeAll(() => {
-  execFileSync(python, ['../scripts/assets/make_test_pack.py', 'test-results/e2e-data/skins']);
+  execFileSync(python, ['../scripts/assets/make_test_pack.py', SKINS]);
+});
+
+// the packs are not left for the specs after this one (their parts' choices would hold them)
+test.afterAll(() => {
+  for (const pack of ['시험 팩', 'broken', 'sheet-only']) rmSync(`${SKINS}/${pack}`, { recursive: true, force: true });
 });
 
 test('a pack in the skins folder is picked part by part, shows in the preview and is played; a broken one says why', async ({ page }) => {
@@ -74,10 +81,13 @@ test('a pack in the skins folder is picked part by part, shows in the preview an
   await expect(page.getByTestId('song-list')).toBeVisible();
 
   // the pack taken away: its rows say so, and the play draws the default parts, with no error
-  rmSync('test-results/e2e-data/skins/시험 팩', { recursive: true, force: true });
+  rmSync(`${SKINS}/시험 팩`, { recursive: true, force: true });
   await page.getByTestId('open-settings').click();
   await settingsTab(page, 'gear');
+  // (a click on a row first puts the cursor on it, scrolling it into view: the cursor is put there first)
+  await page.getByTestId('reload-skins').focus();
   await page.getByTestId('reload-skins').click();
+  await expect(page.getByTestId('settings-help')).toContainText('팩 2개를 읽었습니다');
   await expect(page.getByTestId('opt-deck-style')).toContainText('읽지 못함');
   await page.getByRole('button', { name: /완료/ }).click();
   await tool(page, 'sync-auto');

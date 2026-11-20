@@ -928,8 +928,9 @@ def create_app(
     # ---------- the player's asset packs (docs/CUSTOM_ASSETS.md) ----------
 
     @app.get("/api/skins")
-    def list_skins() -> dict[str, Any]:
-        """Every pack of the data folder's skins/ and its parts: built (once) or why not."""
+    def list_skins(response: Response) -> dict[str, Any]:
+        """Every pack of the data folder's skins/ and its parts: built (once) or why not (never cached: 다시 읽기 reads it again)."""
+        response.headers["Cache-Control"] = "no-store"
         return {"folder": str(packs.root), "packs": packs.list()}
 
     @app.get("/api/skins/templates/{kind}.png")

@@ -83,7 +83,7 @@ let list: Promise<PackList> | null = null;
 
 /** The packs, asked of the server once (again after reloadPacks); none where the server cannot be asked. */
 export function loadPacks(): Promise<PackList> {
-  list ??= fetch('/api/skins')
+  list ??= fetch('/api/skins', { cache: 'no-store' })
     .then((res) => (res.ok ? res.json() : null))
     .then(parsePackList)
     .catch(() => ({ folder: '', packs: [] }));
