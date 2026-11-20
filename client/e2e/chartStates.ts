@@ -8,6 +8,7 @@ import { fakeSongs } from './songSelect';
  *   ELITE waiting its turn; and an imported chart beside them
  * - the second: every tier made
  * - the third: none made
+ * and the generator's queue says so (the first song's NORMAL being made, its ELITE waiting).
  */
 export async function chartStates(page: Page, settings: Record<string, unknown> = {}) {
   const songs = fakeSongs(3, 'ready').map((s, i) => ({ ...s, analyzedAt: 1, title: ['Five States', 'All Made', 'None Made'][i], artist: 'E2E' }));
@@ -50,6 +51,22 @@ export async function chartStates(page: Page, settings: Record<string, unknown> 
       if (body.brief || !made) return route.fulfill({ json: { meta, cached: made } });
       return route.fulfill({ json: { chart: { meta, timing, notes: [], sections: [] }, cached: true } });
     },
+  );
+  // the generator's queue: the first song's NORMAL being made, its ELITE waiting
+  await page.route(
+    (url) => url.pathname === '/api/mapper/queue',
+    (route) =>
+      route.fulfill({
+        json: {
+          making: chartId(0, 'NORMAL'),
+          waiting: 1,
+          loaded: true,
+          charts: [
+            { chartId: chartId(0, 'NORMAL'), songId: songs[0].id, keyMode: '4K', difficulty: 'NORMAL', state: 'making' },
+            { chartId: chartId(0, 'ELITE'), songId: songs[0].id, keyMode: '4K', difficulty: 'ELITE', state: 'queued' },
+          ],
+        },
+      }),
   );
   await page.addInitScript((s) => localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '4K', lastDifficulty: 'HARD', ...s })), settings);
   return songs;

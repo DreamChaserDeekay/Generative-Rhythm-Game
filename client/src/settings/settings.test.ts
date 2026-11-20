@@ -11,6 +11,8 @@ import {
   loadSettings,
   MAX_JUDGE_LINE,
   MIN_JUDGE_LINE,
+  musicLevel,
+  sfxLevel,
   laneColorsOf,
   laneKeysFor,
   padMenuFor,
@@ -490,5 +492,24 @@ describe('settings', () => {
   it('never lets the covers close the lane', () => {
     const c = activeCovers({ sudden: 0.85, hidden: 0.85, judgeLinePosition: 0, coversOn: true });
     expect(c.sudden + c.hidden).toBeLessThanOrEqual(0.9 + 1e-9);
+  });
+});
+
+describe('음소거', () => {
+  it('silences the music and the effects, keeping their volumes', () => {
+    const on = { ...DEFAULT_SETTINGS, musicVolume: 0.7, sfxVolume: 0.4 };
+    expect(musicLevel(on)).toBe(0.7);
+    expect(sfxLevel(on)).toBe(0.4);
+    const muted = { ...on, muted: true };
+    expect(musicLevel(muted)).toBe(0);
+    expect(sfxLevel(muted)).toBe(0);
+    expect(muted.musicVolume).toBe(0.7);
+  });
+
+  it('is off unless saved on', () => {
+    expect(DEFAULT_SETTINGS.muted).toBe(false);
+    expect(sanitizeSettings({}).muted).toBe(false);
+    expect(sanitizeSettings({ muted: 'yes' as unknown as boolean }).muted).toBe(false);
+    expect(sanitizeSettings({ muted: true }).muted).toBe(true);
   });
 });

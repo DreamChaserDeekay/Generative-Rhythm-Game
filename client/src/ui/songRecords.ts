@@ -73,7 +73,7 @@ export interface TierMark {
   lamp: string | null;
   /** The lamp is another chart's of the tier than the one Enter plays (never played itself). */
   other?: boolean;
-  /** The chart Enter plays is not made yet (the generator makes it when it is played): its level is the one aimed at. */
+  /** The chart Enter plays is not made yet (the generator makes it when it is played): no level ("–"). */
   unmade?: boolean;
 }
 
@@ -87,10 +87,12 @@ export function tierMark(records: ScoreRecord[], tier: string, brief: ChartBrief
   const own = records.filter((r) => r.difficulty === tier);
   const lamp = bestLamp(own);
   if (!brief) return { level: bestByTier(own).get(tier)?.level ?? null, lamp };
-  const unmade = brief.predicted === true ? { unmade: true } : {};
+  // a chart not made yet has no level of its own: none is shown (the user, 2026-11-20: not the one aimed at)
+  const unmade = brief.predicted === true;
+  const level = unmade ? null : brief.level;
   const played = own.find((r) => r.chartId === brief.chartId);
-  if (played) return { level: brief.level, lamp: played.lamp, ...unmade };
-  return { level: brief.level, lamp, other: lamp !== null, ...unmade };
+  if (played) return { level, lamp: played.lamp, ...(unmade ? { unmade } : {}) };
+  return { level, lamp, other: lamp !== null, ...(unmade ? { unmade } : {}) };
 }
 
 /** Two cells that show the same (a row of the song list is drawn again only when one of its cells changes). */

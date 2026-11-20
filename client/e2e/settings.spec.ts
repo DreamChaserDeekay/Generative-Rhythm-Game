@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { settingsTab } from './songSelect';
+import { playOptions, settingsTab } from './songSelect';
 
 function trackErrors(page: Page): string[] {
   const errors: string[] = [];
@@ -444,5 +444,130 @@ test('화면 모드 puts the page in full screen with Esc kept for the game, and
   await expect.poll(() => page.evaluate(() => document.fullscreenElement === document.documentElement)).toBe(true);
   await page.evaluate(() => document.exitFullscreen());
   await expect(row).toHaveAttribute('data-value', 'window');
+  expect(errors).toEqual([]);
+});
+
+test('a number setting is typed in (in the unit its row shows) and its gauge follows the pointer', async ({ page }) => {
+  const errors = trackErrors(page);
+  await startWith(page, { lastKeyMode: '5K' });
+  await openSettings(page);
+  await settingsTab(page, 'sound');
+  const music = page.getByTestId('opt-music-volume');
+  const field = page.getByTestId('opt-music-volume-entry');
+  const text = page.getByTestId('opt-music-volume-text');
+  await music.focus();
+  // a digit opens the field with it; Enter sets it: 45 on a row of percents is 45 %
+  await page.keyboard.press('4');
+  await expect(field).toBeFocused();
+  await expect(field).toHaveValue('4');
+  await page.keyboard.type('5');
+  await page.keyboard.press('Enter');
+  await expect(field).toHaveCount(0);
+  await expect(music).toBeFocused();
+  await expect(music).toHaveAttribute('data-value', '0.45');
+  await expect(text).toHaveText('45%');
+  await expect.poll(async () => (await stored(page)).musicVolume).toBe(0.45);
+  // Enter opens it with the value; Esc gives it up and leaves the settings open
+  await page.keyboard.press('Enter');
+  await expect(field).toHaveValue('45');
+  await page.keyboard.type('80');
+  await page.keyboard.press('Escape');
+  await expect(field).toHaveCount(0);
+  await expect(page.getByTestId('settings-screen')).toBeVisible();
+  await expect(music).toHaveAttribute('data-value', '0.45');
+  // a click on the value opens it too; leaving the field sets it, past the end at the end
+  await text.click();
+  await expect(field).toBeFocused();
+  await expect(field).toHaveValue('45');
+  await page.keyboard.type('250');
+  await page.getByTestId('opt-sfx-volume').focus();
+  await expect(music).toHaveAttribute('data-value', '1');
+  // what is no number changes nothing
+  await music.focus();
+  await page.keyboard.press('Enter');
+  await page.keyboard.type('abc');
+  await page.keyboard.press('Enter');
+  await expect(music).toHaveAttribute('data-value', '1');
+  // the gauge: pressed at its quarter, then dragged off its left end
+  const gauge = page.getByTestId('opt-music-volume-gauge');
+  await page.getByTestId('opt-sfx-volume').focus();
+  await music.hover();
+  await expect(gauge).toBeVisible();
+  const box = (await gauge.boundingBox())!;
+  await page.mouse.move(box.x + box.width * 0.25, box.y + box.height / 2);
+  await page.mouse.down();
+  await expect(music).toHaveAttribute('data-value', '0.25');
+  await expect(music).toBeFocused();
+  await page.mouse.move(box.x - 40, box.y + box.height / 2, { steps: 4 });
+  await expect(music).toHaveAttribute('data-value', '0');
+  await page.mouse.up();
+  await page.mouse.move(box.x + box.width, box.y + box.height / 2);
+  await expect(music).toHaveAttribute('data-value', '0');
+  // a signed number: the minus opens the field
+  await settingsTab(page, 'judge');
+  const offset = page.getByTestId('opt-input-offset');
+  await offset.focus();
+  await page.keyboard.type('-12');
+  await page.keyboard.press('Enter');
+  await expect(offset).toHaveAttribute('data-value', '-12');
+  await expect(page.getByTestId('opt-input-offset-text')).toHaveText('-12ms');
+  expect(errors).toEqual([]);
+});
+
+test('the play options’ note speed is typed in too, its Enter the field’s (not the play’s)', async ({ page }) => {
+  const errors = trackErrors(page);
+  await startWith(page, { lastKeyMode: '5K', hiSpeed: 2 });
+  await page.goto('/');
+  const songs = (await (await page.request.get('/api/songs')).json()).songs as unknown[];
+  if (songs.length === 0) expect((await page.request.post('/api/songs/demo', { data: { bpm: 127, bars: 8, seed: 3 } })).ok()).toBe(true);
+  await page.reload();
+  await expect(page.getByTestId('song-item').first()).toBeVisible();
+  await playOptions(page);
+  const speed = page.getByTestId('quick-speed');
+  await speed.focus();
+  await page.keyboard.type('3.25');
+  await expect(page.getByTestId('quick-speed-entry')).toHaveValue('3.25');
+  await page.keyboard.press('Enter');
+  await expect(speed).toHaveAttribute('data-value', '3.25');
+  await expect(speed).toBeFocused();
+  await expect(page.getByTestId('play-options')).toBeVisible();
+  await expect(page.getByTestId('play-screen')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+test('음소거: a button left of Esc 메뉴 (and M) mutes every sound, kept over a reload, and the sound tab has it too', async ({ page }) => {
+  const errors = trackErrors(page);
+  await startWith(page, { lastKeyMode: '5K' });
+  await page.goto('/');
+  const mute = page.getByTestId('hint-mute');
+  const menu = page.getByTestId('hint-menu');
+  await expect(mute).toBeVisible();
+  await expect(mute).toHaveText(/음소거/);
+  await expect(mute).toHaveAttribute('aria-pressed', 'false');
+  // left of Esc 메뉴, on its line
+  const [m, e] = [(await mute.boundingBox())!, (await menu.boundingBox())!];
+  expect(m.x + m.width).toBeLessThanOrEqual(e.x + 1);
+  expect(Math.abs(m.y + m.height / 2 - (e.y + e.height / 2))).toBeLessThan(4);
+  await mute.click();
+  await expect(mute).toHaveAttribute('aria-pressed', 'true');
+  await expect(mute).toHaveText(/음소거 해제/);
+  await expect.poll(async () => (await stored(page)).muted).toBe(true);
+  await page.reload();
+  await expect(page.getByTestId('hint-mute')).toHaveAttribute('aria-pressed', 'true');
+  // M turns it back on (the volumes as they were)
+  await page.keyboard.press('KeyM');
+  await expect(page.getByTestId('hint-mute')).toHaveAttribute('aria-pressed', 'false');
+  const saved = await stored(page);
+  expect(saved.muted).toBe(false);
+  expect(saved.musicVolume).toBe(0.9);
+  // the sound tab's row is the same setting
+  await page.getByTestId('open-settings').click();
+  await settingsTab(page, 'sound');
+  const row = page.getByTestId('opt-muted');
+  await expect(row).toHaveAttribute('data-value', 'false');
+  await page.getByTestId('opt-muted-flip').click();
+  await expect(row).toHaveAttribute('data-value', 'true');
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('hint-mute')).toHaveAttribute('aria-pressed', 'true');
   expect(errors).toEqual([]);
 });

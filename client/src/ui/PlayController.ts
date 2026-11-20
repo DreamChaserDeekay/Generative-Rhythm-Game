@@ -57,7 +57,9 @@ import {
   MAX_COVER,
   MAX_JUDGE_LINE,
   MIN_JUDGE_LINE,
+  musicLevel,
   secondBindingsFor,
+  sfxLevel,
   skinOf,
   songOffsetOf,
   visibleTimeMs,
@@ -600,8 +602,8 @@ export class PlayController {
     this.stemVoices = plan ? new StemKeysoundVoices(this.engine.ctx, this.engine.keysoundBus, plan, stems, bufferPlacement) : null;
     const cuts = plan ? plan.stems.map((stem) => ({ buffer: stems.get(stem) as AudioBuffer, ranges: plan.ranges[stem] ?? [] })) : [];
     this.engine.setBuffer(buffer, bufferPlacement, cuts);
-    this.engine.setMusicVolume(settings.musicVolume);
-    this.engine.setSfxVolume(settings.sfxVolume);
+    this.engine.setMusicVolume(musicLevel(settings));
+    this.engine.setSfxVolume(sfxLevel(settings));
     if (this.practice) {
       // time to get ready before the first note, and before it comes into sight (silence where the
       // song has no music that early)

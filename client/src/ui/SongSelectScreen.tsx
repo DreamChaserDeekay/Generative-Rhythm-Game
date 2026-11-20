@@ -20,6 +20,7 @@ import {
   patternOf,
   playKeysOf,
   songOffsetOf,
+  musicLevel,
   withChartPick,
   withoutSong,
   withPattern,
@@ -38,6 +39,7 @@ import { CHART_FILE, entryFiles, sortDrop, type DroppedFile } from './dropFiles'
 import { pointText, speedText } from './format';
 import { ArrowIcon, FilmIcon, PencilIcon, SearchIcon, StarIcon } from './icons';
 import { namedPictures } from './importPictures';
+import { useMakingSongs, type SongMaking } from './makingSongs';
 import { lampClass, LampMark } from './lamps';
 import { FEVER_SHORT, PlayOptionsPanel } from './PlayOptions';
 import { clampBgaOffset, describeBgaOffset } from './PlayBackground';
@@ -45,7 +47,7 @@ import { buildPlayRequest } from './playRequest';
 import { judgementChip } from './playRules';
 import { alongLine, cursorStep, edgeLine, lineStep, panelLines, panelStops, pressesOnEnter, randomIndex, wheelPlace, wheelReach } from './selectNav';
 import { Sheet, type SheetItem } from './Sheet';
-import { HintBar, TopBar, type KeyHint } from './shell';
+import { HintBar, SoundIcon, TopBar, type KeyHint } from './shell';
 import { INFO_TABS, KIND_LABELS, SongInfoPanel, type InfoTab } from './SongInfoPanel';
 import { setJacketOrigin } from './jacketFlight';
 import { Backdrop, bpmLabel, SongArt } from './songArt';
@@ -403,8 +405,8 @@ export function SongSelectScreen(props: Props) {
     analyzedUnderCursor.current = selected && !ready ? selected.id : null;
   }, [selected?.id, ready]);
 
-  // Mapperatorinator makes the chart played, then the other tiers of its key mode, one at a time:
-  // while one of the song's tiers is being made or waits (or Enter waits for one), their plates
+  // Mapperatorinator makes the charts played, one at a time (only the chart played: no other tier with
+  // it): while one of the song's tiers is being made or waits (or Enter waits for one), their plates
   // ask again every few seconds, so a chart made shows its level and notes
   const aiPending =
     selected !== null && ready && chartStore.aiCharts && prefetchKey !== null
@@ -425,6 +427,9 @@ export function SongSelectScreen(props: Props) {
     }, AI_REFRESH_MS);
     return () => window.clearInterval(timer);
   }, [aiPending, prefetchKey]);
+  // The songs of the list with a chart being made or waiting: their cells show it (asked every few
+  // seconds; at once when this screen asks for a chart or one it asked for is made)
+  const makingSongs = useMakingSongs(health !== null && health !== 'offline' && chartStore.aiCharts, chartStore.makingAny);
   // On the song select again (after the settings, a play) or on another song: the server went on
   // making charts meanwhile, so the plates of the charts not made yet ask once what became of them
   // (being made, waiting, made); while one is made the round above goes on asking.
@@ -457,7 +462,7 @@ export function SongSelectScreen(props: Props) {
     if (menuMusic.playing(selected.id)) return;
     menuMusic.stop();
     const timer = window.setTimeout(() => {
-      menuMusic.play(selected.id, api.audioUrl(selected.id), selected.previewMs ?? 0, settings.musicVolume * PREVIEW_VOLUME);
+      menuMusic.play(selected.id, api.audioUrl(selected.id), selected.previewMs ?? 0, musicLevel(settings) * PREVIEW_VOLUME);
     }, 350);
     return () => window.clearTimeout(timer);
     // Restart the preview only when the song (or its readiness) changes, not on volume edits.
@@ -804,6 +809,8 @@ export function SongSelectScreen(props: Props) {
   };
 
   const setKeyMode = (m: KeyModeId) => onSettingsChange({ ...settings, lastKeyMode: m });
+  // 음소거 (M, or its button by Esc 메뉴): every sound off, the volumes kept (the user, 2026-11-20)
+  const toggleMute = () => onSettingsChange({ ...settings, muted: !settings.muted });
   const setDifficulty = (d: string) => pickEntry({ tier: d });
   /** ←→: the next entry of the difficulty row (the tiers the song has, then the saved charts), none past either end. */
   const stepEntry = (dir: 1 | -1) => {
@@ -991,8 +998,8 @@ export function SongSelectScreen(props: Props) {
   // saved charts after it), Enter plays (Shift+Enter on autoplay: a pad's RS), Tab (Shift+Tab
   // back) key mode, 1 to 5 the filters, / or Ctrl+F the search, Space the play options, I the song
   // info, C the cover, V the background video, + adds a song, F2 a random song, F3 a favourite, F5
-  // a new pattern (Shift+F5 the default one), F10 the settings, Esc the menu (or closes what is
-  // open). An open panel takes the arrows, Home / End and Enter (panelKey) and the list under it
+  // a new pattern (Shift+F5 the default one), F10 the settings, M 음소거, Esc the menu (or closes
+  // what is open). An open panel takes the arrows, Home / End and Enter (panelKey) and the list under it
   // rests; an open sheet takes every key (its own listener, before this one). A text field, a
   // slider or a drop-down keeps the keys it uses itself.
   useEffect(() => {
@@ -1069,6 +1076,11 @@ export function SongSelectScreen(props: Props) {
         return;
       }
       if (keepsKey(e.target, e.code)) return;
+      if (e.code === 'KeyM' && plain && !e.shiftKey) {
+        // (under a panel too: it is no key of the panel's)
+        if (!e.repeat) toggleMute();
+        return;
+      }
       if (panel !== 'none') {
         if (e.defaultPrevented || panelKey(e)) return;
         // under a panel the list rests: Enter plays, Space and I close the panel or change it
@@ -1280,6 +1292,15 @@ export function SongSelectScreen(props: Props) {
   const playLabel = practice ? '연습 시작' : '플레이';
   const enterLabel = offlineKeys ? '누르기' : enterPresses ? '누르기' : filtered.length > 0 ? playLabel : null;
   const endHints: KeyHint[] = [];
+  // 음소거, left of Esc 메뉴: a button with the speaker as it is now (no pad button: the pad's bar leaves it out)
+  endHints.push({
+    keys: ['M'],
+    label: settings.muted ? '음소거 해제' : '음소거',
+    icon: <SoundIcon muted={settings.muted} />,
+    pressed: settings.muted,
+    onClick: toggleMute,
+    testId: 'hint-mute',
+  });
   if (panel === 'options') endHints.push({ keys: ['Space'], pad: ['X'], label: '닫기', onClick: closePanel, testId: 'hint-options' });
   else if (panel === 'info') endHints.push({ keys: ['Esc'], pad: ['B'], label: '닫기', onClick: closePanel, testId: 'hint-info' });
   else endHints.push({ keys: ['Esc'], pad: ['B'], label: '메뉴', onClick: () => openSheet('menu'), testId: 'hint-menu' });
@@ -1876,6 +1897,7 @@ export function SongSelectScreen(props: Props) {
                   favorite={favorites.has(s.id)}
                   second={sort?.key === 'album' ? s.album || '앨범 정보 없음' : s.artist || '알 수 없는 아티스트'}
                   mark={onSaved ? (cells.saved ?? { level: savedEntry.level, lamp: null }) : played}
+                  making={makingSongs.get(s.id) ?? null}
                   color={onSaved ? 'var(--text)' : (played?.tier.color ?? 'var(--text-dim)')}
                   onPick={s.id === selected?.id ? () => void play() : () => onSelectSong(s.id)}
                 />
@@ -2133,7 +2155,18 @@ function Lamp({ lamp, faint = false }: { lamp: string | null; faint?: boolean })
  * the tier's colour. It stands `d` rows from the picked one, which is the paper plate in the
  * middle; a press on another row picks it, a press on the picked one plays.
  */
-function SongRow(props: { song: Song; d: number; reach: number; favorite: boolean; second: string; mark: TierMark | null; color: string; onPick: () => void }) {
+function SongRow(props: {
+  song: Song;
+  d: number;
+  reach: number;
+  favorite: boolean;
+  second: string;
+  mark: TierMark | null;
+  color: string;
+  /** A chart of the song is being made, or waits its turn (the generator's queue). */
+  making: SongMaking | null;
+  onPick: () => void;
+}) {
   const { song, d, mark } = props;
   const { x, y, opacity } = wheelPlace(d, props.reach);
   const working = song.status === 'queued' || song.status === 'analyzing';
@@ -2166,7 +2199,12 @@ function SongRow(props: { song: Song; d: number; reach: number; favorite: boolea
       ) : song.status === 'error' ? (
         <span className="song-state error">분석 실패</span>
       ) : (
-        <span className={`tier-level ${mark?.level === null || !mark ? 'unknown' : ''} ${mark?.other ? 'other' : ''} ${mark?.unmade ? 'unmade' : ''}`} title={mark?.unmade ? '채보 미생성' : undefined}>
+        <span
+          className={`tier-level ${mark?.level === null || !mark ? 'unknown' : ''} ${mark?.other ? 'other' : ''} ${mark?.unmade ? 'unmade' : ''}`}
+          title={props.making === 'making' ? '채보 생성 중' : props.making === 'queued' ? '채보 생성 대기 중' : mark?.unmade ? '채보 미생성' : undefined}
+        >
+          {/* a chart of the song being made (a ring turning) or waiting its turn (a ring of dots, still) */}
+          {props.making && <i className="tier-making" data-state={props.making} data-testid="tier-making" aria-label={props.making === 'making' ? '생성 중' : '생성 대기'} />}
           <LampMark />
           <b className="num">{mark?.level ?? '–'}</b>
         </span>
@@ -2197,11 +2235,12 @@ function TierPlate(props: {
   onPick: () => void;
 }) {
   const { tier: t, brief, record } = props;
-  const level = brief?.level ?? null;
+  // a chart not made yet shows no level ("–"), not the one the generator aims at (the user, 2026-11-20)
+  const level = brief?.predicted ? null : (brief?.level ?? null);
   const waiting = props.pending || props.generating;
   // what the plate is, told by its outline and its level's shape as well as a word, not by colour
-  // alone: made (a solid plate, a solid level), not made yet (dashed, its level hollow: the one the
-  // generator aims at), being made (as not made, a bar running), failed (dashed, 실패), or a level
+  // alone: made (a solid plate, a solid level), not made yet (dashed, "–" for its level, hollow), being
+  // made (as not made, a bar running), failed (dashed, 실패), or a level
   // being worked out. A tier waiting behind the one being made is shown as not made (no "대기").
   const kind: 'made' | 'unmade' | 'making' | 'failed' | 'pending' =
     props.generating || brief?.making ? 'making' : brief?.predicted ? 'unmade' : props.failed ? 'failed' : props.pending ? 'pending' : 'made';

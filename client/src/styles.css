@@ -620,6 +620,22 @@ input[type='checkbox'] {
   margin-left: -0.1875rem;
 }
 
+/* a hint's icon (the speaker of 음소거), as tall as its label */
+.hint-item .sound-icon {
+  flex-shrink: 0;
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
+/* a hint that is on (음소거 while muted): its words bright, its icon in the accent */
+button.hint-item[aria-pressed='true'] {
+  color: var(--text);
+}
+
+button.hint-item[aria-pressed='true'] .sound-icon {
+  color: var(--accent);
+}
+
 /* a hint that is also a button: the same line, raised under the pointer */
 button.hint-item {
   min-height: 1.875rem;
@@ -874,10 +890,29 @@ p.hint {
   height: 100%;
 }
 
-/* the jacket drawn a few pixels wide and stretched: soft colour, no filter */
+/* a video's background is black until the video plays (the jacket is not laid under it) */
+.play-bg[data-background='video'] {
+  background: #000;
+}
+
+/* without a video: the jacket blurred and darkened, drawn small once and stretched (no filter while
+   the song plays), and the jacket itself in the middle, square, its corners round, a shadow under it */
 .bg-cover,
 .bg-video {
   object-fit: cover;
+}
+
+.play-bg > .bg-cover-art {
+  inset: auto;
+  top: 50%;
+  left: 50%;
+  width: auto;
+  height: 50%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  transform: translate(-50%, -50%);
+  border-radius: 3.5%;
+  box-shadow: 0 1.5vh 5vh rgba(0, 0, 0, 0.8);
 }
 
 /* YouTube's player, covering the screen like the video file does: laid out no higher than the
@@ -4646,8 +4681,11 @@ p.hint {
 }
 
 .opt:focus,
+.opt:focus-within,
 :root[data-input='pad'] .opt:focus,
-:root[data-input='controller'] .opt:focus {
+:root[data-input='pad'] .opt:focus-within,
+:root[data-input='controller'] .opt:focus,
+:root[data-input='controller'] .opt:focus-within {
   color: var(--on-accent);
   background: var(--accent);
   outline: none;
@@ -4664,7 +4702,7 @@ p.hint {
   color: var(--text);
 }
 
-.opt:focus .opt-value {
+.opt:focus-within .opt-value {
   color: inherit;
 }
 
@@ -4683,6 +4721,30 @@ p.hint {
   cursor: pointer;
 }
 
+/* a number: a click on it types it in */
+.opt-value b.opt-typed {
+  cursor: text;
+}
+
+/* the number typed in, where the value shows and as big */
+.opt-value input.opt-entry {
+  width: 6.5rem;
+  height: auto;
+  padding: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-title);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+  text-align: center;
+  color: inherit;
+  background: color-mix(in srgb, currentColor 12%, transparent);
+  border: 0;
+  border-bottom: 2px solid currentColor;
+  border-radius: 0;
+  outline: none;
+}
+
 .opt-step {
   min-width: 1.5rem;
   min-height: 2rem;
@@ -4695,7 +4757,7 @@ p.hint {
 }
 
 .opt:hover .opt-step,
-.opt:focus .opt-step {
+.opt:focus-within .opt-step {
   opacity: 1;
 }
 
@@ -4712,7 +4774,7 @@ p.hint {
   margin-right: var(--sp-1);
 }
 
-.opt:focus .opt-pips {
+.opt:focus-within .opt-pips {
   display: flex;
   gap: 0.1875rem;
 }
@@ -4728,11 +4790,25 @@ p.hint {
   opacity: 1;
 }
 
-.opt:focus .opt-meter {
+.opt:focus-within .opt-meter,
+.opt:hover .opt-gauge {
   position: relative;
   display: block;
   width: 6rem;
   height: 0.75rem;
+}
+
+/* a gauge takes the pointer: a press or a drag along it puts the value there (taller, to be hit) */
+.opt:focus-within .opt-gauge,
+.opt:hover .opt-gauge {
+  height: 1.375rem;
+  cursor: ew-resize;
+  touch-action: none;
+}
+
+.opt-meter.opt-gauge i {
+  top: 0.3125rem;
+  bottom: 0.3125rem;
 }
 
 .opt-meter::before {
@@ -6861,6 +6937,46 @@ button.key-cap.clash:hover:not(:disabled) {
 
 .song-item.active {
   --lamp: var(--on-accent);
+}
+
+/* a chart of the song being made: a ring turning (by the compositor); waiting its turn: a ring of dots, still */
+.tier-making {
+  flex: none;
+  width: 1.05rem;
+  height: 1.05rem;
+  border: 0.18rem solid var(--diff);
+  border-right-color: transparent;
+  border-radius: 50%;
+  will-change: transform;
+  animation: tier-making 0.9s linear infinite;
+}
+
+.tier-making[data-state='queued'] {
+  border-style: dotted;
+  border-right-color: var(--diff);
+  opacity: 0.7;
+  animation: none;
+}
+
+.song-item.active .tier-making {
+  border-color: var(--on-accent);
+  border-right-color: transparent;
+}
+
+.song-item.active .tier-making[data-state='queued'] {
+  border-right-color: var(--on-accent);
+}
+
+@keyframes tier-making {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tier-making {
+    animation-duration: 2.4s;
+  }
 }
 
 /* a lamp of another chart of the tier than the one Enter plays: faint */

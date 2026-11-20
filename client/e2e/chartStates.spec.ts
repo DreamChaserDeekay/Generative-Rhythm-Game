@@ -51,15 +51,27 @@ test('each tier says whether its chart is made: made, being made, not made, fail
   expect(Math.abs(steps[1].x - Math.round(steps[1].x))).toBeGreaterThan(0.05);
   // the imported chart stands apart after the tiers
   await expect(page.getByTestId('saved-chart')).toHaveCount(1);
+  // a tier not made yet (or being made) shows no level ("–"), not the one aimed at; a made one its level
+  await expect(plates.nth(0).locator('.diff-level')).not.toHaveText('–');
+  for (const i of [1, 2]) await expect(plates.nth(i).locator('.diff-level')).toHaveText('–');
   // the list: the chosen tier (HARD) is made on the second song only (a song's charts are known once it has been on the cursor)
   const cell = (title: string) => page.locator('.song-item', { hasText: title }).locator('.tier-level');
-  for (const title of ['All Made', 'None Made']) {
-    await page.locator('.song-item', { hasText: title }).click();
-    await expect(page.getByTestId('song-title')).toHaveText(title);
-    await expect(cell(title).locator('b')).not.toHaveText('–');
-  }
-  await expect(cell('All Made')).not.toHaveClass(/unmade/);
+  // (each waited on until its chart is known: a made one's level, a not made one's mark)
+  await page.locator('.song-item', { hasText: 'All Made' }).click();
+  await expect(page.getByTestId('song-title')).toHaveText('All Made');
+  await expect(cell('All Made').locator('b')).not.toHaveText('–');
+  await page.locator('.song-item', { hasText: 'None Made' }).click();
+  await expect(page.getByTestId('song-title')).toHaveText('None Made');
   await expect(cell('None Made')).toHaveClass(/unmade/);
+  await expect(cell('All Made')).not.toHaveClass(/unmade/);
+  await expect(cell('All Made').locator('b')).not.toHaveText('–');
+  await expect(cell('None Made').locator('b')).toHaveText('–');
   await expect(cell('Five States')).toHaveClass(/unmade/);
+  // a song with a chart being made shows it in its cell on the list (whichever tier it is); the others do not
+  const making = (title: string) => page.locator('.song-item', { hasText: title }).getByTestId('tier-making');
+  await expect(making('Five States')).toHaveAttribute('data-state', 'making');
+  await expect(making('All Made')).toHaveCount(0);
+  await expect(making('None Made')).toHaveCount(0);
+  expect(await making('Five States').evaluate((el) => getComputedStyle(el).animationName)).toBe('tier-making');
   expect(errors).toEqual([]);
 });

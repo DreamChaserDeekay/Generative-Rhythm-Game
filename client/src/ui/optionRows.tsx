@@ -1,8 +1,9 @@
-import { useEffect, useRef, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import { GEAR_STYLES, type GearStyle } from '../render/deckArt';
 import type { HudTypeSource } from '../render/gearHud';
 import type { SkinParts } from '../render/skins';
 import { HIT_STYLES, NOTE_STYLES, SIDE_STYLES, type HitStyle, type NoteStyle, type SideStyle } from '../render/tintArt';
+import { entryScale, entryText, gaugeValue, numberIn, startsEntry, typedValue } from './numberEntry';
 
 /** The option rows of the settings and the song select's play options. */
 
@@ -99,9 +100,29 @@ export interface RowProps {
 const PIPS_MOST = 12;
 
 /**
+ * Enter from a keyboard, which can type the number: a pad's A (the menu bridge's Enter, no key of a
+ * real keyboard) or a controller's button sending Enter opens no field it could not fill.
+ */
+function typedFromKeyboard(e: ReactKeyboardEvent): boolean {
+  return e.nativeEvent.isTrusted && document.documentElement.dataset.input !== 'controller';
+}
+
+/** A number row's value typed in: the text it starts from, and what to do with what was typed. */
+export interface RowEntry {
+  /** The value as the number a player edits ("90" on a "90%" row). */
+  text: string;
+  /** What was typed (Enter, or the field left); a text that is no number changes nothing. */
+  onEntry: (typed: string) => void;
+}
+
+/**
  * A setting as an arcade option row: its name, and its value between ‹ ›. ←→ (or the arrows)
  * change it, Shift by a bigger step; Enter moves a choice on or flips a switch. A click on the row
  * only puts the cursor on it: a switch flips under the pointer on its 켬 / 끔 (or its arrows) alone.
+ * A number is also typed in (the user, 2026-11-20: "모든 수치형 설정 값 직접 키보드로 입력"): a digit,
+ * a point or a minus starts the field with it, Enter (where the row takes Enter) or a click on the value
+ * with the value; Enter or leaving the field sets it, Esc gives it up. Its gauge takes the pointer
+ * ("게이지는 마우스로도 조정"): a press or a drag along it puts the value there.
  */
 export function OptionRow(
   props: RowProps & {
@@ -117,10 +138,51 @@ export function OptionRow(
     meter?: number;
     /** The default as the row shows it, while its value is another (see RowProps.defaultValue). */
     defaultText?: string | null;
+    /** The gauge under the pointer: where along it (0 to 1) it was pressed or dragged to. */
+    onGauge?: (at: number) => void;
+    /** A number typed in. */
+    entry?: RowEntry;
   },
 ) {
+  // the typed number while the field is open (null: the value shows)
+  const [typed, setTyped] = useState<string | null>(null);
+  const field = useRef<HTMLInputElement>(null);
+  // the field opened with the whole value (select it all) or with the key that opened it (type on)
+  const selectAll = useRef(false);
+  // set once the field is closed, so its blur as it goes does not set it again
+  const closed = useRef(true);
+  const open = (text: string, all: boolean) => {
+    if (!props.entry) return;
+    closed.current = false;
+    selectAll.current = all;
+    setTyped(text);
+  };
+  const close = (set: boolean, refocus: boolean) => {
+    if (closed.current) return;
+    closed.current = true;
+    if (set && typed !== null) props.entry?.onEntry(typed);
+    setTyped(null);
+    if (refocus) row.current?.focus();
+  };
+  const editing = typed !== null;
+  useEffect(() => {
+    const input = field.current;
+    if (!editing || !input) return;
+    input.focus();
+    if (selectAll.current) input.select();
+    else input.setSelectionRange(input.value.length, input.value.length);
+  }, [editing]);
   const onKeyDown = (e: ReactKeyboardEvent<HTMLDivElement>) => {
-    if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') {
+    if (e.target !== e.currentTarget) return;
+    if (props.entry && !e.ctrlKey && !e.metaKey && !e.altKey && startsEntry(e.key)) {
+      // the key is the field's first character (and none of the screen's: the song select's 1 to 5)
+      e.preventDefault();
+      e.stopPropagation();
+      open(e.key, false);
+    } else if (props.entry && (e.code === 'Enter' || e.code === 'NumpadEnter') && !props.passEnter && !e.shiftKey && typedFromKeyboard(e)) {
+      e.preventDefault();
+      if (!e.repeat) open(props.entry.text, true);
+    } else if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') {
       e.preventDefault();
       props.onStep(e.code === 'ArrowLeft' ? -1 : 1, e.shiftKey);
     } else if ((e.code === 'Enter' || e.code === 'NumpadEnter') && !props.passEnter) {
@@ -147,6 +209,34 @@ export function OptionRow(
       props.onStep(dir, e.shiftKey);
     },
   });
+  // the gauge: pressed, it takes the pointer until let go, and the value follows along it
+  const gaugeAt = (e: ReactPointerEvent<HTMLSpanElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    if (r.width > 0) props.onGauge?.((e.clientX - r.left) / r.width);
+  };
+  const gauge = props.onGauge && {
+    onPointerDown: (e: ReactPointerEvent<HTMLSpanElement>) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      row.current?.focus();
+      e.currentTarget.setPointerCapture?.(e.pointerId);
+      gaugeAt(e);
+    },
+    onPointerMove: (e: ReactPointerEvent<HTMLSpanElement>) => {
+      if (e.currentTarget.hasPointerCapture?.(e.pointerId)) gaugeAt(e);
+    },
+  };
+  const onFieldKey = (e: ReactKeyboardEvent<HTMLInputElement>) => {
+    // every key is the field's (the screen's arrows, Q / E, 1 to 5 and Esc are not taken)
+    e.stopPropagation();
+    if (e.code === 'Enter' || e.code === 'NumpadEnter') {
+      e.preventDefault();
+      close(true, true);
+    } else if (e.code === 'Escape') {
+      e.preventDefault();
+      close(false, true);
+    }
+  };
   return (
     <div
       ref={row}
@@ -171,15 +261,37 @@ export function OptionRow(
           </span>
         )}
         {props.meter !== undefined && (
-          <span className="opt-meter" aria-hidden="true">
+          <span className={gauge ? 'opt-meter opt-gauge' : 'opt-meter'} aria-hidden="true" data-testid={props.testId && gauge ? `${props.testId}-gauge` : undefined} {...gauge}>
             <i style={{ left: `${Math.min(1, Math.max(0, props.meter)) * 100}%` }} />
           </span>
         )}
         <button type="button" className="opt-step" tabIndex={-1} aria-hidden="true" {...arrow(-1)}>
           ‹
         </button>
-        {props.checked === undefined ? (
-          <b>{props.text}</b>
+        {typed !== null ? (
+          <input
+            ref={field}
+            className="opt-entry"
+            type="text"
+            inputMode="decimal"
+            enterKeyHint="done"
+            spellCheck={false}
+            autoComplete="off"
+            aria-label={`${props.label} 입력`}
+            data-testid={props.testId ? `${props.testId}-entry` : undefined}
+            value={typed}
+            onChange={(e) => setTyped(e.target.value)}
+            onKeyDown={onFieldKey}
+            onBlur={() => close(true, false)}
+          />
+        ) : props.checked === undefined ? (
+          <b
+            className={props.entry ? 'opt-typed' : undefined}
+            data-testid={props.testId && props.entry ? `${props.testId}-text` : undefined}
+            onClick={props.entry ? () => open(props.entry!.text, true) : undefined}
+          >
+            {props.text}
+          </b>
         ) : (
           // a switch's 켬 / 끔 flips it under the pointer (the row around it only takes the cursor)
           <b className="opt-flip" data-testid={props.testId ? `${props.testId}-flip` : undefined} onClick={() => props.onPress?.()}>
@@ -230,7 +342,32 @@ export function NumberOption(
   const meter = props.max > props.min ? (props.value - props.min) / (props.max - props.min) : undefined;
   const text = props.format(props.value);
   const defaultText = defaultShown(typeof props.defaultValue === 'number' ? props.format(props.defaultValue) : null, text);
-  return <OptionRow {...props} text={text} value={String(props.value)} onStep={step} meter={meter} defaultText={defaultText} />;
+  const set = (v: number) => {
+    if (v !== props.value) props.onChange(v);
+  };
+  const { format, min, max } = props;
+  const scale = useMemo(() => entryScale(format, min, max, props.step), [format, min, max, props.step]);
+  const entry: RowEntry | undefined = scale
+    ? {
+        text: entryText(props.value, scale),
+        onEntry: (t) => {
+          const n = numberIn(t);
+          if (n !== null) set(typedValue(n, scale, min, max));
+        },
+      }
+    : undefined;
+  return (
+    <OptionRow
+      {...props}
+      text={text}
+      value={String(props.value)}
+      onStep={step}
+      meter={meter}
+      defaultText={defaultText}
+      onGauge={meter === undefined ? undefined : (at) => set(gaugeValue(at, min, max, props.step))}
+      entry={entry}
+    />
+  );
 }
 
 export interface OptionalRange {
@@ -260,7 +397,26 @@ export function OptionalNumberOption(props: RowProps & OptionalRange & { value: 
   const shown = (v: number | null) => (v === null ? '자동' : props.format(v));
   const text = shown(props.value);
   const defaultText = defaultShown(props.defaultValue === null || typeof props.defaultValue === 'number' ? shown(props.defaultValue) : null, text);
-  return <OptionRow {...props} text={text} value={props.value === null ? 'auto' : String(props.value)} onStep={step} defaultText={defaultText} />;
+  const { format, min, max } = props;
+  const scale = useMemo(() => entryScale(format, min, max, props.step), [format, min, max, props.step]);
+  // a number, or 자동 typed as 자동 / auto / a (nothing typed changes nothing)
+  const entry: RowEntry | undefined = scale
+    ? {
+        text: props.value === null ? entryText(props.auto, scale) : entryText(props.value, scale),
+        onEntry: (t) => {
+          const word = t.trim().toLowerCase();
+          if (word === '자동' || word === 'auto' || word === 'a') {
+            if (props.value !== null) props.onChange(null);
+            return;
+          }
+          const n = numberIn(t);
+          if (n === null) return;
+          const v = typedValue(n, scale, min, max);
+          if (v !== props.value) props.onChange(v);
+        },
+      }
+    : undefined;
+  return <OptionRow {...props} text={text} value={props.value === null ? 'auto' : String(props.value)} onStep={step} defaultText={defaultText} entry={entry} />;
 }
 
 /** On or off; ←, → and Enter all flip it. */

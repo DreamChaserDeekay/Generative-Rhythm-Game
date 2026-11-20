@@ -9,7 +9,7 @@ import { keyModes } from '../engine/config';
 import type { Chart } from '../engine/types';
 import { hexString } from '../render/noteColors';
 import { whenRestored } from '../render/paintCanvas';
-import { bindingsFor, keyLabel, laneColorsOf, secondBindingsFor, type Settings } from '../settings/settings';
+import { bindingsFor, keyLabel, laneColorsOf, musicLevel, secondBindingsFor, sfxLevel, type Settings } from '../settings/settings';
 import { HintBar, TopBar, type KeyHint } from './shell';
 import { useTwoPress } from './twoPress';
 
@@ -244,8 +244,8 @@ export function EditorScreen({ session, settings, onExit, onTestPlay, onSaved }:
     const engine = getAudioEngine();
     await engine.unlock();
     engine.setBuffer(audio.current.buffer, { originMs: 0, rate: 1 });
-    engine.setMusicVolume(settings.musicVolume);
-    engine.setSfxVolume(settings.sfxVolume);
+    engine.setMusicVolume(musicLevel(settings));
+    engine.setSfxVolume(sfxLevel(settings));
     engine.start(session.cursorMs, 0);
     const p = { raf: 0, lastMs: session.cursorMs, scheduledUntil: session.cursorMs };
     playback.current = p;
@@ -271,7 +271,7 @@ export function EditorScreen({ session, settings, onExit, onTestPlay, onSaved }:
       p.raf = requestAnimationFrame(tick);
     };
     p.raf = requestAnimationFrame(tick);
-  }, [doc, draw, durationMs, session, settings.musicVolume, settings.sfxVolume, stop]);
+  }, [doc, draw, durationMs, session, settings.musicVolume, settings.sfxVolume, settings.muted, stop]);
 
   useEffect(() => () => stop(), [stop]);
 

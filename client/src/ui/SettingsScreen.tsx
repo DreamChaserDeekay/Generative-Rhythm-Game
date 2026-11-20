@@ -792,6 +792,15 @@ export function SettingsScreen({
     case 'sound':
       content = (
         <>
+          <Toggle
+            {...row}
+            label="음소거"
+            testId="opt-muted"
+            value={settings.muted}
+            defaultValue={d.muted}
+            onChange={(v) => set('muted', v)}
+            help="모든 소리를 끕니다. 음악과 효과음의 크기는 그대로 두었다가 다시 켜면 돌아옵니다. 곡 선택 화면 오른쪽 아래의 음소거 버튼이나 M 키로도 켜고 끕니다."
+          />
           <NumberOption
             {...row}
             label="음악"

@@ -1,5 +1,22 @@
 import { useEffect, useState, type ReactNode } from 'react';
 
+/** A speaker, with its sound waves, or crossed out (muted). */
+export function SoundIcon({ muted }: { muted: boolean }) {
+  return (
+    <svg className="sound-icon" viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 7.5h3l4-3.5v12l-4-3.5H3z" fill="currentColor" />
+      {muted ? (
+        <path d="M13.5 7.5l5 5m0-5l-5 5" />
+      ) : (
+        <>
+          <path d="M13.2 7.4a3.6 3.6 0 0 1 0 5.2" />
+          <path d="M15.6 5a7 7 0 0 1 0 10" />
+        </>
+      )}
+    </svg>
+  );
+}
+
 /** The game's mark: four keys, one of them down. */
 export function Emblem() {
   return (
@@ -45,6 +62,10 @@ export interface KeyHint {
   testId?: string;
   minor?: boolean;
   main?: boolean;
+  /** Drawn before its label (a button's state: the speaker of 음소거). */
+  icon?: ReactNode;
+  /** A button that is on or off: its state for a screen reader (aria-pressed). */
+  pressed?: boolean;
 }
 
 /**
@@ -87,6 +108,7 @@ export function HintBar({ hints, end = [] }: { hints: KeyHint[]; end?: KeyHint[]
         {keys.map((k) => (
           <kbd key={k}>{k}</kbd>
         ))}
+        {h.icon}
         <span>{h.label}</span>
       </>
     );
@@ -95,7 +117,7 @@ export function HintBar({ hints, end = [] }: { hints: KeyHint[]; end?: KeyHint[]
     return h.onClick ? (
       // (a press does what the key does and leaves the focus where it is: the hints follow the
       // focus, and one that moved under the pointer between its press and its release got no click)
-      <button key={key} className={className} data-testid={h.testId} onMouseDown={(e) => e.preventDefault()} onClick={h.onClick}>
+      <button key={key} className={className} data-testid={h.testId} aria-pressed={h.pressed} onMouseDown={(e) => e.preventDefault()} onClick={h.onClick}>
         {content}
       </button>
     ) : (

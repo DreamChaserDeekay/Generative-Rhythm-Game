@@ -10,8 +10,8 @@ export interface BackgroundOptions {
   /** Or a YouTube video, played muted by YouTube's embedded player on song time. */
   bgaYoutube: string | null;
   /**
-   * The video's shift against the song: + starts it that many ms into the song (the cover shows
-   * until then), - skips that many ms of its start (it is already that far in as the song starts).
+   * The video's shift against the song: + starts it that many ms into the song (black until
+   * then), - skips that many ms of its start (it is already that far in as the song starts).
    */
   bgaOffsetMs: number;
   /** Practice playback rate (the video plays at the same speed). */
@@ -25,8 +25,18 @@ export interface BackgroundOptions {
   analyser: AnalyserNode | null;
 }
 
-/** The jacket is drawn this many pixels wide and stretched over the screen: soft colour, no blur filter. */
-const COVER_PX = 24;
+/**
+ * Without a video, the jacket is the background (as MyMusicPlayer's videos draw a song, without its words): blurred
+ * and darkened over the whole screen, and itself whole in the middle, square, its corners round, a shadow under it.
+ * The blurred field is drawn once, small (FIELD_W x FIELD_H, the jacket FIELD_MARGIN larger than it so the blur has no
+ * edge), and stretched: no filter is run while the song plays.
+ */
+const FIELD_W = 160;
+const FIELD_H = 90;
+const FIELD_MARGIN = 12;
+const FIELD_BLUR_PX = 3.2;
+/** How dark the field is laid (MyMusicPlayer's 52 % black over its blur). */
+const FIELD_SHADE = 0.52;
 const BARS = 48;
 const VISUALIZER_FPS = 30;
 const VIDEO_DRIFT_S = 0.12;
@@ -47,14 +57,23 @@ const seconds = (ms: number) => `${Number((Math.abs(ms) / 1000).toFixed(3))}초`
 
 /** What a shift does, in words: which way and how far. */
 export function describeBgaOffset(ms: number): string {
-  if (ms > 0) return `영상을 ${seconds(ms)} 늦게 시작 (그동안 커버가 보입니다)`;
+  if (ms > 0) return `영상을 ${seconds(ms)} 늦게 시작 (그동안 검은 화면)`;
   if (ms < 0) return `영상 앞부분 ${seconds(ms)} 건너뛰기`;
   return '곡과 영상을 같이 시작';
 }
 
+/** Where the jacket (`iw` x `ih`) is drawn on a field `w` x `h` to cover it, `margin` px past each edge. */
+export function coverPlacement(iw: number, ih: number, w: number, h: number, margin: number): { x: number; y: number; w: number; h: number } {
+  const scale = Math.max((w + 2 * margin) / iw, (h + 2 * margin) / ih);
+  const dw = iw * scale;
+  const dh = ih * scale;
+  return { x: (w - dw) / 2, y: (h - dh) / 2, w: dw, h: dh };
+}
+
 /**
- * Layer behind the track: the jacket as a soft colour field, optional user video synced to song
- * time, an audio-reactive spectrum and a dimming overlay. All DOM; nothing here touches judgement.
+ * Layer behind the track: with a video (a file or YouTube, synced to song time) black until it plays,
+ * without one the jacket in the middle over its blurred, darkened copy; an audio-reactive spectrum and a
+ * dimming overlay. All DOM; nothing here touches judgement.
  */
 export class PlayBackground {
   private readonly root: HTMLElement;
@@ -75,20 +94,38 @@ export class PlayBackground {
     this.options = options;
     this.root = options.root;
     this.root.innerHTML = '';
-    if (options.coverUrl) {
-      const cover = document.createElement('canvas');
-      cover.className = 'bg-cover';
-      cover.width = COVER_PX;
-      cover.height = COVER_PX;
+    // a video's background is black until it plays (the user, 2026-11-20: "영상 시작 전 까만 화면"), the jacket only without one
+    const video = Boolean(options.bgaUrl || options.bgaYoutube);
+    this.root.dataset.background = video ? 'video' : options.coverUrl ? 'cover' : 'none';
+    if (options.coverUrl && !video) {
+      const field = document.createElement('canvas');
+      field.className = 'bg-cover';
+      field.width = FIELD_W;
+      field.height = FIELD_H;
       const image = new Image();
       const paint = () => {
-        if (image.complete && image.naturalWidth > 0) context2d(cover).drawImage(image, 0, 0, COVER_PX, COVER_PX);
+        if (!image.complete || image.naturalWidth === 0) return;
+        const g = context2d(field);
+        g.clearRect(0, 0, FIELD_W, FIELD_H);
+        const at = coverPlacement(image.naturalWidth, image.naturalHeight, FIELD_W, FIELD_H, FIELD_MARGIN);
+        g.save();
+        g.filter = `blur(${FIELD_BLUR_PX}px) saturate(1.3)`;
+        g.drawImage(image, at.x, at.y, at.w, at.h);
+        g.restore();
+        g.fillStyle = `rgba(0, 0, 0, ${FIELD_SHADE})`;
+        g.fillRect(0, 0, FIELD_W, FIELD_H);
       };
       image.onload = paint;
       // (again whenever the browser hands the canvas back empty: a lost graphics process)
-      whenRestored(cover, paint);
+      whenRestored(field, paint);
       image.src = options.coverUrl;
-      this.root.appendChild(cover);
+      this.root.appendChild(field);
+      const art = document.createElement('img');
+      art.className = 'bg-cover-art';
+      art.alt = '';
+      art.decoding = 'async';
+      art.src = options.coverUrl;
+      this.root.appendChild(art);
     }
     if (options.bgaUrl) {
       const video = document.createElement('video');
@@ -98,7 +135,7 @@ export class PlayBackground {
       video.playsInline = true;
       video.preload = 'auto';
       video.playbackRate = options.rate;
-      // hidden until it plays on song time (the cover shows through meanwhile)
+      // hidden until it plays on song time (black meanwhile)
       video.style.opacity = '0';
       video.style.transition = 'opacity 0.4s ease';
       this.root.appendChild(video);

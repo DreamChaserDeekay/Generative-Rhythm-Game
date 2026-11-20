@@ -139,6 +139,15 @@ export interface BackendStatus {
 }
 
 /** Mapperatorinator, the chart generator (docs/MAPPERATORINATOR.md): its own Python, set up on first use. */
+/** A chart in Mapperatorinator's queue, with whose it is (GET /api/mapper/queue). */
+export interface QueuedChart {
+  chartId: string;
+  songId: string;
+  keyMode: string;
+  difficulty: string;
+  state: 'making' | 'queued';
+}
+
 export interface MapperStatus {
   /** Always true (there is no other generator; kept for screens that read it). */
   enabled: boolean;
@@ -339,6 +348,8 @@ export const api = {
   sketch: (id: string) => request<SongSketch>(`/api/songs/${id}/sketch`),
   generate: (id: string, req: ChartRequest) => request<{ chart: ServerChart; cached: boolean; notice?: string }>(`/api/songs/${id}/charts`, json(req)),
   mapper: () => request<MapperStatus>('/api/mapper'),
+  /** The charts being made or waiting their turn, with their songs. */
+  mapperQueue: () => request<{ making: string | null; waiting: number; loaded: boolean; charts?: QueuedChart[] }>('/api/mapper/queue'),
   installMapper: () => request<MapperStatus>('/api/mapper/install', { method: 'POST' }),
   mapperSettings: (patch: Partial<MapperSettings>) => request<MapperStatus>('/api/mapper/settings', { ...json(patch), method: 'PUT' }),
   /** The chart's meta only (made and kept by the server like the whole chart). */

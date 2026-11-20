@@ -5,7 +5,7 @@ import { menuMusic, PREVIEW_VOLUME } from '../audio/songPreview';
 import type { ReplayData } from '../engine/replay';
 import { GamepadMenuBridge, RESULT_PAD_KEYS, SELECT_PAD_KEYS, setPadMenuKeys, SHOULDER_KEYS } from '../input/gamepad';
 import type { Chart, StemName } from '../engine/types';
-import { loadSettings, padMenuKeysFor, resetSettings, saveSettings, withEntry, type Settings, type SettingsChange } from '../settings/settings';
+import { loadSettings, musicLevel, padMenuKeysFor, resetSettings, saveSettings, withEntry, type Settings, type SettingsChange } from '../settings/settings';
 import { CalibrationScreen, type CalibrationStep } from './CalibrationScreen';
 import { EditorScreen, newEditorSession, type EditorSession } from './EditorScreen';
 import type { PlayOutcome } from './PlayController';
@@ -136,7 +136,7 @@ export function App() {
     if (screen.name === 'select' || screen.name === 'settings') menuMusic.muffle(screen.name === 'settings');
     else menuMusic.stop();
   }, [screen.name]);
-  useEffect(() => menuMusic.setVolume(settings.musicVolume * PREVIEW_VOLUME), [settings.musicVolume]);
+  useEffect(() => menuMusic.setVolume(musicLevel(settings) * PREVIEW_VOLUME), [settings.musicVolume, settings.muted]);
 
   // the window or full screen (the desktop app's window, or the browser's full screen)
   useDisplayMode(settings.displayMode, (displayMode) => {

@@ -59,6 +59,16 @@ class MapperQueue:
                 return "making"
             return "queued" if chart_id in self._jobs else None
 
+    def ids(self) -> list[str]:
+        """The charts in the queue: the one being made first, then those waiting, in their turn."""
+        with self._cond:
+            waiting = sorted((entry for entry in self._heap if entry[2] in self._jobs and self._jobs[entry[2]][2] == entry[0] and entry[2] != self.making))
+            order = [self.making] if self.making in self._jobs else []
+            for _, _, chart_id in waiting:
+                if chart_id not in order:
+                    order.append(chart_id)
+            return order
+
     def snapshot(self) -> dict[str, Any]:
         """The chart being made now (its id, or None) and how many wait their turn."""
         with self._cond:
