@@ -90,7 +90,8 @@ with sf.SoundFile(sys.argv[1], 'w', song.sample_rate, 2, format='MP3') as f:
 
   # a player's pack is built by the bundled server: its hit cut into still layers (rhythm_server/fx_layers.py, with
   # scipy.ndimage) and served (the test pack's folders: scripts/assets/make_test_pack.py)
-  python (Join-Path $root 'scripts\assets\make_test_pack.py') (Join-Path $library 'skins')
+  # (-X utf8: the test pack's Korean folder name is printed, and the runner's console is cp1252)
+  python -X utf8 (Join-Path $root 'scripts\assets\make_test_pack.py') (Join-Path $library 'skins')
   $packs = (Invoke-RestMethod "$base/api/skins" -TimeoutSec 300).packs
   $sheetOnly = @($packs | Where-Object { $_.id -eq 'sheet-only' })[0]
   if ($sheetOnly.parts.hit.status -ne 'ok' -or -not $sheetOnly.parts.hit.textures.hitBurst.layers) { throw "a pack's hit was not built: $($sheetOnly.parts.hit | ConvertTo-Json -Compress -Depth 6)" }
