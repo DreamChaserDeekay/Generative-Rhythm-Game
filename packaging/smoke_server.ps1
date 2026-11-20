@@ -1,5 +1,5 @@
 # Smoke test of the bundled analysis server on Windows (used by the desktop workflow):
-# starts it, analyzes a demo song, asks for a chart and decodes an uploaded MP3 file.
+# starts it, analyzes a demo song, asks for a chart, decodes an uploaded MP3 file and builds a player's pack.
 # The chart: Mapperatorinator is the only generator (docs/MAPPERATORINATOR.md). Where its runtime is
 # set up (GRG_MAPPER_HOME, as the workflow's CPU step leaves it) the chart is made with it; where it
 # is not (this runner has no NVIDIA GPU) the request must be refused with the reason, not crash.
@@ -87,6 +87,17 @@ with sf.SoundFile(sys.argv[1], 'w', song.sample_rate, 2, format='MP3') as f:
   $burst = Invoke-WebRequest "$base/media/$($manifest.textures.'flash/hitBurst'.file)" -UseBasicParsing
   if ($count -lt 1 -or $burst.StatusCode -ne 200 -or $burst.Headers['Content-Type'] -notmatch 'image/png') { throw 'the game media is not served' }
   Write-Host "media served: $count textures"
+
+  # a player's pack is built by the bundled server: its hit cut into still layers (rhythm_server/fx_layers.py, with
+  # scipy.ndimage) and served (the test pack's folders: scripts/assets/make_test_pack.py)
+  python (Join-Path $root 'scripts\assets\make_test_pack.py') (Join-Path $library 'skins')
+  $packs = (Invoke-RestMethod "$base/api/skins" -TimeoutSec 300).packs
+  $sheetOnly = @($packs | Where-Object { $_.id -eq 'sheet-only' })[0]
+  if ($sheetOnly.parts.hit.status -ne 'ok' -or -not $sheetOnly.parts.hit.textures.hitBurst.layers) { throw "a pack's hit was not built: $($sheetOnly.parts.hit | ConvertTo-Json -Compress -Depth 6)" }
+  $atlas = Invoke-WebRequest "$base/api/skins/sheet-only/files/hit_burst.webp" -UseBasicParsing
+  if ($atlas.StatusCode -ne 200) { throw "a pack's hit is not served" }
+  $built = @($packs | Where-Object { $_.parts.hit.status -eq 'ok' }).Count
+  Write-Host "packs built: $built hit(s) as layers"
 }
 catch {
   Get-Content (Join-Path $work 'server.log'), (Join-Path $work 'server.err.log') -Tail 40 -ErrorAction SilentlyContinue

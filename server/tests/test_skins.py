@@ -47,11 +47,22 @@ def test_packs_are_built_into_the_games_layouts(client: TestClient, data: Path) 
     # the panel came 3:2 (as ChatGPT gives): cropped, and said so
     assert any("잘랐습니다" in w for w in pack["parts"]["panel"]["warnings"])
     burst = pack["parts"]["hit"]["textures"]["hitBurst"]
-    assert burst["flipbook"]["peak"] == 0 and burst["flipbook"]["frames"] == skins.BURST_FRAMES
-    assert burst["flipbook"]["frames"] / burst["flipbook"]["fps"] == pytest.approx(skins.BURST_SECONDS + 1 / burst["flipbook"]["fps"], abs=0.01)
+    # not a sheet of frames: still layers the game moves on every frame (fx_layers.py), with how the hit went as the
+    # pack's hits always went (whole and brightest at once, then spreading and fading over about 0.3 s)
+    assert "flipbook" not in burst
+    layers = burst["layers"]
+    assert (layers["cols"], layers["rows"]) == (3, 2)
+    light = layers["light"]
+    assert light[0] == 1 and light[-1] == 0 and all(b <= a for a, b in zip(light, light[1:]))
+    assert 0 < light[5] < 0.8
+    assert layers["core"][0] > 0.9 and layers["grow"] >= 1 and 0.1 < layers["reach"] < 1
+    # one picture: its specks are its own (no later frame's)
+    assert "late" not in layers and "body" not in layers
     assert burst["plain"] is True and burst["tone"].startswith("#ff")
+    hold = pack["parts"]["hit"]["textures"]["hitHold"]
+    assert "flipbook" not in hold and hold["layers"]["turn"] > 0 and hold["cored"] is True
     # every file in the size of the game's own picture it stands in for
-    sizes = {"note.png": (1024, 256), "long.png": (512, 256), "panel.webp": (2048, 876), "hit_burst.webp": (1536, 1536), "hit_hold.webp": (1024, 1024)}
+    sizes = {"note.png": (1024, 256), "long.png": (512, 256), "panel.webp": (2048, 876), "hit_burst.webp": (1152, 768), "hit_hold.webp": (768, 512)}
     for name, size in sizes.items():
         r = client.get(f"/api/skins/시험 팩/files/{name}")
         assert r.status_code == 200, name
@@ -59,10 +70,15 @@ def test_packs_are_built_into_the_games_layouts(client: TestClient, data: Path) 
     # the note: a tint picture (red the lane colour, green toward white), see-through round the tap
     note = np.asarray(Image.open(io.BytesIO(client.get("/api/skins/시험 팩/files/note.png").content)))
     assert note[0, 0, 3] == 0 and note[128, 512, 3] == 255 and note[..., 2].max() == 0
-    # the burst's first frame its brightest
-    sheet = np.asarray(Image.open(io.BytesIO(client.get("/api/skins/시험 팩/files/hit_burst.webp").content)), np.float32)
-    light = [sheet[(i // 4) * 384 : (i // 4 + 1) * 384, (i % 4) * 384 : (i % 4 + 1) * 384].mean() for i in range(10)]
-    assert light[0] == max(light) and light[-1] < light[0] * 0.2
+    # the burst's atlas: the star's white middle in the core's cell, its rays and ring in the shape's, the order the
+    # light goes in where the shape is; every cell black at its edges
+    atlas = np.asarray(Image.open(io.BytesIO(client.get("/api/skins/시험 팩/files/hit_burst.webp").content)).convert("RGB"), np.float32)
+    cells = [atlas[r * 384 : (r + 1) * 384, c * 384 : (c + 1) * 384] for r in range(2) for c in range(3)]
+    core, shape, _, glow, order, _ = cells
+    assert core[192, 192].min() > 200 and core[192, 330].max() < 30
+    assert shape.max() > 200 and glow.mean() > 1 and order[..., 1].max() > 200
+    for cell in cells:
+        assert max(cell[:2].max(), cell[-2:].max(), cell[:, :2].max(), cell[:, -2:].max()) < 4
     # the pack's own files are not touched
     assert sorted(os.listdir(data / "skins" / "시험 팩")) == ["hit.png", "long.png", "note.png", "pack.json", "panel.png"]
 
@@ -75,8 +91,10 @@ def test_a_part_that_cannot_be_used_says_why(client: TestClient) -> None:
     assert broken["hit"]["status"] == "error" and "검정" in broken["hit"]["message"]
     sheet_only = packs["sheet-only"]["parts"]
     assert sheet_only["panel"]["status"] == "missing"
-    # a 4 x 4 sheet whose third frame is the brightest starts there
-    assert sheet_only["hit"]["textures"]["hitBurst"]["flipbook"]["peak"] == 2
+    # a 4 x 4 sheet whose third frame is the brightest: its layers are that frame's, and its light falls from there
+    assert any("3번째 칸" in w for w in sheet_only["hit"]["warnings"])
+    sheet_light = sheet_only["hit"]["textures"]["hitBurst"]["layers"]["light"]
+    assert sheet_light[0] == 1 and sheet_light[-1] == 0
     # a see-through note is taken as it is
     assert sheet_only["note"]["status"] == "ok"
     assert client.get("/api/skins/broken/files/note.png").status_code == 404

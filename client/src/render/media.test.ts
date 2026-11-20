@@ -88,7 +88,7 @@ describe('game media', () => {
   });
 
   it('cuts every layered hit into its atlas of six cells', () => {
-    // (layer_split.py: core, shape, sparks, glow, order, body or late specks; the order is not light)
+    // (server/rhythm_server/fx_layers.py: core, shape, sparks, glow, order, body or late specks; the order is not light)
     for (const [id, t] of Object.entries(manifest.textures).filter(([, t]) => t.layers)) {
       const { cols, rows } = t.layers!;
       expect([cols, rows], id).toEqual([3, 2]);
