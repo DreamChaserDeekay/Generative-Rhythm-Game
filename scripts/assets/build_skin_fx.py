@@ -16,7 +16,7 @@ toward the edges of its cell (a ray that reaches the edge would end in a straigh
 has gone are dropped, and so is a first frame that is next to nothing (the flash is there the moment the key goes
 down). The sheet is then measured as the game played it until 2026-11-20 (in BURST_SECONDS whatever its number of
 frames, from the first frame about as bright as its brightest, each frame mixed with the next: flipbook_light.py),
-and what the game gets is not the sheet but still layers cut from one frame of it (layer_split.py), which the game
+and what the game gets is not the sheet but still layers cut from one frame of it (server/rhythm_server/fx_layers.py), which the game
 moves on every frame of the screen (client/src/render/layerFx.ts; a sheet of 9 to 12 frames looked "about 30 fps"):
 
   - the hit: the layers of its first frame, the specks of a frame past its middle (the sparkles many sheets break
@@ -34,13 +34,16 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 
 import numpy as np
 from PIL import Image
 
 from flipbook_light import frame_light, measure
-from layer_split import COLS, ROWS, atlas, specks, split, white_middle
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "server"))
+from rhythm_server.fx_layers import COLS, ROWS, atlas, late_frame, measure_burst, reach, specks, split  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 SRC = ROOT / "assets-src" / "styles" / "skinfx"
@@ -62,11 +65,6 @@ FAINT_START = 0.12
 #: a hold's frame fainter than this share of their median is left out of the loop
 HOLD_FAINT = 0.55
 
-#: the light of a hit as the game moves its layers: its share of the sheet's every LIGHT_STEP_MS (layerFx.ts)
-LIGHT_STEP_MS = 20
-LIGHT_STEPS = 17
-#: how much farther out the middle of a hit's light may go as it ends (its sheet's, measured; layerFx.ts reads "grow")
-GROW = (1.0, 1.8)
 
 #: hit (the name in the manifest and HitStyle) -> its numbers: `grey` (white light, coloured by the game), `span`
 #: (how much larger a frame is than the effect at its brightest: the game draws the effect 2.5 lanes wide times this),
@@ -125,19 +123,6 @@ def energy(frame: np.ndarray) -> float:
     return float(frame.max(axis=2).sum())
 
 
-def reach(frame: np.ndarray, share: float = 0.9) -> float:
-    """The radius about the frame's middle that holds `share` of its light, per half frame."""
-    n = frame.shape[0]
-    v = frame.max(axis=2)
-    ys, xs = np.mgrid[0:n, 0:n]
-    r = np.hypot(xs - (n - 1) / 2, ys - (n - 1) / 2).ravel()
-    order = np.argsort(r)
-    total = np.cumsum(v.ravel()[order])
-    if total[-1] <= 0:
-        return 0
-    return float(r[order][np.searchsorted(total, share * total[-1])] / (n / 2))
-
-
 def resize(frame: np.ndarray, cell: int) -> np.ndarray:
     im = Image.fromarray(np.clip(np.rint(frame * 255), 0, 255).astype(np.uint8), "RGB")
     return np.asarray(im.resize((cell, cell), Image.LANCZOS), dtype=np.float32) / 255
@@ -152,31 +137,6 @@ def sheet_of(frames: list[np.ndarray], cell: int, grey: bool) -> Image.Image:
         r, c = divmod(i, GRID)
         sheet[r * cell:(r + 1) * cell, c * cell:(c + 1) * cell] = small
     return Image.fromarray(np.clip(np.rint(sheet * 255), 0, 255).astype(np.uint8), "RGB")
-
-
-def luma(frame: np.ndarray) -> float:
-    return float((frame @ np.array([0.2126, 0.7152, 0.0722], np.float32)).sum())
-
-
-def light_curve(light: list[float], start: int, count: int) -> list[float]:
-    """The share of a hit's light left every LIGHT_STEP_MS, as the game played its sheet: from frame `start`, at
-    count / BURST_SECONDS frames a second, each frame mixed with the next, its last ones fading out (drawHit). Never
-    rising again: the layers thin but do not grow back."""
-    fps = count / BURST_SECONDS
-    top = light[start] or 1.0
-    out = []
-    for k in range(LIGHT_STEPS):
-        f = start + k * LIGHT_STEP_MS / 1000 * fps
-        if f >= count - 1:
-            out.append(0.0)
-            continue
-        i = int(f)
-        x = light[i] + (light[i + 1] - light[i]) * (f - i)
-        out.append(round(float(np.clip(x / top * min(1, (1 - f / count) / 0.3), 0, 1.5)), 3))
-    out[-1] = 0.0
-    for k in range(1, LIGHT_STEPS):
-        out[k] = min(out[k], out[k - 1])
-    return out
 
 
 def burst(name: str, spec: dict, src: Path) -> tuple[Image.Image, dict, dict]:
@@ -197,31 +157,23 @@ def burst(name: str, spec: dict, src: Path) -> tuple[Image.Image, dict, dict]:
     played = {"flipbook": book, "plain": not spec.get("grey")}
     measure(played, sheet)
     start = played["flipbook"]["peak"]
-    light = frame_light(sheet, GRID, GRID, count)
-    # the shape's light: the frames' without their specks (a sheet that breaks into sparkles: they are the late specks')
-    curve = light_curve([luma(f) - luma(specks(f)) for f in kept], start, count)
-    # its white middle's light (the core layer's) as it went, the same way
-    core = light_curve([white_middle(f) for f in kept], start, count)
-    # how far out the middle of its light went (while a third of it was left), against where it started
-    r0 = reach(kept[start], 0.5)
-    late = [reach(f, 0.5) for f, x in zip(kept, light) if x >= 0.3 * light[start]]
-    grow = round(float(np.clip(max(late) / max(r0, 1e-3), *GROW)), 2)
+    went = measure_burst(kept, start, frame_light(sheet, GRID, GRID, count), BURST_SECONDS)
     layers = split(resize(kept[start], BURST_CELL), body=bool(spec.get("body")))
     if not spec.get("body"):
         # the specks of a frame past the middle of the hit (where many sheets break into sparkles)
-        layers["body"] = specks(resize(kept[start + round(0.55 * (count - 1 - start))], BURST_CELL))
+        layers["body"] = specks(resize(kept[late_frame(start, count)], BURST_CELL))
     entry = {
         "file": f"{FOLDER}/{name}_burst.webp",
         "bundle": "effects",
         "size": [COLS * BURST_CELL, ROWS * BURST_CELL],
-        "layers": {"cols": COLS, "rows": ROWS, "light": curve, "core": core, "grow": grow, "reach": round(r0, 3), **layer_options(spec, layers)},
+        "layers": {"cols": COLS, "rows": ROWS, **went, **layer_options(spec, layers)},
         "anchorY": spec.get("anchor", 0.5),
         "span": span,
     }
     if not spec.get("grey"):
         entry["plain"] = True
         entry["tone"] = played["tone"]
-    info = {"frames": count, "start": start, "reach": round(bright, 3), "span": span, "grow": grow, "light": curve[:8]}
+    info = {"frames": count, "start": start, "reach": round(bright, 3), "span": span, "grow": went["grow"], "light": went["light"][:8]}
     return atlas(layers, BURST_CELL, bool(spec.get("grey"))), entry, info, layers
 
 

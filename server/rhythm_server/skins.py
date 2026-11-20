@@ -5,7 +5,7 @@ put in a folder of the data folder, cleaned up here into the game's own picture 
                         long.png    a long note's body, upright (optional: made from the tap without it)
                         panel.png   the gear's lower panel, drawn over the layout template (TEMPLATES)
                         hit.png     one frame of a hit effect, light on black: the game makes its animation
-                        hit_sheet.png  (advanced) a 4 x 4 flipbook of the hit, played as it is
+                        hit_sheet.png  (advanced) a 4 x 4 flipbook of the hit: its brightest frame, moved as it went
                         hold.png    (optional) the light while a long note is held; made from hit.png without it
                         pack.json   (optional) {"name": ..., "author": ..., "hitColor": "own" | "lane"}
 
@@ -19,6 +19,13 @@ The pictures each part is built into stand in for the game's own (client/src/ren
 the tap and long note for the default note's ("notes/flat", "longs/solid": tint pictures, red how much of the lane
 colour shows, green how far toward white), the panel for the default gear's ("standard/panel"), the hit for the
 default flash's ("basic/hitBurst", "basic/hitHold"). So a pack adds no texture and no draw call to a play.
+
+A hit is built as the game's own skins' are (fx_layers.py, docs/GEAR_NOTE_FX.md "타격 효과는 정지 레이어를 매 프레임
+움직여"): not a sheet of frames but still layers cut from one picture (core, shape, specks, glow, the order the light
+goes in), which the game moves on every frame of the screen, with how the hit's light fell and spread. From hit.png
+that is the animation the pack's hits always had (whole and brightest at once, spreading, turning a little, fading,
+its dim parts first: burst_frames), measured; from a sheet, its own frames, and the specks of a later frame come in as
+the shape goes. The light while a note is held turns slowly and breathes.
 """
 
 from __future__ import annotations
@@ -34,8 +41,10 @@ from typing import Any
 
 import numpy as np
 
-#: bump when a build changes, so every cached part is built again
-VERSION = 1
+from . import fx_layers
+
+#: bump when a build changes, so every cached part is built again (2: hits as layers)
+VERSION = 2
 EXTENSIONS = (".png", ".webp", ".jpg", ".jpeg")
 FORMATS = {"PNG", "WEBP", "JPEG"}
 MAX_BYTES = 20 * 1024 * 1024
@@ -52,7 +61,8 @@ BURST_CELL, HOLD_CELL = 384, 256
 #: a hit is over this long after it (docs/GEAR_NOTE_FX.md: 0.27 s), its first frame its brightest
 BURST_SECONDS = 0.27
 BURST_FRAMES = 10
-HOLD_FRAMES, HOLD_FPS = 16, 24
+#: how much of its cell a hold picture fills (the hold sheets' 0.62), and how fast its light turns (radians a second)
+HOLD_FILL, HOLD_TURN = 0.62, 0.9
 #: the references of the game's own notes were drawn for a lane 0.72 grey: that value is all of the lane colour
 NOTE_GAIN = 1 / 0.72
 NEAR_PEAK = 0.95
@@ -431,13 +441,6 @@ def place(cell: int, light: np.ndarray, scale: float, angle: float, gain: float,
     return np.clip(frame * gain, 0, 1)
 
 
-def sheet(frames: list[np.ndarray], cell: int) -> np.ndarray:
-    out = np.zeros((cell * 4, cell * 4, 3), np.float32)
-    for i, f in enumerate(frames[:16]):
-        out[(i // 4) * cell : (i // 4 + 1) * cell, (i % 4) * cell : (i % 4 + 1) * cell] = f
-    return out
-
-
 def burst_frames(light: np.ndarray) -> list[np.ndarray]:
     """A hit played once from one picture: whole and at its brightest in its first frame, then it spreads (to 1.35 of
     its size), turns a little and fades, its dim parts going first."""
@@ -447,15 +450,6 @@ def burst_frames(light: np.ndarray) -> list[np.ndarray]:
         grow = 1 - (1 - t) ** 2
         gain = 1.0 if i == 0 else (1 - t) ** 1.4
         frames.append(place(BURST_CELL, light, 0.7 * (1 + 0.35 * grow), 8 * grow, gain, thin=1 + 1.5 * t))
-    return frames
-
-
-def hold_frames(light: np.ndarray) -> list[np.ndarray]:
-    """The light while a long note is held, from one picture: a loop that breathes and sways, its last frame running on into its first."""
-    frames = []
-    for k in range(HOLD_FRAMES):
-        p = 2 * math.pi * k / HOLD_FRAMES
-        frames.append(place(HOLD_CELL, light, 0.62 * (1 + 0.07 * math.sin(p)), 6 * math.sin(p), 0.8 + 0.15 * math.sin(p + 0.6)))
     return frames
 
 
@@ -491,17 +485,34 @@ def cells_of(rgba: np.ndarray) -> list[np.ndarray]:
     return [rgb[(i // 4) * BURST_CELL : (i // 4 + 1) * BURST_CELL, (i % 4) * BURST_CELL : (i % 4 + 1) * BURST_CELL] for i in range(16)]
 
 
-def burst_entry(frames: list[np.ndarray], fps: float, peak: int, plain: bool) -> dict:
-    entry: dict[str, Any] = {
-        "size": [BURST_CELL * 4, BURST_CELL * 4],
-        "flipbook": {"cols": 4, "rows": 4, "frames": len(frames), "fps": round(fps, 2), "loop": False, "peak": peak},
-        "anchorY": 0.5,
-        "span": 1.0,
-    }
-    if plain:
-        entry["plain"] = True
-        entry["tone"] = frame_tone(frames[peak])
-    return entry
+def burst_layers(frames: list[np.ndarray], peak: int, seconds: float, late: bool) -> tuple[dict[str, np.ndarray], dict]:
+    """A hit's layers, cut from its frame `peak`, and its manifest "layers": how its frames went, played over `seconds`;
+    with `late`, the specks of a later frame (a sheet's: one picture's are its own, grown)."""
+    layers = fx_layers.split(frames[peak])
+    if late:
+        layers["body"] = fx_layers.specks(frames[fx_layers.late_frame(peak, len(frames))])
+    spec: dict[str, Any] = {"cols": fx_layers.COLS, "rows": fx_layers.ROWS, **fx_layers.measure_burst(frames, peak, frame_light(frames), seconds)}
+    if late and float(layers["body"].max(axis=2).sum()) > 30:
+        spec["late"] = True
+    else:
+        layers["body"] = np.zeros_like(layers["body"])
+    return layers, spec
+
+
+def hold_layers(light: np.ndarray, burst: dict[str, np.ndarray]) -> dict[str, np.ndarray]:
+    """The layers of the light while a note is held (as large in its cell as the hold sheets' were); one with few specks
+    of its own flies its hit's."""
+    layers = fx_layers.split(place(BURST_CELL, light, HOLD_FILL, 0, 1.0))
+    layers["body"] = np.zeros_like(layers["body"])
+    if layers["sparks"].max(axis=2).sum() < 0.3 * burst["sparks"].max(axis=2).sum():
+        layers["sparks"] = burst["sparks"]
+        layers["order"][..., 2] = burst["order"][..., 2]
+    return layers
+
+
+def save_atlas(layers: dict[str, np.ndarray], cell: int, path: Path) -> None:
+    # lossless: the order cell's three channels are three maps (lossy WebP would blur them into each other)
+    fx_layers.atlas(layers, cell).save(path, "WEBP", lossless=True, method=4)
 
 
 def build_sheet(rgba: np.ndarray) -> tuple[list[np.ndarray], int, float, list[str]]:
@@ -698,7 +709,7 @@ class Packs:
             light: np.ndarray | None = None
             if sources["hit_sheet"] is not None:
                 frames, peak, fps, warnings = build_sheet(load_picture(sources["hit_sheet"]))
-                grey = light_saturation(sheet(frames, BURST_CELL)) < 0.08
+                grey = light_saturation(frames[peak]) < 0.08
                 if sources["hit"] is not None:
                     light, _ = cut_light(load_picture(sources["hit"]))
             else:
@@ -714,20 +725,25 @@ class Packs:
             else:
                 # without a hold picture: the hit's own picture, or a sheet's brightest frame
                 hold_light = light if light is not None else frames[peak]
-            to_webp(sheet(frames, BURST_CELL), out / FILES["hitBurst"], quality=92)
-            to_webp(sheet(hold_frames(hold_light), HOLD_CELL), out / FILES["hitHold"], quality=92)
+            burst, burst_spec = burst_layers(frames, peak, len(frames) / fps, late=sources["hit_sheet"] is not None)
+            save_atlas(burst, BURST_CELL, out / FILES["hitBurst"])
+            save_atlas(hold_layers(hold_light, burst), HOLD_CELL, out / FILES["hitHold"])
         except PartError as e:
             return Built("error", str(e))
-        burst = burst_entry(frames, fps, peak, plain)
+        size = [fx_layers.COLS * BURST_CELL, fx_layers.ROWS * BURST_CELL]
+        burst_entry: dict[str, Any] = {"size": size, "layers": burst_spec, "anchorY": 0.5, "span": 1.0}
+        if plain:
+            burst_entry["plain"] = True
+            burst_entry["tone"] = frame_tone(frames[peak])
         hold: dict[str, Any] = {
-            "size": [HOLD_CELL * 4, HOLD_CELL * 4],
-            "flipbook": {"cols": 4, "rows": 4, "frames": HOLD_FRAMES, "fps": HOLD_FPS, "loop": True},
+            "size": [fx_layers.COLS * HOLD_CELL, fx_layers.ROWS * HOLD_CELL],
+            "layers": {"cols": fx_layers.COLS, "rows": fx_layers.ROWS, "turn": HOLD_TURN},
             "anchorY": 0.5,
             "span": 0.8,
             "cored": True,
             **({"plain": True} if plain else {}),
         }
-        return Built("ok", warnings=warnings, textures={"hitBurst": burst, "hitHold": hold})
+        return Built("ok", warnings=warnings, textures={"hitBurst": burst_entry, "hitHold": hold})
 
 
 def _safe(name: str) -> str:

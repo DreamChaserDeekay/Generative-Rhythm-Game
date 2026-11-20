@@ -18,8 +18,17 @@ const LIST = parsePackList({
           message: '',
           warnings: [],
           textures: {
-            hitBurst: { size: [1536, 1536], flipbook: { cols: 4, rows: 4, frames: 10, fps: 33.3, loop: false, peak: 2 }, anchorY: 0.5, span: 1, plain: true, tone: '#ff9c45', version: 'b2' },
-            hitHold: { size: [1024, 1024], flipbook: { cols: 4, rows: 4, frames: 16, fps: 24, loop: true }, span: 0.8, cored: true, version: 'b2' },
+            // still layers, as the game's own skins' (server/rhythm_server/fx_layers.py)
+            hitBurst: {
+              size: [1152, 768],
+              layers: { cols: 3, rows: 2, light: [1, 0.8, 0.4, 0], core: [1, 0.3, 0], grow: 1.3, reach: 0.5, late: true },
+              anchorY: 0.5,
+              span: 1,
+              plain: true,
+              tone: '#ff9c45',
+              version: 'b2',
+            },
+            hitHold: { size: [768, 512], layers: { cols: 3, rows: 2, turn: 0.9 }, span: 0.8, cored: true, version: 'b2' },
             // not a picture a pack has: left out
             other: { size: [4, 4] },
           },
@@ -53,7 +62,9 @@ describe("the player's own packs", () => {
     expect(Object.keys(own).sort()).toEqual(['basic/hitBurst', 'basic/hitHold', 'longs/solid', 'notes/flat']);
     expect(own['notes/flat'].url).toBe(`/api/skins/${encodeURIComponent('내 팩')}/files/note.png?v=a1`);
     expect(own['notes/flat'].spec.size).toEqual([1024, 256]);
-    expect(own['basic/hitBurst'].spec).toMatchObject({ plain: true, tone: 0xff9c45, flipbook: { frames: 10, peak: 2 } });
+    expect(own['basic/hitBurst'].spec).toMatchObject({ plain: true, tone: 0xff9c45, size: [1152, 768], layers: { cols: 3, rows: 2, light: [1, 0.8, 0.4, 0], grow: 1.3, late: true } });
+    expect(own['basic/hitBurst'].spec.flipbook).toBeUndefined();
+    expect(own['basic/hitHold'].spec).toMatchObject({ cored: true, layers: { turn: 0.9 } });
     // a pack not in the list stands in for nothing
     expect(packOverrides(withParts(BASE_SKIN, { ...DEFAULT_PARTS, custom: { note: 'gone' } }).style, LIST)).toEqual({});
   });

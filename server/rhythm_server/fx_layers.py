@@ -1,5 +1,7 @@
-"""Cuts one frame of a skin's hit (light on black, made with the image model) into the still layers the game moves on
-every frame of the screen (client/src/render/layerFx.ts), and lays them out as its atlas. Used by build_skin_fx.py.
+"""Cuts one frame of a hit effect (light on black) into the still layers the game moves on every frame of the screen
+(client/src/render/layerFx.ts), lays them out as its atlas, and measures how a hit's frames went (its light, its white
+middle, how far it spread) for the manifest's "layers". Used for the game's own skins (scripts/assets/build_skin_fx.py,
+from the sheets the image model drew) and for the player's packs (skins.py: from their hit picture or sheet).
 
 The layers add up to the frame (laid one over another as light over light, "screen", as the game lays them):
 
@@ -30,6 +32,14 @@ from scipy import ndimage
 #: the atlas's grid and its cells (layerFx.ts: CORE, SHAPE, SPARKS, GLOW, ORDER, BODY)
 COLS, ROWS = 3, 2
 CELLS = ["core", "shape", "sparks", "glow", "order", "body"]
+#: a hit's light as the game moves its layers: its share left every LIGHT_STEP_MS (layerFx.ts: LIGHT_STEP_MS)
+LIGHT_STEP_MS = 20
+LIGHT_STEPS = 17
+#: how much farther out the middle of a hit's light may go as it ends (layerFx.ts reads "grow")
+GROW = (1.0, 1.8)
+#: where the late specks are taken from: this share of the way through a hit's frames
+LATE_AT = 0.55
+LUMA = np.array([0.2126, 0.7152, 0.0722], np.float32)
 
 
 def smoothstep(lo: float, hi: float, x: np.ndarray) -> np.ndarray:
@@ -57,7 +67,9 @@ def split(c: np.ndarray, body: bool = False, seed: int = 7) -> dict[str, np.ndar
 
     # the core: white light (the least of its channels high) near the middle
     core_m = smoothstep(0.35, 0.65, c.min(axis=2)) * smoothstep(0.62, 0.38, rad)
-    core_m = ndimage.gaussian_filter(core_m, 1.0)
+    # its fringe too, whole: left half in the shape, it would stay as a pale ring round a dark middle once the white has
+    # shrunk (the core goes from its edge in, in its own order)
+    core_m = np.clip(ndimage.gaussian_filter(core_m, 1.0) * 2.0, 0, 1)
     core = c * core_m[..., None]
     rest = c - core
 
@@ -203,3 +215,63 @@ def atlas(layers: dict[str, np.ndarray], cell: int, grey: bool = False) -> Image
         r, col = divmod(i, COLS)
         out[r * cell:(r + 1) * cell, col * cell:(col + 1) * cell] = layer
     return Image.fromarray(np.uint8(np.clip(np.rint(out * 255), 0, 255)), "RGB")
+
+
+# ---------- how a hit's frames went ----------
+
+
+def luma_sum(frame: np.ndarray) -> float:
+    return float((frame @ LUMA).sum())
+
+
+def light_curve(light: list[float], start: int, count: int, seconds: float) -> list[float]:
+    """The share of a hit's light left every LIGHT_STEP_MS, as a sheet of `count` frames was played: from frame `start`,
+    at count / `seconds` frames a second, each frame mixed with the next, its last ones fading out (the game's drawHit).
+    Never rising again: the layers thin but do not grow back."""
+    fps = count / seconds
+    top = light[start] or 1.0
+    out = []
+    for k in range(LIGHT_STEPS):
+        f = start + k * LIGHT_STEP_MS / 1000 * fps
+        if f >= count - 1:
+            out.append(0.0)
+            continue
+        i = int(f)
+        x = light[i] + (light[i + 1] - light[i]) * (f - i)
+        out.append(round(float(np.clip(x / top * min(1, (1 - f / count) / 0.3), 0, 1.5)), 3))
+    out[-1] = 0.0
+    for k in range(1, LIGHT_STEPS):
+        out[k] = min(out[k], out[k - 1])
+    return out
+
+
+def reach(frame: np.ndarray, share: float = 0.9) -> float:
+    """The radius about the frame's middle that holds `share` of its light, per half frame."""
+    n = frame.shape[0]
+    v = frame.max(axis=2)
+    ys, xs = np.mgrid[0:n, 0:n]
+    r = np.hypot(xs - (n - 1) / 2, ys - (n - 1) / 2).ravel()
+    order = np.argsort(r)
+    total = np.cumsum(v.ravel()[order])
+    if total[-1] <= 0:
+        return 0
+    return float(r[order][np.searchsorted(total, share * total[-1])] / (n / 2))
+
+
+def measure_burst(frames: list[np.ndarray], start: int, light: list[float], seconds: float) -> dict:
+    """How a hit's frames went, played from `start` over `seconds` (`light`: each frame's light, as measured where it is
+    played): the manifest's "light" (the shape's: the frames' light without their specks; a sheet that breaks into
+    sparkles, they are the late specks'), "core" (its white middle's), "grow" (how far out the middle of its light went
+    while a third of it was left, against where it started) and "reach" (where it started)."""
+    count = len(frames)
+    curve = light_curve([luma_sum(f) - luma_sum(specks(f)) for f in frames], start, count, seconds)
+    core = light_curve([white_middle(f) for f in frames], start, count, seconds)
+    r0 = reach(frames[start], 0.5)
+    late = [reach(f, 0.5) for f, x in zip(frames, light) if x >= 0.3 * light[start]]
+    grow = round(float(np.clip(max(late) / max(r0, 1e-3), *GROW)), 2)
+    return {"light": curve, "core": core, "grow": grow, "reach": round(r0, 3)}
+
+
+def late_frame(start: int, count: int) -> int:
+    """The frame the late specks are taken from."""
+    return start + round(LATE_AT * (count - 1 - start))
