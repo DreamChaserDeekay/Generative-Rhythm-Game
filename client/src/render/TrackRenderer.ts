@@ -21,7 +21,8 @@ import {
 import { FEVER_COLORS } from './palette';
 import { FrameWatch, notePart, reportError, type PlayPhase } from './frameWatch';
 import { activeTrail, setActiveTrail, Trail } from './trail';
-import { disposeSkinArt, flipbookBlend, flipbookOffset, hitFrame, type Flipbook, type MediaEffects, type SkinArt } from './skinArt';
+import { disposeSkinArt, flipbookBlend, flipbookOffset, hitFrame, type Flipbook, type MediaEffects, type MediaTexture, type SkinArt } from './skinArt';
+import { burstPoses, holdPoses, LAYER_BURST_MS, LAYER_ROOM, layerMaterial, layerUniforms, setPoses, type LayerSpec, type LayerUniforms } from './layerFx';
 import { hex, laneColorsFor, type Skin, type SkinStyle } from './skins';
 import { beatClock, DECK_PICTURE_PX, GEAR_LIGHTS, GearLightLayer, type BeatClock } from './gearLights';
 import { artPartsOf, borderLookOf, ledSpritesOf, sideBarArtOf, gearArtOf, HIT_SLOTS, isArtHit, longPaintOf, NOTE_WIDTH, notePaintOf, platePaintOf, type StyleImages } from './styleArt';
@@ -455,6 +456,8 @@ interface EffectQuad {
   punch: boolean;
   /** A flipbook's quad: its frame is mixed with the next (lightMaterial). */
   blend: FrameBlend | null;
+  /** A layered hit's quad (layerFx.ts): the poses of its layers, written each frame. */
+  layers: LayerUniforms | null;
 }
 
 const barNear = new THREE.Vector3();
@@ -1159,7 +1162,7 @@ export class TrackRenderer {
     const source = burst?.texture ?? this.hitSheet?.texture;
     if (this.hit === 'none' || !source) return;
     for (let i = this.geometry.lanes.length * HITS_PER_LANE; i > 0; i--) {
-      const h = this.effectQuad(source, burst ? burst.spec.flipbook ?? null : this.hitSheet, 0.8);
+      const h = this.effectQuad(source, burst ? burst.spec.flipbook ?? null : this.hitSheet, 0.8, burst?.spec);
       h.mesh.visible = false;
       this.hits.push(h);
     }
@@ -2445,6 +2448,17 @@ export class TrackRenderer {
         this.tinge(core.material, this.laneColors[lane]);
         core.material.opacity = dim * (0.85 + 0.15 * kick);
       }
+      if (sparks?.spec.layers && h.layers) {
+        // each lane at another moment of the loop, so neighbouring lights do not move in step
+        setPoses(h.layers, holdPoses(frame.timeMs + lane * 700, sparks.spec.layers));
+        const size = w * SPARKS_SIZE * FX_SCALE * flash * this.fxFit.sparks * (sparks.spec.span ?? 1) * (1 + 0.5 * TICK_KICK * kick);
+        const depth = size * this.stretch;
+        h.mesh.scale.set(size * LAYER_ROOM, 1, depth * LAYER_ROOM);
+        h.mesh.position.set(g.x, 0.03, this.judgeZ + depth * ((sparks.spec.anchorY ?? 0.5) - 0.5));
+        this.tinge(h.material, this.laneColors[lane]);
+        h.material.opacity = dim;
+        return;
+      }
       if (sparks?.spec.flipbook) {
         const book = sparks.spec.flipbook;
         // each lane starts at another frame, so neighbouring sparks do not move in step
@@ -2572,7 +2586,7 @@ export class TrackRenderer {
     mesh.renderOrder = 9.95;
     mesh.visible = false;
     this.scene.add(mesh);
-    return { mesh, texture, material, start: 0, lane: this.lineFlashes.length, size: 1, gain: 1, punch: false, blend: null };
+    return { mesh, texture, material, start: 0, lane: this.lineFlashes.length, size: 1, gain: 1, punch: false, blend: null, layers: null };
   }
 
   /** Shows a flipbook's quad at `frame` (a frame and a share of the way to the next: the two are mixed). */
@@ -2632,7 +2646,7 @@ export class TrackRenderer {
     mesh.renderOrder = 9.9;
     mesh.visible = false;
     this.scene.add(mesh);
-    return { mesh, texture, material, start: 0, lane: 0, size: 1, gain: 1, punch: false, blend: null };
+    return { mesh, texture, material, start: 0, lane: 0, size: 1, gain: 1, punch: false, blend: null, layers: null };
   }
 
   /**
@@ -2644,6 +2658,7 @@ export class TrackRenderer {
     const book = burst?.spec.flipbook;
     const frames = book?.frames ?? this.hitSheet?.frames ?? 16;
     const elapsed = Math.max(0, perfNow - h.start);
+    if (h.layers && burst) return this.drawLayeredHit(h, burst.spec, elapsed);
     const frame = book ? hitFrame(book, elapsed) : (elapsed / EFFECT_MS) * frames;
     if (frame >= frames) {
       h.mesh.visible = false;
@@ -2677,13 +2692,32 @@ export class TrackRenderer {
     h.material.opacity = dim * h.gain;
   }
 
+  /** A hit drawn from layers (layerFx.ts): as large as a sheet's, in a quad LAYER_ROOM larger for its layers to grow into. */
+  private drawLayeredHit(h: EffectQuad, spec: MediaTexture, elapsed: number): void {
+    if (elapsed >= LAYER_BURST_MS || !h.layers) {
+      h.mesh.visible = false;
+      return;
+    }
+    setPoses(h.layers, burstPoses(elapsed, spec.layers as LayerSpec));
+    const g = this.geometry.lanes[h.lane];
+    const w = Math.min(g.width, 1.6);
+    const dim = this.reducedFlash ? this.artEffects.reducedFlashOpacity : 1;
+    const punch = h.punch ? 1 + PUNCH * (1 - Math.min(1, elapsed / PUNCH_MS)) ** 2 : 1;
+    const size = w * BURST_SIZE * FX_SCALE * (this.reducedFlash ? this.artEffects.reducedFlashScale : 1) * this.fxFit.burst * (spec.span ?? 1) * h.size * punch;
+    const depth = size * this.stretch;
+    h.mesh.scale.set(size * LAYER_ROOM, 1, depth * LAYER_ROOM);
+    h.mesh.position.set(g.x, 0.03, this.judgeZ + depth * ((spec.anchorY ?? 0.5) - 0.5));
+    h.material.opacity = dim * h.gain;
+  }
+
   /**
    * A quad lying on the track that shows one frame of a sheet (its own copy of the texture). Nothing
    * cuts it: a wide effect on an outer lane reaches past the rails, and the whole of it shows.
    * `core`: how bright a flipbook's light must be to stay white (see lightMaterial).
    */
-  private effectQuad(source: THREE.Texture, book: { cols: number; rows: number } | null, core: number): EffectQuad {
+  private effectQuad(source: THREE.Texture, book: { cols: number; rows: number } | null, core: number, spec?: MediaTexture): EffectQuad {
     const texture = this.own(source.clone());
+    if (spec?.layers) return this.layerQuad(texture, spec, core);
     if (book) texture.repeat.set(1 / book.cols, 1 / book.rows);
     // code sheets are tint pictures; a flipbook texture is light on black
     const params: THREE.MeshBasicMaterialParameters = {
@@ -2700,7 +2734,21 @@ export class TrackRenderer {
     mesh.renderOrder = 10;
     mesh.visible = false;
     this.scene.add(mesh);
-    return { mesh, texture, material, start: 0, lane: 0, size: 1, gain: 1, punch: false, blend };
+    return { mesh, texture, material, start: 0, lane: 0, size: 1, gain: 1, punch: false, blend, layers: null };
+  }
+
+  /** A quad of a hit drawn from still layers (layerFx.ts): the whole atlas, its cells picked in the shader. */
+  private layerQuad(texture: THREE.Texture, spec: MediaTexture, core: number): EffectQuad {
+    const atlas = spec.layers as LayerSpec;
+    const layers = layerUniforms(atlas);
+    // (half a pixel of a cell: a layer's edge never reads its neighbour's)
+    const inset = 0.5 / (spec.size[0] / atlas.cols);
+    const material = layerMaterial({ map: texture, transparent: true, depthWrite: false, depthTest: false, fog: false }, core, layers, inset);
+    const mesh = new THREE.Mesh(this.flatGeometry, material);
+    mesh.renderOrder = 10;
+    mesh.visible = false;
+    this.scene.add(mesh);
+    return { mesh, texture, material, start: 0, lane: 0, size: 1, gain: 1, punch: false, blend: null, layers };
   }
 
   private drawFever(frame: TrackFrame): void {
@@ -3051,7 +3099,7 @@ export class TrackRenderer {
       // light flowing down the note into the line
       const hold = this.flipbook ? this.art.hitHold : undefined;
       const source = hold?.texture ?? this.hitSheet?.texture;
-      if (source) this.holds.push(this.effectQuad(source, hold ? hold.spec.flipbook ?? null : this.hitSheet, 0.7));
+      if (source) this.holds.push(this.effectQuad(source, hold ? hold.spec.flipbook ?? null : this.hitSheet, 0.7, hold?.spec));
       this.bands.push(source && lane.over ? this.flashQuad() : null);
       const burst = this.art.hitBurst;
       // (a hold flipbook with a core of its own takes none of the burst's)
@@ -3274,7 +3322,8 @@ export class TrackRenderer {
       // one mip level per lookup, not two: half the texture reads, which a software renderer (SwiftShader) feels
       art.texture.minFilter = THREE.LinearMipmapNearestFilter;
       if (art.spec.flipbook) art.texture.repeat.set(1 / art.spec.flipbook.cols, 1 / art.spec.flipbook.rows);
-      else delete this.art[slot];
+      // an atlas of layers is read whole: its cells are picked in the shader (layerFx.ts)
+      else if (!art.spec.layers) delete this.art[slot];
     }
   }
 

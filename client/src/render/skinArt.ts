@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { Skin } from './skins';
 import { loadPacks, packOverrides, type PackList } from './customPacks';
 import { styleImageIds, styleTextures, type ArtImage, type HitSlot, type StyleImages } from './styleArt';
+import { BODY, type LayerSpec } from './layerFx';
 
 /** A flipbook sheet: `frames` cells of a cols × rows grid, read row by row from the top left. */
 export interface Flipbook {
@@ -41,6 +42,8 @@ export interface MediaTexture {
    * drawn on the judge line with it (0xrrggbb).
    */
   tone?: number;
+  /** A hit drawn from still layers moved on every frame (layerFx.ts), not from frames: its atlas and how it moves. */
+  layers?: LayerSpec;
 }
 
 /** "Reduce flashing" for the textured hit effects. */
@@ -81,6 +84,36 @@ const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'obj
 const positive = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v) && v > 0;
 const count = (v: unknown, max: number): v is number => Number.isInteger(v) && (v as number) >= 1 && (v as number) <= max;
 
+const inRange = (v: unknown, lo: number, hi: number): v is number => typeof v === 'number' && Number.isFinite(v) && v >= lo && v <= hi;
+
+/** A manifest entry's `layers`, or null when it is malformed (layerFx.ts: an atlas of at least its six cells). */
+function parseLayers(raw: unknown): LayerSpec | null {
+  if (!isObject(raw) || !count(raw.cols, 4) || !count(raw.rows, 4) || raw.cols * raw.rows < BODY + 1) return null;
+  const out: LayerSpec = { cols: raw.cols, rows: raw.rows };
+  for (const key of ['light', 'core'] as const) {
+    const curve = raw[key];
+    if (curve === undefined) continue;
+    if (!Array.isArray(curve) || curve.length < 2 || curve.length > 64 || !curve.every((v) => inRange(v, 0, 1.5))) return null;
+    out[key] = [...curve];
+  }
+  if (raw.reach !== undefined) {
+    if (!inRange(raw.reach, 0, 1.5)) return null;
+    out.reach = raw.reach;
+  }
+  if (raw.grow !== undefined) {
+    if (!inRange(raw.grow, 1, 2)) return null;
+    out.grow = raw.grow;
+  }
+  if (raw.turn !== undefined) {
+    if (!inRange(raw.turn, -6, 6)) return null;
+    out.turn = raw.turn;
+  }
+  if (raw.axis === 'x') out.axis = 'x';
+  if (raw.body === true) out.body = true;
+  else if (raw.late === true) out.late = true;
+  return out;
+}
+
 /** A manifest texture entry, or null when it is malformed (bad path, size or numbers). */
 export function parseMediaTexture(raw: unknown): MediaTexture | null {
   if (!isObject(raw)) return null;
@@ -102,6 +135,11 @@ export function parseMediaTexture(raw: unknown): MediaTexture | null {
   if (raw.cored === true) out.cored = true;
   // (a colour that is not one is left out: the flash is then white)
   if (typeof raw.tone === 'string' && /^#[0-9a-f]{6}$/i.test(raw.tone)) out.tone = Number.parseInt(raw.tone.slice(1), 16);
+  if (raw.layers !== undefined) {
+    const layers = parseLayers(raw.layers);
+    if (!layers) return null;
+    out.layers = layers;
+  }
   if (raw.flipbook !== undefined) {
     const b = raw.flipbook;
     if (!isObject(b) || !count(b.cols, 16) || !count(b.rows, 16) || !count(b.frames, (b.cols as number) * (b.rows as number)) || !positive(b.fps)) return null;

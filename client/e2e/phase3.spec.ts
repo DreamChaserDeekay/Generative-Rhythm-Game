@@ -574,10 +574,10 @@ test('notes and side notes picked in the 노트 tab, gear and hit effect in the 
   await chooseSetting(page, 'opt-hit-style', 'flash');
   await page.getByRole('button', { name: /완료/ }).click();
   await tool(page, 'sync-auto');
-  // what a player starts with: its notes and its long note drawn from their pictures (made with the image model), its gear from its pictures, its hit a flipbook
+  // what a player starts with: its notes and its long note drawn from their pictures (made with the image model), its gear from its pictures, its hit from its pictures (still layers moved on every frame)
   await expect(page.locator('.play-canvas')).toHaveAttribute('data-style', 'flat solid bar standard flash');
   await expect(page.locator('.play-canvas')).toHaveAttribute('data-art', 'notes long gear hit');
-  // and the crystal gear with its notes and its hit (saved as 'prism'), picked part by part: its notes and long note from their pictures too, its hit a flipbook
+  // and the crystal gear with its notes and its hit (saved as 'prism'), picked part by part: its notes and long note from their pictures too, its hit from its pictures
   await page.keyboard.press('Escape');
   await expect(page.getByTestId('pause-menu')).toBeVisible();
   await page.keyboard.press('KeyQ');
@@ -906,7 +906,7 @@ test('the club, crystal, neon and piano hits picked part by part, each with one 
     await tool(page, 'sync-auto');
     await expect(page.getByTestId('play-screen')).toBeVisible();
     await expect(page.locator('.play-canvas')).toHaveAttribute('data-style', style);
-    // the notes and their long note drawn from their pictures, the gear from its own, the hit from its flipbooks
+    // the notes and their long note drawn from their pictures, the gear from its own, the hit from its pictures
     await expect(page.locator('.play-canvas')).toHaveAttribute('data-art', 'notes long gear hit');
     await expect(page.locator('.play-overlay')).toHaveCount(0, { timeout: 30_000 });
     await expect(page.locator('.hud')).toHaveAttribute('data-gear', deck);
@@ -936,7 +936,7 @@ test('the piano picked by name: drawn from its pictures in play, the HUD dressed
 
   await tool(page, 'sync-auto');
   await expect(page.getByTestId('play-screen')).toBeVisible();
-  // the gear drawn from its pictures (with the notes a player starts with and the flash hit's flipbooks)
+  // the gear drawn from its pictures (with the notes a player starts with and the flash hit's pictures)
   await expect(page.locator('.play-canvas')).toHaveAttribute('data-art', /\bgear\b/);
   await expect(page.locator('.play-overlay')).toHaveCount(0, { timeout: 30_000 });
   // the HUD beside the track is the gear's: its gauge named, its panel's housing, its digits and type

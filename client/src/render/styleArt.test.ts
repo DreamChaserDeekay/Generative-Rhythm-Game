@@ -179,9 +179,9 @@ describe('the hits drawn from art', () => {
   it('plays every hit a player picks from flipbooks in the media: once on a hit, looping while held, whole about the judge line', () => {
     expect(HIT_STYLES).toEqual(['flash', 'prism', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', 'aqua', 'steel', 'noir', 'wire', 'astral', 'flare', 'bubbles', 'grid', 'mecha', 'club', 'crystal', 'neon', 'piano']);
     for (const hit of HIT_STYLES) expect(isArtHit(hit), hit).toBe(true);
-    // the skins' hits are animations drawn frame by frame (scripts/assets/build_skin_fx.py): light in colours of their
-    // own, added as it is; the default skin's FLASH is white light the lane colours ("basic": "flash" is an older sheet
-    // nothing plays)
+    // the skins' hits are still layers cut from animations drawn frame by frame (scripts/assets/build_skin_fx.py),
+    // moved on every frame (layerFx.ts): light in colours of their own, added as it is; the default skin's FLASH is
+    // white light the lane colours ("basic": "flash" is an older sheet nothing plays)
     const skins: readonly HitStyle[] = ['prism', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', 'aqua', 'steel', 'noir', 'wire', 'astral', 'flash'];
     for (const hit of skins) {
       const name = hit === 'flash' ? 'basic' : hit;
@@ -190,15 +190,29 @@ describe('the hits drawn from art', () => {
       const [burst, hold] = [manifest.textures[hitBurst!], manifest.textures[hitHold!]];
       expect([burst.file, hold.file], hit).toEqual([`fx/${name}_burst.webp`, `fx/${name}_hold.webp`]);
       expect([burst.plain === true, hold.plain === true], hit).toEqual(hit === 'flash' ? [false, false] : [true, true]);
-      // a hit is over in 0.27 s (the user's rule: under 0.4 s), its frames the animation's own
-      const book = burst.flipbook!;
-      expect([book.cols, book.rows, book.loop], hit).toEqual([4, 4, false]);
-      expect(book.frames, hit).toBeGreaterThanOrEqual(8);
-      expect(book.frames / book.fps, hit).toBeLessThan(0.4);
-      expect(book.frames / book.fps, hit).toBeGreaterThan(0.25);
-      // the light while a note is held: a loop with a core of its own (no frame of the hit glows under it)
-      expect(hold.flipbook, hit).toMatchObject({ cols: 4, rows: 4, fps: 24, loop: true });
-      expect(hold.flipbook!.frames, hit).toBeGreaterThanOrEqual(8);
+      // no frames: an atlas of layers, with how its sheet's light fell and spread, measured (build_skin_fx.py)
+      expect([burst.flipbook, hold.flipbook], hit).toEqual([undefined, undefined]);
+      const [hitLayers, holdLayers] = [burst.layers!, hold.layers!];
+      expect([hitLayers.cols, hitLayers.rows, holdLayers.cols, holdLayers.rows], hit).toEqual([3, 2, 3, 2]);
+      expect([burst.size, hold.size], hit).toEqual([
+        [1152, 768],
+        [768, 512],
+      ]);
+      // its light at the hit is all of it, and falls (never rising again) to nothing within the hit's 0.32 s
+      const light = hitLayers.light!;
+      expect(light[0], hit).toBe(1);
+      expect(light.every((x, i) => i === 0 || x <= light[i - 1]), `${hit} ${light.join(' ')}`).toBe(true);
+      expect(light.at(-1), hit).toBe(0);
+      expect((light.length - 1) * 20, hit).toBeLessThanOrEqual(320);
+      expect(hitLayers.core![0], hit).toBeGreaterThan(0.9);
+      expect(hitLayers.grow, hit).toBeGreaterThanOrEqual(1);
+      expect(hitLayers.reach, hit).toBeGreaterThan(0.2);
+      // a solid middle that parts into spokes (CLAUDE's) or the sparkles of a later frame, not both
+      expect(hitLayers.body === true && hitLayers.late === true, hit).toBe(false);
+      expect(hitLayers.body === true, hit).toBe(hit === 'claude');
+      // the light while a note is held: a loop with a core of its own (no frame of the hit glows under it), turning
+      // (not a flame, not slices)
+      expect(holdLayers.turn === 0, hit).toBe(hit === 'sky' || hit === 'noir');
       expect([burst.cored, hold.cored], hit).toEqual([undefined, true]);
       for (const t of [burst, hold]) {
         expect(t.anchorY, hit).toBe(0.5);
