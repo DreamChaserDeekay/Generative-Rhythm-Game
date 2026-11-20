@@ -89,6 +89,11 @@ def main() -> None:
         name, _, slot = key.partition("/")
         if slot != "hitBurst" or (opts.hits and name not in opts.hits):
             continue
+        if "flipbook" not in entry:
+            # a hit drawn from layers (the skins': build_skin_fx.py measured its sheet as it cut it)
+            light = entry.get("layers", {}).get("light", [])
+            print(f"{name:8s} layers  light every 20 ms: {' '.join(f'{x * 100:3.0f}' for x in light)}")
+            continue
         book = entry["flipbook"]
         sheet = Image.open(MEDIA / entry["file"])
         light = frame_light(sheet, book["cols"], book["rows"], book["frames"])

@@ -14,11 +14,20 @@ game colours with the lane's colour.
 What is done to a sheet: its black is made black (the model's is not quite, and JPEG adds noise), every frame fades out
 toward the edges of its cell (a ray that reaches the edge would end in a straight line), the frames after the effect
 has gone are dropped, and so is a first frame that is next to nothing (the flash is there the moment the key goes
-down). A hit lasts BURST_SECONDS whatever its number of frames, and starts at the first frame about as bright as its
-brightest ("peak" in the manifest, and "tone", the colour of its light there: flipbook_light.py); the sheets are drawn
-at their brightest in their first frame (make_skin_fx.py), so that is where they start. The layouts written here are
-read by client/src/render/skinArt.ts and styleArt.ts: change them together.
-Needs Pillow and numpy.
+down). The sheet is then measured as the game played it until 2026-11-20 (in BURST_SECONDS whatever its number of
+frames, from the first frame about as bright as its brightest, each frame mixed with the next: flipbook_light.py),
+and what the game gets is not the sheet but still layers cut from one frame of it (layer_split.py), which the game
+moves on every frame of the screen (client/src/render/layerFx.ts; a sheet of 9 to 12 frames looked "about 30 fps"):
+
+  - the hit: the layers of its first frame, the specks of a frame past its middle (the sparkles many sheets break
+    into; CLAUDE has a body instead), and in the manifest's "layers" how its light fell ("light", every
+    LIGHT_STEP_MS; the shape's: without the specks, never rising again), how the white in its middle went ("core"),
+    and how far the middle of its light spread ("grow", against "reach", where it started); "tone", the colour of its
+    light, for the flash on the judge line;
+  - the light while a note is held: the layers of its frame of median light, and how it moves (HITS: "turn", "axis").
+
+The layouts written here are read by client/src/render/skinArt.ts, styleArt.ts and layerFx.ts: change them together.
+Needs Pillow, numpy and scipy.
 """
 
 from __future__ import annotations
@@ -30,7 +39,8 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
-from flipbook_light import measure
+from flipbook_light import frame_light, measure
+from layer_split import COLS, ROWS, atlas, specks, split, white_middle
 
 ROOT = Path(__file__).resolve().parents[2]
 SRC = ROOT / "assets-src" / "styles" / "skinfx"
@@ -38,16 +48,13 @@ MEDIA = ROOT / "client" / "public" / "media"
 FOLDER = "fx"
 
 GRID = 4
-#: px of one frame in the game's sheets
+#: px of one layer in the game's atlases (a frame of the sheets as they were played)
 BURST_CELL = 384
 HOLD_CELL = 256
-#: how long a hit plays, whatever its number of frames: as long as sixteen frames at 60 a second, as the older hits'
-#: sheets (build_styles.py) do (the user's rule: under 0.4 s). The model draws a hit's fade in 8 to 12 frames of the
-#: 16 it is asked for, so a sheet holds 30 to 45 frames a second; the game mixes each frame with the next, so it
-#: moves on every frame of the screen all the same. (The first sheets, which opened over three or four frames,
-#: played in 0.32 s.)
+#: how long a hit's sheet played, whatever its number of frames: as long as sixteen frames at 60 a second, as the older
+#: hits' sheets (build_styles.py) do (the user's rule: under 0.4 s). The model draws a hit's fade in 8 to 12 frames of
+#: the 16 it is asked for, so a sheet held 30 to 45 frames a second. Its light is measured over this time.
 BURST_SECONDS = 16 / 60
-HOLD_FPS = 24
 #: a hit's frames end where its light falls under this share of its brightest frame's
 GONE = 0.03
 #: a first frame fainter than this share of the brightest is left out
@@ -55,24 +62,33 @@ FAINT_START = 0.12
 #: a hold's frame fainter than this share of their median is left out of the loop
 HOLD_FAINT = 0.55
 
+#: the light of a hit as the game moves its layers: its share of the sheet's every LIGHT_STEP_MS (layerFx.ts)
+LIGHT_STEP_MS = 20
+LIGHT_STEPS = 17
+#: how much farther out the middle of a hit's light may go as it ends (its sheet's, measured; layerFx.ts reads "grow")
+GROW = (1.0, 1.8)
+
 #: hit (the name in the manifest and HitStyle) -> its numbers: `grey` (white light, coloured by the game), `span`
 #: (how much larger a frame is than the effect at its brightest: the game draws the effect 2.5 lanes wide times this),
-#: `anchor` (where the judge line crosses a frame, 0 its bottom .. 1 its top), `hold_span`
+#: `anchor` (where the judge line crosses a frame, 0 its bottom .. 1 its top), `hold_span`, and how its layers move
+#: (layerFx.ts): `body` (a solid middle that parts into spokes), `axis` ("x": it grows along its width only),
+#: `turn` (how fast its hold turns, radians a second; 0: it flickers in place)
 HITS: dict[str, dict] = {
-    "basic": {"grey": True},
-    "prism": {},
-    "sky": {},
-    "fire": {},
-    "gpt": {},
-    "gemini": {},
-    "grok": {},
-    "claude": {},
-    "aqua": {},
-    "steel": {},
-    # its light is thin (slices and pixels): drawn larger than its measure says
-    "noir": {"span": 1.2},
-    "wire": {},
-    "astral": {},
+    "basic": {"grey": True, "turn": 0.9},
+    "prism": {"turn": 0.6},
+    # a flame: it does not turn
+    "sky": {"turn": 0},
+    "fire": {"turn": 0.9},
+    "gpt": {"turn": 0.5},
+    "gemini": {"turn": 0.6},
+    "grok": {"turn": 0.7},
+    "claude": {"body": True, "turn": 0.9},
+    "aqua": {"turn": 0.5},
+    "steel": {"turn": 0.6},
+    # its light is thin (slices and pixels): drawn larger than its measure says; slices grow sideways, never turn
+    "noir": {"span": 1.2, "axis": "x", "turn": 0},
+    "wire": {"turn": 0.7},
+    "astral": {"turn": 1.2},
 }
 
 
@@ -138,6 +154,31 @@ def sheet_of(frames: list[np.ndarray], cell: int, grey: bool) -> Image.Image:
     return Image.fromarray(np.clip(np.rint(sheet * 255), 0, 255).astype(np.uint8), "RGB")
 
 
+def luma(frame: np.ndarray) -> float:
+    return float((frame @ np.array([0.2126, 0.7152, 0.0722], np.float32)).sum())
+
+
+def light_curve(light: list[float], start: int, count: int) -> list[float]:
+    """The share of a hit's light left every LIGHT_STEP_MS, as the game played its sheet: from frame `start`, at
+    count / BURST_SECONDS frames a second, each frame mixed with the next, its last ones fading out (drawHit). Never
+    rising again: the layers thin but do not grow back."""
+    fps = count / BURST_SECONDS
+    top = light[start] or 1.0
+    out = []
+    for k in range(LIGHT_STEPS):
+        f = start + k * LIGHT_STEP_MS / 1000 * fps
+        if f >= count - 1:
+            out.append(0.0)
+            continue
+        i = int(f)
+        x = light[i] + (light[i + 1] - light[i]) * (f - i)
+        out.append(round(float(np.clip(x / top * min(1, (1 - f / count) / 0.3), 0, 1.5)), 3))
+    out[-1] = 0.0
+    for k in range(1, LIGHT_STEPS):
+        out[k] = min(out[k], out[k - 1])
+    return out
+
+
 def burst(name: str, spec: dict, src: Path) -> tuple[Image.Image, dict, dict]:
     frames = [f * edge_mask(f.shape[0]) for f in frames_of(clean(load(src / f"{name}_burst.jpg")))]
     e = np.array([energy(f) for f in frames])
@@ -150,46 +191,80 @@ def burst(name: str, spec: dict, src: Path) -> tuple[Image.Image, dict, dict]:
     bright = max(reach(f) for f, x in zip(frames, e) if x >= 0.6 * peak)
     span = spec.get("span", round(float(np.clip(0.64 / max(bright, 0.3), 0.75, 1.6)), 2))
     count = len(kept)
+    # the sheet as it was played: where it started and how its light fell (and its colour, for the judge line's flash)
+    sheet = sheet_of(kept, BURST_CELL, bool(spec.get("grey")))
+    book = {"cols": GRID, "rows": GRID, "frames": count, "fps": round(count / BURST_SECONDS, 1), "loop": False}
+    played = {"flipbook": book, "plain": not spec.get("grey")}
+    measure(played, sheet)
+    start = played["flipbook"]["peak"]
+    light = frame_light(sheet, GRID, GRID, count)
+    # the shape's light: the frames' without their specks (a sheet that breaks into sparkles: they are the late specks')
+    curve = light_curve([luma(f) - luma(specks(f)) for f in kept], start, count)
+    # its white middle's light (the core layer's) as it went, the same way
+    core = light_curve([white_middle(f) for f in kept], start, count)
+    # how far out the middle of its light went (while a third of it was left), against where it started
+    r0 = reach(kept[start], 0.5)
+    late = [reach(f, 0.5) for f, x in zip(kept, light) if x >= 0.3 * light[start]]
+    grow = round(float(np.clip(max(late) / max(r0, 1e-3), *GROW)), 2)
+    layers = split(resize(kept[start], BURST_CELL), body=bool(spec.get("body")))
+    if not spec.get("body"):
+        # the specks of a frame past the middle of the hit (where many sheets break into sparkles)
+        layers["body"] = specks(resize(kept[start + round(0.55 * (count - 1 - start))], BURST_CELL))
     entry = {
         "file": f"{FOLDER}/{name}_burst.webp",
         "bundle": "effects",
-        "size": [GRID * BURST_CELL, GRID * BURST_CELL],
-        "flipbook": {"cols": GRID, "rows": GRID, "frames": count, "fps": round(count / BURST_SECONDS, 1), "loop": False},
+        "size": [COLS * BURST_CELL, ROWS * BURST_CELL],
+        "layers": {"cols": COLS, "rows": ROWS, "light": curve, "core": core, "grow": grow, "reach": round(r0, 3), **layer_options(spec, layers)},
         "anchorY": spec.get("anchor", 0.5),
         "span": span,
     }
     if not spec.get("grey"):
         entry["plain"] = True
-    info = {"frames": count, "first": first, "last": last, "reach": round(bright, 3), "span": span}
-    return sheet_of(kept, BURST_CELL, bool(spec.get("grey"))), entry, info
+        entry["tone"] = played["tone"]
+    info = {"frames": count, "start": start, "reach": round(bright, 3), "span": span, "grow": grow, "light": curve[:8]}
+    return atlas(layers, BURST_CELL, bool(spec.get("grey"))), entry, info, layers
 
 
-def hold(name: str, spec: dict, src: Path) -> tuple[Image.Image, dict, dict]:
+def layer_options(spec: dict, layers: dict, hit: bool = True) -> dict:
+    out = {}
+    if spec.get("axis"):
+        out["axis"] = spec["axis"]
+    if spec.get("body") and layers["body"].max() > 0:
+        out["body"] = True
+    elif hit and layers["body"].max(axis=2).sum() > 30:
+        out["late"] = True
+    return out
+
+
+def hold(name: str, spec: dict, src: Path, burst_sparks: dict | None = None) -> tuple[Image.Image, dict, dict]:
     frames = [f * edge_mask(f.shape[0]) for f in frames_of(clean(load(src / f"{name}_hold.jpg")))]
     e = np.array([energy(f) for f in frames])
     # a loop has no start and no end: a frame the model let die away (its last ones) or begin small (its first) is left out
     lit = e >= HOLD_FAINT * float(np.median(e))
     frames, e = [f for f, keep in zip(frames, lit) if keep], e[lit]
-    count = len(frames)
-    # as bright as each other: a loop that pulses with the model's uneven hand reads as a stutter
-    mean = float(e.mean())
-    frames = [np.clip(f * float(np.clip(mean / max(x, 1e-6), 0.8, 1.25)), 0, 1) for f, x in zip(frames, e)]
     bright = float(np.median([reach(f) for f in frames]))
     # its light about half a lane from the line's middle (the game draws a hold's frame 2.9 lanes wide times its span)
     span = spec.get("hold_span", round(float(np.clip(0.36 / max(bright, 0.2), 0.6, 1.4)), 2))
+    # the layers of its frame of median light (the loop's look; the game turns and breathes it)
+    pick = int(np.argsort(e)[len(e) // 2])
+    layers = split(frames[pick], body=bool(spec.get("body")))
+    # a hold with few specks of its own flies its hit's
+    if burst_sparks is not None and layers["sparks"].max(axis=2).sum() < 0.3 * burst_sparks["sparks"].max(axis=2).sum():
+        layers["sparks"] = burst_sparks["sparks"]
+        layers["order"][..., 2] = burst_sparks["order"][..., 2]
     entry = {
         "file": f"{FOLDER}/{name}_hold.webp",
         "bundle": "effects",
-        "size": [GRID * HOLD_CELL, GRID * HOLD_CELL],
-        "flipbook": {"cols": GRID, "rows": GRID, "frames": count, "fps": HOLD_FPS, "loop": True},
+        "size": [COLS * HOLD_CELL, ROWS * HOLD_CELL],
+        "layers": {"cols": COLS, "rows": ROWS, "turn": spec.get("turn", 0.9), **layer_options(spec, layers, hit=False)},
         "anchorY": spec.get("anchor", 0.5),
         "span": span,
         "cored": True,
     }
     if not spec.get("grey"):
         entry["plain"] = True
-    info = {"frames": count, "reach": round(bright, 3), "span": span}
-    return sheet_of(frames, HOLD_CELL, bool(spec.get("grey"))), entry, info
+    info = {"frame": pick, "reach": round(bright, 3), "span": span}
+    return atlas(layers, HOLD_CELL, bool(spec.get("grey"))), entry, info
 
 
 def main() -> None:
@@ -202,18 +277,19 @@ def main() -> None:
     textures: dict[str, dict] = {}
     for name in opts.hits or list(HITS):
         spec = HITS[name]
-        for kind, make in (("burst", burst), ("hold", hold)):
+        made = {}
+        for kind in ("burst", "hold"):
             if not (opts.src / f"{name}_{kind}.jpg").exists():
                 print(f"{name}: no {kind} sheet")
                 continue
-            image, entry, info = make(name, spec, opts.src)
+            if kind == "burst":
+                image, entry, info, made = burst(name, spec, opts.src)
+            else:
+                image, entry, info = hold(name, spec, opts.src, made or None)
             path = out / entry["file"]
             path.parent.mkdir(parents=True, exist_ok=True)
-            image.save(path, "WEBP", quality=90, method=6)
-            if kind == "burst":
-                # where the hit starts (the sheet as the game gets it): flipbook_light.py
-                measure(entry, Image.open(path))
-                info["peak"] = entry["flipbook"]["peak"]
+            # lossless: the order cell's three channels are three maps (lossy WebP would blur them into each other)
+            image.save(path, "WEBP", lossless=True, method=6)
             textures[f"{name}/hit{'Burst' if kind == 'burst' else 'Hold'}"] = entry
             print(f"{name} {kind}: {path.stat().st_size // 1024} KB", info)
     if opts.out:

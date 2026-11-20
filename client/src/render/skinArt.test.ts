@@ -75,6 +75,33 @@ describe('media manifest', () => {
     for (const tone of ['ffa980', '#ffa98', 'orange', 0xffa980]) expect(parseMediaTexture({ ...burst, tone }), String(tone)).toEqual({ ...burst, tone: undefined });
   });
 
+  it('keeps a hit drawn from layers: its atlas, and how its sheet\'s light fell and spread, when they are in range', () => {
+    const burst = {
+      file: 'fx/claude_burst.webp',
+      bundle: 'effects',
+      size: [1152, 768],
+      layers: { cols: 3, rows: 2, light: [1, 0.8, 0.3, 0], core: [1, 0.2, 0], grow: 1.2, reach: 0.6, body: true },
+      plain: true,
+      tone: '#ffa980',
+    };
+    expect(parseMediaTexture(burst)?.layers).toEqual(burst.layers);
+    expect(parseMediaTexture({ ...burst, layers: { cols: 3, rows: 2, turn: 0, axis: 'x', late: true } })?.layers).toEqual({ cols: 3, rows: 2, turn: 0, axis: 'x', late: true });
+    // an atlas too small for its six cells, or numbers out of range, is no entry (the hit is drawn in code)
+    for (const layers of [
+      { cols: 2, rows: 2 },
+      { cols: 3, rows: 2, light: [1] },
+      { cols: 3, rows: 2, light: [1, 'x'] },
+      { cols: 3, rows: 2, core: [1, 2] },
+      { cols: 3, rows: 2, grow: 3 },
+      { cols: 3, rows: 2, turn: 9 },
+      { cols: 3, rows: 2, reach: -1 },
+      'layers',
+    ])
+      expect(parseMediaTexture({ ...burst, layers }), JSON.stringify(layers)).toBeNull();
+    // what it does not know is left out
+    expect(parseMediaTexture({ ...burst, layers: { cols: 3, rows: 2, axis: 'y', body: 'yes' } })?.layers).toEqual({ cols: 3, rows: 2 });
+  });
+
   it('starts a hit where its sheet says, and shows it between two frames as a mix of them', () => {
     const book = { ...BOOK, frames: 9, fps: 28.1, peak: 3 };
     expect(hitFrame(book, 0)).toBe(3);

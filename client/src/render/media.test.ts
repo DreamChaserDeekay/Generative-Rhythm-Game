@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { parseManifest } from './skinArt';
 import { BASE_SKIN } from './skins';
+import { LAYER_BURST_MS } from './layerFx';
 import { styleTextures } from './styleArt';
 import { HIT_STYLES } from './tintArt';
 
@@ -60,27 +61,38 @@ describe('game media', () => {
   });
 
   it('starts every hit at the frame its sheet was measured brightest at, and plays it from there for under 0.4 s', () => {
-    // (scripts/assets/flipbook_light.py, run by the sheets' builds: a sheet built without it has no "peak")
+    // (scripts/assets/flipbook_light.py, run by the sheets' builds: a sheet built without it has no "peak"; a hit drawn
+    // from layers is whole at its first moment and over in LAYER_BURST_MS)
     const bursts = Object.entries(manifest.textures).filter(([id]) => id.endsWith('/hitBurst'));
     expect(bursts.length).toBeGreaterThanOrEqual(HIT_STYLES.length);
+    expect(LAYER_BURST_MS).toBeLessThan(400);
     for (const [id, t] of bursts) {
+      expect(t.tone !== undefined, `${id} tone`).toBe(t.plain === true);
+      if (t.layers) continue;
       const book = t.flipbook!;
       const said = (raw.textures[id] as { flipbook: { peak?: unknown } }).flipbook.peak;
       expect(Number.isInteger(said) && (said as number) >= 0 && (said as number) < book.frames, `${id} peak ${String(said)}`).toBe(true);
       const seconds = (book.frames - (book.peak ?? 0)) / book.fps;
       expect(seconds, id).toBeGreaterThanOrEqual(0.15);
       expect(seconds, id).toBeLessThan(0.4);
-      // a sheet in colours of its own says the colour of its light, for the flash on the judge line
-      expect(t.tone !== undefined, `${id} tone`).toBe(t.plain === true);
     }
   });
 
-  it('has the flipbooks of every hit effect a player picks', () => {
-    // every one, the skins' too (each an animation drawn frame by frame: fx/)
+  it('has the pictures of every hit effect a player picks', () => {
+    // every one: a sheet of frames, or the skins' layers (cut from animations drawn frame by frame: fx/)
     for (const hit of HIT_STYLES) {
       const ids = Object.entries(styleTextures({ ...BASE_SKIN.style, hit }));
       expect(ids.map(([slot]) => slot), hit).toEqual(['hitBurst', 'hitHold']);
-      for (const [slot, id] of ids) expect(manifest.textures[id]?.flipbook, `${hit}.${slot} = ${id}`).toBeDefined();
+      for (const [slot, id] of ids) expect(manifest.textures[id]?.flipbook ?? manifest.textures[id]?.layers, `${hit}.${slot} = ${id}`).toBeDefined();
+    }
+  });
+
+  it('cuts every layered hit into its atlas of six cells', () => {
+    // (layer_split.py: core, shape, sparks, glow, order, body or late specks; the order is not light)
+    for (const [id, t] of Object.entries(manifest.textures).filter(([, t]) => t.layers)) {
+      const { cols, rows } = t.layers!;
+      expect([cols, rows], id).toEqual([3, 2]);
+      expect(t.size[0] % cols === 0 && t.size[1] % rows === 0, `${id} cells`).toBe(true);
     }
   });
 });
