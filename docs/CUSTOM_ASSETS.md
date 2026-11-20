@@ -166,6 +166,8 @@ Square image (1:1). No text, letters, numbers, logos or watermarks.
 
 ## 시험 팩
 
+![시험 팩: 기본(왼쪽 위) · 시험 팩으로 플레이(오른쪽 위, 타격 효과가 터지는 프레임) · 설정 기어 탭 · 설정 노트 탭](screenshots/70-custom-assets.jpg)
+
 `python scripts/assets/make_test_pack.py <skins 폴더>`가 코드로 그린 팩 셋을 만듭니다(유료 이미지 생성 없음): `시험 팩`(마젠타 배경의 노트 · 롱노트, 3:2 받침, 검정 배경의 주황 효과), `broken`(배경이 두 색인 노트, 정사각 받침, 회색 배경의 효과: 각각 이유가 나옴), `sheet-only`(셋째 칸이 가장 밝은 4×4 시트, 이미 투명한 노트).
 
 ## 남은 것
