@@ -1,9 +1,10 @@
 /**
  * The pictures of a play's end, made with the image model (client/public/end/, built by
  * scripts/assets/build_end_fx.py: change them together): the lettering of the lamps that show their words,
- * the seal of each clear lamp, the frames of the shockwave that runs out from a seal and of the sparks where
- * a hard clear's two halves close (each a row of frames), the cracks over the lanes of a play that fails
- * halfway, and the light that rises along a lane as it comes on at a play's start. Where they cannot be read
+ * the seal of each clear lamp, the frames of the shockwave that runs out from a seal, of the sparks where
+ * a hard clear's two halves close and of the burst where the combo meets a full combo's lamp (each a row of
+ * frames), the cracks over the lanes of a play that fails halfway (a row of frames: they spread), and the
+ * light that rises along a lane as it comes on at a play's start. Where they cannot be read
  * the start and the end are drawn as the styles and the renderer draw them.
  */
 export interface EndArtIndex {
@@ -15,7 +16,10 @@ export interface EndArtIndex {
   seals: Record<string, { file: string; size: [number, number] }>;
   ring: { file: string; size: [number, number]; frames: number };
   sparks: { file: string; size: [number, number]; frames: number };
-  cracks: { file: string; size: [number, number] };
+  /** Where the combo meets the lamp of a full combo (MAX COMBO, PERFECT PLAY); none in a build before it. */
+  burst?: { file: string; size: [number, number]; frames: number };
+  /** The cracks as they spread, frame by frame in one row (a build before them: one picture, no frames). */
+  cracks: { file: string; size: [number, number]; frames?: number };
   /** Grey light on black, its bottom at the judge line (TrackRenderer.setLaneLight). */
   lane: { file: string; size: [number, number] };
 }
@@ -59,7 +63,9 @@ export function isEndArtIndex(v: unknown): v is EndArtIndex {
     Object.values(o.seals).every(picture) &&
     row(o.ring) &&
     row(o.sparks) &&
+    (o.burst === undefined || row(o.burst)) &&
     picture(o.cracks) &&
+    (o.cracks?.frames === undefined || row(o.cracks)) &&
     picture(o.lane)
   );
 }
@@ -68,6 +74,12 @@ export function isEndArtIndex(v: unknown): v is EndArtIndex {
 const endUrl = (file: string) => `${import.meta.env.BASE_URL}end/${file}`;
 
 let loading: Promise<EndArt | null> | null = null;
+let loaded: EndArt | null = null;
+
+/** The end's pictures if they are loaded already (the result after a play: its seal without a frame of the drawn mark first). */
+export function loadedEndArt(): EndArt | null {
+  return loaded;
+}
 
 /** The end's pictures, read once and loaded before they are shown (null: they cannot be read). */
 export function loadEndArt(): Promise<EndArt | null> {
@@ -84,9 +96,10 @@ export function loadEndArt(): Promise<EndArt | null> {
           im.onerror = () => fail(new Error(file));
           im.src = endUrl(file);
         });
-      const shown = [...Object.values(index.words), ...Object.values(index.seals), index.ring, index.sparks].map((p) => p.file);
+      const shown = [...Object.values(index.words), ...Object.values(index.seals), index.ring, index.sparks, ...(index.burst ? [index.burst] : [])].map((p) => p.file);
       const [cracks, lane] = await Promise.all([image(index.cracks.file), image(index.lane.file), ...shown.map(image)]);
-      return { index, url: endUrl, cracks, lane };
+      loaded = { index, url: endUrl, cracks, lane };
+      return loaded;
     } catch {
       return null;
     }

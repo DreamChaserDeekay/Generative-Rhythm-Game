@@ -3,56 +3,56 @@
   "perfect": {
    "file": "words-perfect.webp",
    "size": [
-    1094,
+    1658,
     320
    ],
    "band": [
-    0.2034,
-    0.8052
+    0.1667,
+    0.8492
    ]
   },
   "maxcombo": {
    "file": "words-maxcombo.webp",
    "size": [
-    1244,
+    1134,
     320
    ],
    "band": [
-    0.1605,
-    0.8415
+    0.1107,
+    0.891
    ]
   },
   "failed": {
    "file": "words-failed.webp",
    "size": [
-    912,
+    905,
     320
    ],
    "band": [
-    0.1497,
-    0.7434
+    0.1184,
+    0.8832
    ]
   },
   "autoplay": {
    "file": "words-autoplay.webp",
    "size": [
-    1146,
+    1145,
     320
    ],
    "band": [
-    0.1272,
-    0.8871
+    0.12,
+    0.8838
    ]
   },
   "practice": {
    "file": "words-practice.webp",
    "size": [
-    1133,
+    1604,
     320
    ],
    "band": [
-    0.224,
-    0.7884
+    0.1562,
+    0.8438
    ]
   }
  },
@@ -109,12 +109,21 @@
   ],
   "frames": 10
  },
+ "burst": {
+  "file": "combo-burst.webp",
+  "size": [
+   3072,
+   384
+  ],
+  "frames": 8
+ },
  "cracks": {
   "file": "cracks.webp",
   "size": [
-   1024,
-   1835
-  ]
+   2304,
+   768
+  ],
+  "frames": 6
  },
  "lane": {
   "file": "lane-light.webp",

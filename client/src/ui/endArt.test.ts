@@ -10,7 +10,7 @@ describe('the pictures of a play\'s end', () => {
   it('are listed as the game reads them, and every file listed is there', () => {
     expect(isEndArtIndex(index)).toBe(true);
     if (!isEndArtIndex(index)) return;
-    const files = [...Object.values(index.words), ...Object.values(index.seals), index.ring, index.sparks, index.cracks, index.lane].map((p) => p.file);
+    const files = [...Object.values(index.words), ...Object.values(index.seals), index.ring, index.sparks, ...(index.burst ? [index.burst] : []), index.cracks, index.lane].map((p) => p.file);
     expect(new Set(files).size).toBe(files.length);
     for (const file of files) expect(existsSync(new URL(file, MEDIA)), file).toBe(true);
   });
@@ -39,10 +39,14 @@ describe('the pictures of a play\'s end', () => {
       expect(bottom - top).toBeGreaterThan(0.4);
       expect(words.size[0]).toBeGreaterThan(2 * words.size[1]);
     }
-    for (const sheet of [index.ring, index.sparks]) {
+    for (const sheet of [index.ring, index.sparks, index.burst!]) {
       expect(sheet.frames).toBeGreaterThanOrEqual(6);
       expect(sheet.size[0]).toBe(sheet.frames * sheet.size[1]);
     }
+    // the cracks spreading: six frames of portrait cells (1:2) in one row, no more pixels than the one picture before them
+    expect(index.cracks.frames).toBe(6);
+    expect(index.cracks.size[0]).toBe(6 * (index.cracks.size[1] / 2));
+    expect(index.cracks.size[0] * index.cracks.size[1]).toBeLessThanOrEqual(1024 * 1835);
     for (const seal of Object.values(index.seals)) expect(seal.size[0]).toBe(seal.size[1]);
   });
 
@@ -54,6 +58,11 @@ describe('the pictures of a play\'s end', () => {
     expect(isEndArtIndex({ ...index, ring: { ...index.ring, frames: 0 } })).toBe(false);
     expect(isEndArtIndex({ ...index, words: { perfect: { file: 'x.webp', size: [1, 1] } } })).toBe(false);
     expect(isEndArtIndex({ ...index, cracks: undefined })).toBe(false);
+    expect(isEndArtIndex({ ...index, cracks: { ...index.cracks, frames: 0 } })).toBe(false);
+    expect(isEndArtIndex({ ...index, burst: { file: 'b.webp', size: [1, 1] } })).toBe(false);
+    // a build before the cracks spread and the burst: one picture of cracks, no burst
+    const { burst: _burst, ...before } = index;
+    expect(isEndArtIndex({ ...before, cracks: { file: 'cracks.webp', size: [1024, 1835] } })).toBe(true);
     expect(isEndArtIndex({ ...index, lane: undefined })).toBe(false);
   });
 });

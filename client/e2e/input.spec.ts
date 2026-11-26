@@ -612,3 +612,74 @@ test('the song info sets the song offset, and resets it', async ({ page }) => {
   expect((await stored(page)).songOffsets).toEqual({});
   expect(errors).toEqual([]);
 });
+
+/**
+ * One long note in lane 1 (D) from beat 8 to beat 24 of the demo song (3.36 s to 10.07 s): its head is pressed in the
+ * page on time, read off the HUD's clock (the hidden time left turns to 0:07 at 3.07 s), and the key is held.
+ */
+async function holdLongNote(page: Page) {
+  const ms = (beat: number) => (beat * 60_000) / 143;
+  await serveChart(page, 8, 9, (chart) => {
+    Object.assign(chart.notes[0], { lane: 0, type: 'hold', endBeat: 24, endT: ms(24) });
+  });
+  await pickDemoSong(page);
+  await expect(page.getByTestId('chart-level')).toBeVisible({ timeout: 30_000 });
+  await play(page);
+  const headLate = await page.evaluate(
+    ([head, end]) =>
+      new Promise<number>((done) => {
+        const left = document.querySelector('[data-testid="hud-remaining"]') as HTMLElement;
+        // the time left shows whole seconds rounded up: it turns to 0:07 as the song passes end - 7000 ms
+        const watch = new MutationObserver(() => {
+          if (left.textContent !== '0:07') return;
+          watch.disconnect();
+          const seen = performance.now();
+          setTimeout(() => {
+            window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyD', key: 'd' }));
+            done(performance.now() - seen - (head - (end - 7000)));
+          }, head - (end - 7000));
+        });
+        watch.observe(left, { childList: true, characterData: true, subtree: true });
+      }),
+    [ms(8), ms(24)],
+  );
+  expect(headLate).toBeLessThan(60);
+  await expect.poll(async () => Number((await page.locator('.hud-combo-num').textContent()) || 0), { timeout: 5000 }).toBeGreaterThan(0);
+}
+
+const key = (page: Page, type: 'keydown' | 'keyup') => page.evaluate((t) => window.dispatchEvent(new KeyboardEvent(t, { code: 'KeyD', key: 'd' })), type);
+
+test('a long note held through a pause is not broken by it: held on with its key still down, let go of where the song stopped otherwise', async ({ page }) => {
+  await startWith(page, { lastKeyMode: '4K', hiSpeed: 4, pauseOnBlur: false });
+  // held all through the pause: the long note is whole
+  await holdLongNote(page);
+  await page.waitForTimeout(1500);
+  await page.keyboard.press('Escape');
+  const menu = page.getByTestId('pause-menu');
+  await expect(menu).toBeVisible();
+  await page.waitForTimeout(500);
+  await page.keyboard.press('Escape');
+  await expect(menu).toHaveCount(0);
+  await expect(page.getByTestId('result-screen')).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId('result-breaks')).toHaveText('0');
+  await key(page, 'keyup');
+
+  // let go of during the pause: nothing is judged then, and it breaks where the song stopped, once the run-up is over
+  await page.goto('/');
+  await holdLongNote(page);
+  await page.waitForTimeout(1500);
+  await page.keyboard.press('Escape');
+  await expect(menu).toBeVisible();
+  await key(page, 'keyup');
+  await page.waitForTimeout(300);
+  const breaks = () => page.evaluate(() => document.querySelector('.hud-judge')?.textContent ?? '');
+  expect(await breaks()).not.toMatch(/BREAK/);
+  await page.keyboard.press('Escape');
+  await expect(menu).toHaveCount(0);
+  // over the run-up (1.5 s) the note is not judged yet
+  await page.waitForTimeout(700);
+  expect(await breaks()).not.toMatch(/BREAK/);
+  await expect.poll(breaks, { timeout: 3000 }).toMatch(/BREAK/);
+  await expect(page.getByTestId('result-screen')).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId('result-breaks')).toHaveText('1');
+});

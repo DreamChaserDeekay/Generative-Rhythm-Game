@@ -15,6 +15,7 @@ const MAX_TIMESTAMP_SKEW_MS = 1000;
  * a pad control): held together they are one press.
  */
 export class InputManager {
+  /** Off: key transitions are still followed (which keys are down) but none reaches the sink. */
   enabled = true;
   private readonly clock: SongClock;
   private readonly sink: LaneInputSink;
@@ -22,6 +23,8 @@ export class InputManager {
   private readonly laneByCode = new Map<string, number>();
   private readonly downCodes = new Set<string>();
   private readonly laneDown: number[];
+  /** The lanes the sink has down: pressed to it, not yet released to it. */
+  private readonly sinkDown: boolean[];
   private target: Window | null = null;
 
   /** `more`: further codes per lane (second keys, pad controls; null = none). */
@@ -33,6 +36,7 @@ export class InputManager {
     // a code already a lane's stays that lane's
     for (const codes of more) codes.forEach((code, lane) => code && lane < bindings.length && !this.laneByCode.has(code) && this.laneByCode.set(code, lane));
     this.laneDown = new Array(bindings.length).fill(0);
+    this.sinkDown = new Array(bindings.length).fill(false);
   }
 
   /** A new input offset (a song's offset changed in play), for the presses from now on. */
@@ -55,9 +59,27 @@ export class InputManager {
     this.target = null;
   }
 
-  /** Release every held key, e.g. when pausing or losing focus. */
+  /** Release every held key, e.g. when losing focus. */
   releaseAll(perfMs: number = performance.now()): void {
     for (const code of [...this.downCodes]) this.handleKey(code, false, perfMs);
+  }
+
+  /**
+   * A pause: no key reaches the sink, which keeps down what it had down (a long note held is not broken
+   * by the pause itself), while the keys are still followed: let go of, held again, or let go of for the
+   * page losing the focus (releaseAll). `resume` settles them.
+   */
+  suspend(): void {
+    this.enabled = false;
+  }
+
+  /**
+   * The play goes on: a lane the sink still has down from before the pause stays down if its key is
+   * down now (held all through, or again), and is released to it now otherwise.
+   */
+  resume(perfMs: number = performance.now()): void {
+    this.enabled = true;
+    for (let lane = 0; lane < this.sinkDown.length; lane++) if (this.sinkDown[lane] && this.laneDown[lane] === 0) this.send(lane, false, perfMs);
   }
 
   /** Feed a key transition stamped on the `performance.now()` timeline. Returns true if bound. */
@@ -68,13 +90,23 @@ export class InputManager {
       if (this.downCodes.has(code)) return true;
       this.downCodes.add(code);
       this.laneDown[lane]++;
-      if (this.laneDown[lane] === 1) this.dispatch(lane, true, perfMs);
+      if (this.laneDown[lane] === 1) this.send(lane, true, perfMs);
     } else {
       if (!this.downCodes.delete(code)) return true;
       this.laneDown[lane]--;
-      if (this.laneDown[lane] === 0) this.dispatch(lane, false, perfMs);
+      if (this.laneDown[lane] === 0) this.send(lane, false, perfMs);
     }
     return true;
+  }
+
+  /**
+   * A key's lane goes down or up to the sink while it is on, and only as a change: a key pressed while
+   * it was off is let go of without a release (the sink never had it down).
+   */
+  private send(lane: number, down: boolean, perfMs: number): void {
+    if (!this.enabled || this.sinkDown[lane] === down) return;
+    this.sinkDown[lane] = down;
+    this.dispatch(lane, down, perfMs);
   }
 
   /** Inject a lane transition at a song time through the same timestamp conversion as real keys. */

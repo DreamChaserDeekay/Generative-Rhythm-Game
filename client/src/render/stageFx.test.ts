@@ -21,6 +21,7 @@ import {
   resumeLine,
   springRest,
   tapeStopTime,
+  retryLeadIn,
 } from './stageFx';
 
 const tempoAt = (bpm: number, offsetMs = 0) => new TempoMap({ offsetMs, tempoMap: [{ beat: 0, bpm }], meter: [{ measure: 0, beatsPerMeasure: 4 }] });
@@ -54,7 +55,7 @@ describe('a start: when the lanes light and the judge line is drawn', () => {
   it('lights a lane a beat on the chart\'s beats where there is room, the judge line after the last', () => {
     // 150 BPM: a beat is 400 ms; the run starts 1.5 s before the song, the first note is far off
     const plan = planIntro([1, 2, 0, 3], 4, -1500, 6000, 1, tempoAt(150));
-    // the first beat no sooner than 150 ms into the run
+    // the first beat no sooner than 200 ms into the run (the start card gone)
     expect(plan.laneAt).toEqual([-400, -1200, -800, 0]);
     expect(plan.lineFrom).toBe(400);
     expect(plan.lineTo).toBe(800);
@@ -89,7 +90,7 @@ describe('a start: when the lanes light and the judge line is drawn', () => {
   it('spreads the lanes evenly over the room there is where no beat fits', () => {
     const plan = planIntro([1, 2, 0, 3], 4, 0, 600, 1, tempoAt(120));
     const times = [1, 2, 0, 3].map((lane) => plan.laneAt[lane]);
-    expect(times[0]).toBe(150);
+    expect(times[0]).toBe(200);
     for (let i = 1; i < 4; i++) expect(times[i] - times[i - 1]).toBeCloseTo(times[1] - times[0], 6);
     expect(plan.lineFrom).toBeGreaterThanOrEqual(times[3]);
     expect(plan.lineTo).toBe(520);
@@ -200,19 +201,19 @@ describe('a failed play: the lanes crack and drop away', () => {
     expect(frame.crack).toBeGreaterThan(0);
     expect(frame.crack).toBeLessThan(1);
     expect(frame.drop).toEqual(new Array(8).fill(0));
-    failFrame(frame, falls, 400);
+    failFrame(frame, falls, 250);
     expect(frame.crack).toBe(1);
     expect(frame.drop).toEqual(new Array(8).fill(0));
     expect(frame.line).toBe(1);
     // the first of them has let go, the last has not
-    failFrame(frame, falls, 700);
+    failFrame(frame, falls, 450);
     expect(frame.drop[falls[0]]).toBeGreaterThan(0);
     expect(frame.dark[falls[0]]).toBe(1);
     expect(frame.drop[falls[7]]).toBe(0);
     expect(frame.dark[falls[7]]).toBeLessThan(0.5);
     // it speeds up as it drops
     const early = frame.drop[falls[0]];
-    failFrame(frame, falls, 880);
+    failFrame(frame, falls, 600);
     expect(frame.drop[falls[0]]).toBeGreaterThan(early * 3);
   });
 
@@ -309,5 +310,15 @@ describe('the camera\'s way in and out', () => {
     expect(rest.pitch).toBeCloseTo((-EXIT.pitchDeg * Math.PI) / 180, 4);
     expect(rest.fovScale).toBeCloseTo(1 + EXIT.wide, 4);
     expect(exitPose(5000, 0).fovScale).toBe(1);
+  });
+});
+
+describe('a retry', () => {
+  it('comes on quicker than a first start: 0.75 to 1.2 s, the later the first note the shorter', () => {
+    expect(retryLeadIn(0)).toBe(1200);
+    expect(retryLeadIn(400)).toBe(1200);
+    expect(retryLeadIn(600)).toBe(1000);
+    expect(retryLeadIn(850)).toBe(750);
+    expect(retryLeadIn(30000)).toBe(750);
   });
 });

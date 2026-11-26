@@ -77,6 +77,8 @@ export interface Settings {
   keyBeamLength: number;
   musicVolume: number;
   sfxVolume: number;
+  /** All sound off (the song select's 음소거, by Esc 메뉴), the volumes kept for when it is on again. */
+  muted: boolean;
   hitSound: boolean;
   showErrorMs: boolean;
   bindings: Partial<Record<KeyModeId, string[]>>;
@@ -206,6 +208,7 @@ export const DEFAULT_SETTINGS: Settings = {
   keyBeamLength: 1,
   musicVolume: 0.9,
   sfxVolume: 0.6,
+  muted: false,
   hitSound: false,
   showErrorMs: true,
   bindings: {},
@@ -297,6 +300,16 @@ function picked<K extends string>(raw: unknown, names: readonly K[], clean: (v: 
   return out;
 }
 
+/** The music's (and the keysounds') volume as it sounds: none while muted. */
+export function musicLevel(s: Pick<Settings, 'musicVolume' | 'muted'>): number {
+  return s.muted ? 0 : s.musicVolume;
+}
+
+/** The effects' volume as they sound: none while muted. */
+export function sfxLevel(s: Pick<Settings, 'sfxVolume' | 'muted'>): number {
+  return s.muted ? 0 : s.sfxVolume;
+}
+
 /** Fills defaults and drops values that the current config no longer knows. */
 export function sanitizeSettings(raw: Partial<Settings>): Settings {
   const s = { ...DEFAULT_SETTINGS, ...raw };
@@ -355,6 +368,7 @@ export function sanitizeSettings(raw: Partial<Settings>): Settings {
   s.errorBar = s.errorBar === true;
   s.pacemaker = pick(s.pacemaker, PACEMAKERS, d.pacemaker);
   s.keysound = Boolean(s.keysound);
+  s.muted = s.muted === true;
   s.barLines = s.barLines !== false;
   s.cameraFx = num(s.cameraFx, 0, 1, d.cameraFx);
   s.hitEffectSize = pick(s.hitEffectSize, HIT_EFFECT_SIZES, d.hitEffectSize);

@@ -595,10 +595,10 @@ test('notes and side notes picked in the 노트 tab, gear and hit effect in the 
   await tool(page, 'sync-auto');
   await expect(page.locator('.play-canvas')).toHaveAttribute('data-style', 'prism prism bar prism prism');
   await expect(page.locator('.play-canvas')).toHaveAttribute('data-art', 'notes long gear hit');
-  // its HUD: the gauge named FEVER, the letters cut into planes (each word carries its text for them)
+  // its HUD: the gauge unnamed (only the piano names its own: FORTE), the letters cut into planes (each word carries its text for them)
   await expect(page.locator('.hud')).toHaveAttribute('data-gear', 'prism');
   await expect(page.locator('.hud')).toHaveAttribute('data-fill', 'crystal');
-  await expect(page.locator('.hud-gauge-name')).toHaveText('FEVER');
+  await expect(page.locator('.hud-gauge-name')).toHaveCount(0);
   await expect(page.locator('.hud-combo-label')).toHaveAttribute('data-text', 'COMBO');
   await expect(page.locator('.hud-judge-label .hud-fill').first()).toBeVisible({ timeout: 30_000 });
   const cut = await page.locator('.hud-judge-label').evaluate((label) =>
@@ -711,7 +711,7 @@ test('the sky gear with its notes and its hit in play: drawn from their pictures
   const hud = page.locator('.hud');
   await expect(hud).toHaveAttribute('data-gear', 'sky');
   await expect(hud).toHaveAttribute('data-fill', 'sky');
-  await expect(page.locator('.hud-gauge-name')).toHaveText('FEVER');
+  await expect(page.locator('.hud-gauge-name')).toHaveCount(0);
   // the lettering in the gear's own face (bundled), each word carrying its text for the fill over it
   await expect(page.locator('.hud-judge-label .hud-fill').first()).toBeVisible({ timeout: 30_000 });
   expect(await page.evaluate(() => document.fonts.check('italic 800 40px Nunito'))).toBe(true);
@@ -772,7 +772,7 @@ test('an AI company’s gear with its notes and its hit in play: the build’s t
   const hud = page.locator('.hud');
   await expect(hud).toHaveAttribute('data-gear', 'gemini');
   await expect(hud).toHaveAttribute('data-fill', 'gemini');
-  await expect(page.locator('.hud-gauge-name')).toHaveText('FEVER');
+  await expect(page.locator('.hud-gauge-name')).toHaveCount(0);
   await expect(page.locator('.hud-judge-label .hud-fill').first()).toBeVisible({ timeout: 30_000 });
   expect(await page.evaluate(() => document.fonts.check("700 40px 'Outfit'"))).toBe(true);
   expect(errors).toEqual([]);
@@ -800,7 +800,7 @@ test('the Firestarter gear with its notes and its hit in play: drawn from their 
   const hud = page.locator('.hud');
   await expect(hud).toHaveAttribute('data-gear', 'fire');
   await expect(hud).toHaveAttribute('data-fill', 'fire');
-  await expect(page.locator('.hud-gauge-name')).toHaveText('FEVER');
+  await expect(page.locator('.hud-gauge-name')).toHaveCount(0);
   await expect(page.locator('.hud-judge-label .hud-fill').first()).toBeVisible({ timeout: 30_000 });
   expect(await page.evaluate(() => document.fonts.check("italic 800 40px 'Barlow Condensed Italic'"))).toBe(true);
   const words = await page.locator('.hud-judge-label').evaluate((label) =>
@@ -910,9 +910,9 @@ test('the club, crystal, neon and piano hits picked part by part, each with one 
     await expect(page.locator('.play-canvas')).toHaveAttribute('data-art', 'notes long gear hit');
     await expect(page.locator('.play-overlay')).toHaveCount(0, { timeout: 30_000 });
     await expect(page.locator('.hud')).toHaveAttribute('data-gear', deck);
-    // its gauge a column of cells, named
+    // its gauge a column of cells, named on the piano alone (FORTE)
     await expect(page.locator('.hud-gauge')).toHaveCount(1);
-    await expect(page.locator('.hud-gauge-name')).toHaveCount(1);
+    await expect(page.locator('.hud-gauge-name')).toHaveCount(deck === 'piano' ? 1 : 0);
     await page.waitForTimeout(1500);
     await page.screenshot({ path: `test-results/play-${hit}.png` });
     await page.keyboard.press('Escape');

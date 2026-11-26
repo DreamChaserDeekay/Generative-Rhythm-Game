@@ -8,8 +8,10 @@ Each source is one picture from the image model on black (scripts/assets/make_en
 assets-src/PROVENANCE.md): the lettering of the lamps that show their words (`words-<lamp>.jpg`), the seal of each clear
 lamp (`seal-<lamp>.jpg`), the frame-by-frame sheets (16 frames in a 4 x 4 grid, read row by row) of the shockwave that
 runs out from a seal as it is stamped (`ring.jpg`) and of the sparks where a hard clear's two halves close
-(`sparks.jpg`), the cracks over the lanes of a play that fails halfway (`cracks.jpg`), and the light that rises along
-a lane as it comes on at a play's start (`lane-light.jpg`, the renderer's).
+(`sparks.jpg`), the burst where the combo meets the lamp at a full-combo end (`combo-burst.jpg`, 10 frames in a 5 x 2
+grid of not quite square cells: squared about their middles), the cracks over the lanes of a play that fails halfway
+(`cracks-sheet.jpg`, 6 frames in a 3 x 2 grid of portrait cells, their point of impact on each cell's bottom edge),
+and the light that rises along a lane as it comes on at a play's start (`lane-light.jpg`, the renderer's).
 
 What is done to a picture: its black is made black (the model's is not quite, and JPEG adds noise) and then nothing:
 the picture becomes as opaque as it is bright, in colours such that over black it looks exactly as it did, so its glow
@@ -44,11 +46,12 @@ WORDS = {
     "practice": "words-practice",
 }
 SEALS = ["clear", "easy", "assist", "hard", "exhard"]
-#: px: the words' height, a seal's side, a frame of a sheet, the cracks' width
+#: px: the words' height, a seal's side, a frame of a sheet, a frame of the cracks (no more pixels in all six than
+#: the one picture of cracks before them: 1024 x 1835)
 WORDS_HEIGHT = 320
 SEAL_PX = 512
 CELL = 384
-CRACKS_WIDTH = 1024
+CRACK_FRAME = (384, 768)
 #: px: the lane's light (it is stretched over a lane, far longer than it is wide)
 LANE_SIZE = (256, 1024)
 GRID = 4
@@ -133,10 +136,22 @@ def edge_mask(n: int, soft: float = 0.07) -> np.ndarray:
     return np.outer(side, side).astype(np.float32)[..., None]
 
 
-def sheet(src: Path, out: Path, name: str, white: bool) -> dict:
-    a = load(src / f"{name}.jpg")
-    n = a.shape[0] // GRID
-    frames = [a[r * n:(r + 1) * n, c * n:(c + 1) * n] * edge_mask(n) for r in range(GRID) for c in range(GRID)]
+def cells(a: np.ndarray, cols: int, rows: int) -> list[np.ndarray]:
+    """A sheet's frames, row by row: its cells, squared about their middles where they are not square."""
+    h, w = a.shape[:2]
+    out = []
+    for r in range(rows):
+        for c in range(cols):
+            x0, x1, y0, y1 = round(c * w / cols), round((c + 1) * w / cols), round(r * h / rows), round((r + 1) * h / rows)
+            n = min(x1 - x0, y1 - y0)
+            cx, cy = (x0 + x1) // 2, (y0 + y1) // 2
+            out.append(a[cy - n // 2:cy - n // 2 + n, cx - n // 2:cx - n // 2 + n])
+    return out
+
+
+def sheet(src: Path, out: Path, name: str, white: bool, cols: int = GRID, rows: int = GRID, file: str | None = None) -> dict:
+    a = load(src / f"{file or name}.jpg")
+    frames = [f * edge_mask(f.shape[0]) for f in cells(a, cols, rows)]
     energy = np.array([float(f.max(axis=2).sum()) for f in frames])
     last = int(np.nonzero(energy >= GONE * energy.max())[0].max())
     kept = frames[:min(len(frames), last + 2)]
@@ -149,12 +164,23 @@ def sheet(src: Path, out: Path, name: str, white: bool) -> dict:
     return {**save(row, out, f"{name}.webp"), "frames": len(kept)}
 
 
-def cracks(src: Path, out: Path) -> dict:
-    rgba = lit(load(src / "cracks.jpg"), SOLID)
-    image = sized(rgba, (CRACKS_WIDTH, round(CRACKS_WIDTH * rgba.shape[0] / rgba.shape[1])))
+def cracks(src: Path, out: Path, cols: int = 3, rows: int = 2) -> dict:
+    """The cracks frame by frame, in one row: each cell faded at its sides and top only (its point of impact lies on
+    its bottom edge, where the renderer puts the judge line)."""
+    a = load(src / "cracks-sheet.jpg")
+    h, w = a.shape[:2]
+    fw, fh = CRACK_FRAME
+    row = Image.new("RGBA", (cols * rows * fw, fh))
+    for k in range(cols * rows):
+        r, c = divmod(k, cols)
+        cell = a[round(r * h / rows):round((r + 1) * h / rows), round(c * w / cols):round((c + 1) * w / cols)]
+        across = (np.minimum(np.arange(cell.shape[1]), np.arange(cell.shape[1])[::-1]) + 0.5) / cell.shape[1]
+        down = (np.arange(cell.shape[0]) + 0.5) / cell.shape[0]
+        fade = np.outer(smoothstep(0, 0.04, down), smoothstep(0, 0.03, across)).astype(np.float32)[..., None]
+        row.paste(sized(lit(cell * fade, SOLID), (fw, fh)), (k * fw, 0))
     # thin bright lines on nothing: a lower quality shows no difference on the track and halves the file
-    image.save(out / "cracks.webp", "WEBP", quality=CRACKS_QUALITY, method=6)
-    return {"file": "cracks.webp", "size": list(image.size)}
+    row.save(out / "cracks.webp", "WEBP", quality=CRACKS_QUALITY, method=6)
+    return {"file": "cracks.webp", "size": list(row.size), "frames": cols * rows}
 
 
 def lane_light(src: Path, out: Path) -> dict:
@@ -171,6 +197,7 @@ def build(src: Path, out: Path) -> dict:
         "seals": {lamp: seal(src, out, lamp) for lamp in SEALS},
         "ring": sheet(src, out, "ring", True),
         "sparks": sheet(src, out, "sparks", False),
+        "burst": sheet(src, out, "combo-burst", False, 5, 2),
         "cracks": cracks(src, out),
         "lane": lane_light(src, out),
     }

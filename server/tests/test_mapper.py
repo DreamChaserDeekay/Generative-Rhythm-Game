@@ -158,23 +158,14 @@ def test_charts_come_from_mapperatorinator_once_its_runtime_is_set_up(mapped: Te
     assert again["cached"] is True and again["chart"]["meta"]["chartId"] == chart["meta"]["chartId"]
     brief2 = mapped.post(f"/api/songs/{sid}/charts", json={"keyMode": "8K", "difficulty": "EXPERT", "brief": True}).json()["meta"]
     assert "predicted" not in brief2 and brief2["noteCount"] == 48  # the made chart's own meta now
-    # the other tiers of the key mode follow in the background, one at a time, and are saved
-    others = [t for t in ("EASY", "NORMAL", "HARD", "ELITE")]
-    deadline = time.time() + 30
-    made: dict[str, dict] = {}
-    while time.time() < deadline and len(made) < len(others):
-        for tier in others:
-            m = mapped.post(f"/api/songs/{sid}/charts", json={"keyMode": "8K", "difficulty": tier, "brief": True}).json()["meta"]
-            if m.get("predicted"):
-                assert m["queued"] or m["making"]  # waiting its turn, or being made
-            else:
-                made[tier] = m
-        time.sleep(0.2)
-    assert set(made) == set(others) and all(m["generator"]["name"] == "mapperatorinator" for m in made.values())
-    # every other tier was made on the song's timing: the same beats and bar lines, no timing pass
-    for tier in others:
-        other = mapped.get(f"/api/charts/{made[tier]['chartId']}").json()["chart"]
-        assert other["timing"] == chart["timing"] and other["meta"]["generator"]["timing"] == "song"
+    # only the chart played is made: the other tiers of the key mode are not queued with it
+    time.sleep(0.5)
+    for tier in ("EASY", "NORMAL", "HARD", "ELITE"):
+        m = mapped.post(f"/api/songs/{sid}/charts", json={"keyMode": "8K", "difficulty": tier, "brief": True}).json()["meta"]
+        assert m["predicted"] is True and not m["queued"] and not m["making"], tier
+    # another tier, when it is played, is made on the song's timing: the same beats and bar lines, no timing pass
+    other = mapped.post(f"/api/songs/{sid}/charts", json={"keyMode": "8K", "difficulty": "HARD"}).json()["chart"]
+    assert other["timing"] == chart["timing"] and other["meta"]["generator"]["timing"] == "song"
 
 
 def test_a_chart_it_cannot_make_is_an_error_to_try_again_on(mapped: TestClient, fake_mapper_runtime, monkeypatch) -> None:
@@ -245,6 +236,10 @@ def test_the_queue_says_what_it_is_making_and_how_many_wait() -> None:
     q.submit("bg1", BACKGROUND, ("bg1",))
     last, _ = q.submit("bg2", BACKGROUND, ("bg2",))
     assert q.snapshot() == {"making": "first", "waiting": 2}
+    # the charts in the queue: the one being made, then the others in their turn (one opened moves up)
+    assert q.ids() == ["first", "bg1", "bg2"]
+    q.submit("bg2", OPENED, ("bg2",))
+    assert q.ids() == ["first", "bg2", "bg1"]
     gate.set()
     assert first.result(5) and last.result(5)
     _wait_for(lambda: q.snapshot() == idle)
@@ -254,14 +249,14 @@ def test_the_queue_says_what_it_is_making_and_how_many_wait() -> None:
 
 def test_the_server_tells_what_chart_is_being_made_and_whether_the_model_is_loaded(mapped: TestClient) -> None:
     # before the first chart: nothing made, and no worker holding the model
-    assert mapped.get("/api/mapper/queue").json() == {"making": None, "waiting": 0, "loaded": False}
+    assert mapped.get("/api/mapper/queue").json() == {"making": None, "waiting": 0, "loaded": False, "charts": []}
     sid = mapped.post("/api/songs/demo", json={"bpm": 128, "bars": 12, "seed": 2}).json()["song"]["id"]
     assert mapped.post(f"/api/songs/{sid}/charts", json={"keyMode": "8K", "difficulty": "EXPERT"}).status_code == 200
-    # the other four tiers follow in the background: named here until the last is made
+    # only the chart played was made: nothing waits after it (the other tiers are not made with it)
     seen = mapped.get("/api/mapper/queue").json()
-    assert set(seen) == {"making", "waiting", "loaded"} and 0 <= seen["waiting"] <= 4 and seen["loaded"] is True
+    assert set(seen) == {"making", "waiting", "loaded", "charts"} and seen["waiting"] == 0 and seen["loaded"] is True
     # and with nothing left to make the worker stays up, the model with it
-    idle = {"making": None, "waiting": 0, "loaded": True}
+    idle = {"making": None, "waiting": 0, "loaded": True, "charts": []}
     _wait_for(lambda: mapped.get("/api/mapper/queue").json() == idle, 30)
     assert mapped.get("/api/mapper/queue").json() == idle
 

@@ -64,6 +64,9 @@ describe('song list marks and record headlines', () => {
     // not known yet: the level of its best play, the best lamp of its charts
     expect(tierMark(records, 'HARD', null)).toEqual({ level: 9, lamp: 'HARD CLEAR' });
     expect(tierMark(records, 'MASTER', null)).toEqual({ level: null, lamp: null });
+    // the chart Enter plays not made yet: no level (not the one aimed at), whatever was played before
+    expect(tierMark(records, 'HARD', { chartId: 'new', level: 10, noteCount: 0, seed: 2, predicted: true })).toEqual({ level: null, lamp: 'HARD CLEAR', other: true, unmade: true });
+    expect(tierMark([], 'HARD', { chartId: 'new', level: 10, noteCount: 0, seed: 2, predicted: true })).toEqual({ level: null, lamp: null, other: false, unmade: true });
   });
 
   it('two cells are the same when they show the same', () => {

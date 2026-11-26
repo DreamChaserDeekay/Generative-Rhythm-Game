@@ -48,7 +48,7 @@ from ..skins import Packs
 from ..mapper.charts import MAPPER_VERSION, settings_tag, song_bpm
 from ..mapper.steady import STEADY_VERSION, hold_ticks, retimed_chart, same_timing, settled_timing
 from ..mapper.runtime import public_settings, save_settings
-from ..mapper.queue import BACKGROUND, OPENED, MapperQueue
+from ..mapper.queue import OPENED, MapperQueue
 
 log = logging.getLogger("rhythm_server.api")
 # a chart made before is put on its song's settled timing only where its max combo changes by this
@@ -157,6 +157,21 @@ BRIEF_CHARTS_KEPT = 12
 BRIEF_METAS_KEPT = 1000
 
 
+def receive_upload(file: UploadFile, tmp: Path, limit: int, too_big: str) -> None:
+    """An upload written to `tmp`; whatever stops it (too big, a read or a write that fails) leaves no file behind."""
+    size = 0
+    try:
+        with open(tmp, "wb") as out:
+            while chunk := file.file.read(1 << 20):
+                size += len(chunk)
+                if size > limit:
+                    raise HTTPException(413, too_big)
+                out.write(chunk)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
+
+
 def _exit_soon() -> None:
     """Ends the process a moment after the response has gone out (as the desktop app's own stop does)."""
     threading.Timer(0.2, os._exit, (0,)).start()
@@ -176,9 +191,13 @@ def create_app(
     # the player's own asset packs (skins.py, docs/CUSTOM_ASSETS.md)
     packs = Packs(root or data_dir())
     mapper = mapper or Mapper()
-    # Mapperatorinator's charts, one at a time (one GPU): the one opened first, then the other
-    # tiers of its key mode in the background
+    # Mapperatorinator's charts, one at a time (one GPU), in the order they are opened: only the chart of the key
+    # mode and tier played is made (the user, 2026-11-20: "선택한 키 및 난이도에 해당하는 채보만 생성")
     mapper_queue = MapperQueue(mapper.generate)
+    # whose each chart in the queue is (the song list marks the songs being made: GET /api/mapper/queue);
+    # the endpoints run on a pool of threads, so it is read and written under its lock
+    queued_charts: dict[str, dict[str, str]] = {}
+    queued_lock = threading.Lock()
     # stems for keysounds are separated right after each analysis (ensure_stems is defined below)
     queue = AnalysisQueue(library, synchronous=synchronous_jobs, after_analysis=lambda song_id, pcm: ensure_stems(song_id, pcm))
 
@@ -368,11 +387,18 @@ def create_app(
 
     @app.get("/api/mapper/queue")
     def mapper_queue_state() -> dict[str, Any]:
-        """The chart being made now, how many wait, and whether the model is loaded (the worker
-        keeps it, a few GB of the GPU's memory, from its first chart on). The model works on the GPU
+        """The chart being made now, how many wait, whether the model is loaded (the worker keeps it, a
+        few GB of the GPU's memory, from its first chart on), and the charts in the queue with their
+        songs (the song list marks a song with a chart being made or waiting). The model works on the GPU
         the game is drawn with: the desktop app notes this down when its graphics are lost
         (desktop/main.js)."""
-        return {**mapper_queue.snapshot(), "loaded": mapper.service.loaded()}
+        ids = mapper_queue.ids()
+        making = mapper_queue.making
+        with queued_lock:
+            for gone in [c for c in queued_charts if c not in ids]:
+                del queued_charts[gone]
+            charts = [{"chartId": c, **queued_charts[c], "state": "making" if c == making else "queued"} for c in ids if c in queued_charts]
+        return {**mapper_queue.snapshot(), "loaded": mapper.service.loaded(), "charts": charts}
 
     @app.post("/api/mapper/install", status_code=202)
     def mapper_install() -> dict[str, Any]:
@@ -402,15 +428,7 @@ def create_app(
         if ext not in SUPPORTED_EXTENSIONS:
             raise HTTPException(415, f"지원하지 않는 형식입니다: {ext or '(확장자 없음)'}")
         tmp = library.tmp_path(ext)
-        size = 0
-        with open(tmp, "wb") as out:
-            while chunk := file.file.read(1 << 20):
-                size += len(chunk)
-                if size > MAX_UPLOAD_BYTES:
-                    out.close()
-                    tmp.unlink(missing_ok=True)
-                    raise HTTPException(413, "파일이 너무 큽니다 (최대 300MB)")
-                out.write(chunk)
+        receive_upload(file, tmp, MAX_UPLOAD_BYTES, "파일이 너무 큽니다 (최대 300MB)")
         # with no analysis ahead of it, the song's analysis starts on the decoded audio while its
         # canonical file is written
         started: list[str] = []
@@ -422,7 +440,7 @@ def create_app(
         try:
             song, created = library.add_song_file(tmp, name, start=start if queue.starts_now() else None)
         except Exception as e:
-            tmp.unlink(missing_ok=True)
+            # (add_song_file leaves no file of it behind)
             raise HTTPException(422, f"오디오를 읽지 못했습니다: {e}") from e
         if (created or song["status"] == "error") and song["id"] not in started:
             queue.submit(song["id"])
@@ -473,16 +491,12 @@ def create_app(
         if ext not in BGA_EXTENSIONS:
             raise HTTPException(415, f"지원하지 않는 영상 형식입니다: {ext or '(확장자 없음)'} — mp4·webm을 쓰세요")
         tmp = library.tmp_path(ext)
-        size = 0
-        with open(tmp, "wb") as out:
-            while chunk := file.file.read(1 << 20):
-                size += len(chunk)
-                if size > MAX_BGA_BYTES:
-                    out.close()
-                    tmp.unlink(missing_ok=True)
-                    raise HTTPException(413, "영상이 너무 큽니다 (최대 1GB)")
-                out.write(chunk)
-        library.save_bga(song_id, tmp, ext)
+        receive_upload(file, tmp, MAX_BGA_BYTES, "영상이 너무 큽니다 (최대 1GB)")
+        try:
+            library.save_bga(song_id, tmp, ext)
+        finally:
+            # (moved into the song's folder unless saving it failed)
+            tmp.unlink(missing_ok=True)
         return {"song": annotate([library.get_song(song_id)])[0]}
 
     @app.get("/api/songs/{song_id}/bga")
@@ -642,6 +656,8 @@ def create_app(
         args = (analysis, key_mode, tier, target, seed, chart_meta(song), library.audio_path(sid), lambda: library.mapper_timing_record(sid, model),
                 lambda: library.mapper_fit_tries(sid, fit_key))
         job, new = mapper_queue.submit(chart_id, priority, args)
+        with queued_lock:
+            queued_charts[chart_id] = {"songId": sid, "keyMode": key_mode, "difficulty": tier}
         if new:
             def done(j: Any, label: str = f"{song['title']} {key_mode} {tier}", j_cid: str = chart_id) -> None:
                 if j.cancelled():
@@ -693,8 +709,8 @@ def create_app(
     async def create_chart(song_id: str, req: ChartRequest) -> dict[str, Any]:
         """A chart by Mapperatorinator, the only generator (docs/MAPPERATORINATOR.md). `params` (the
         old generator's options) is taken and ignored. A brief gets the level the tier aims at and
-        whether it is being made or waits to be. A chart opened is made first; then the other tiers
-        of its key mode, in the background. A chart it cannot make is an error to try again on."""
+        whether it is being made or waits to be. Only the chart opened is made (no other tier of its key
+        mode with it). A chart it cannot make is an error to try again on."""
         song = song_or_404(song_id)
         if song["status"] != "ready":
             raise HTTPException(409, "아직 분석이 끝나지 않았습니다")
@@ -722,12 +738,6 @@ def create_app(
         if not mapper.active():
             raise HTTPException(503, mapper_unavailable())
         _, job = queue_mapper(song, analysis, req.keyMode, req.difficulty, req.targetLevel, seed, OPENED)
-        for tier in difficulty_config()["order"]:
-            if tier != req.difficulty:
-                try:
-                    queue_mapper(song, analysis, req.keyMode, tier, None, None, BACKGROUND)
-                except ValueError:
-                    pass  # a tier this key mode does not have
         if job is None:  # saved meanwhile
             chart = library.load_chart(chart_id)
             if chart is None and library.load_absent(chart_id) is not None:

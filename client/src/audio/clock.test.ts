@@ -49,4 +49,20 @@ describe('AudioClock', () => {
     clock.sample();
     expect(clock.contextTimeAtPerf(1000)).toBeCloseTo(1.98, 9);
   });
+
+  it('takes the first output timestamp as it is, after a guess from currentTime', () => {
+    const ctx = new FakeContext();
+    ctx.currentTime = 2;
+    const clock = new AudioClock(ctx, () => 1000);
+    clock.sample();
+    expect(clock.contextTimeAtPerf(1000)).toBeCloseTo(1.98, 9);
+    // the output reports in: 30 ms off the guess (under the re-anchoring threshold), taken at once
+    ctx.stamp = { contextTime: 2.01, performanceTime: 1000 };
+    clock.sample();
+    expect(clock.contextTimeAtPerf(1000)).toBeCloseTo(2.01, 9);
+    // and eased into from then on
+    ctx.stamp = { contextTime: 2.013, performanceTime: 1000 };
+    clock.sample();
+    expect(clock.contextTimeAtPerf(1000)).toBeCloseTo(2.01 + 0.003 * 0.05, 9);
+  });
 });

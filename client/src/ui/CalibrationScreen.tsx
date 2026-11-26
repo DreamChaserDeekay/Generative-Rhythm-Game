@@ -8,7 +8,7 @@ import { GamepadMenuBridge, GamepadPoller, padMenuKey, SHOULDER_KEYS } from '../
 import { GRADE_COLORS } from '../render/palette';
 import { disposeSkinArt, loadSkinArt } from '../render/skinArt';
 import { TrackRenderer } from '../render/TrackRenderer';
-import { laneColorsOf, liftShare, skinOf, visibleTimeMs, type Settings } from '../settings/settings';
+import { laneColorsOf, liftShare, musicLevel, skinOf, visibleTimeMs, type Settings } from '../settings/settings';
 import { countedBeat } from './inputSync';
 import { offsetText } from './resultBreakdown';
 import { HintBar, TopBar, type KeyHint } from './shell';
@@ -223,7 +223,7 @@ function InputStep({ settings, onSettingsChange, onBack, tabs, onMeasuring, onNe
     const engine = getAudioEngine();
     await engine.unlock();
     engine.setBuffer(clickTrackBuffer(engine.ctx, SPEC));
-    engine.setMusicVolume(settings.musicVolume);
+    engine.setMusicVolume(musicLevel(settings));
     engine.start(0, 300);
     setErrors([]);
     setBeat(-1);
@@ -422,7 +422,8 @@ function VisualStep({
 function ClickGear({ settings, offset }: { settings: Settings; offset: { readonly current: number } }) {
   const box = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
-  const { lastKeyMode: keyMode, parts, cameraPreset, laneWidthScale, reducedFlash, barLines, keyBeamLength, hitEffectSize, sideNotes, hiSpeed, judgeLinePosition, musicVolume } = settings;
+  const { lastKeyMode: keyMode, parts, cameraPreset, laneWidthScale, reducedFlash, barLines, keyBeamLength, hitEffectSize, sideNotes, hiSpeed, judgeLinePosition } = settings;
+  const musicVolume = musicLevel(settings);
   // where the play has the judge line (판정선 위치), as the share of the track the renderer takes
   const lift = liftShare(judgeLinePosition);
   const { noteColors, colorPresets } = settings;

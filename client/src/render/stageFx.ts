@@ -30,8 +30,11 @@ const LIGHT_MS = 140;
 const FLARE_MS = 240;
 /** A start with less room than this before the first note comes into sight shows none of it (real ms). */
 export const INTRO_MIN_MS = 400;
-/** The first lane lights no sooner than this after the run starts, and the judge line is whole this long before the first note comes into sight. */
-const INTRO_HEAD_MS = 150;
+/**
+ * The first lane lights no sooner than this after the run starts (as the start card's curtain is gone:
+ * jacketFlight's CURTAIN_MS), and the judge line is whole this long before the first note comes into sight.
+ */
+const INTRO_HEAD_MS = 200;
 const INTRO_TAIL_MS = 80;
 /** A lane a beat, or half or a quarter of one where a beat is longer than STEP_MAX_MS, the lanes would take longer than LANES_MAX_MS, or there is no room. */
 const BEAT_STEPS = [1, 0.5, 0.25] as const;
@@ -43,12 +46,23 @@ const LINE_MS = [180, 420] as const;
 const OUT_MS = 720;
 const OUT_FADE_MS = 240;
 /** A failed play: the cracks run over the lanes in CRACK_MS, the first lane lets go at FALL_FROM_MS, the others FALL_STEP_MS apart at most, each out of sight FALL_MS later. */
-const CRACK_MS = 260;
-const FALL_FROM_MS = 520;
+const CRACK_MS = 180;
+const FALL_FROM_MS = 300;
 const FALL_STEP_MS = 120;
-const FALL_MS = 950;
-/** How long the lanes of a failed play take to be gone, at most (real ms). */
-export const FAIL_FALL_MS = 2400;
+const FALL_MS = 620;
+/** How long the lanes of a failed play take to be gone, at most (real ms; 2400 until 2026-11-26: the fail was cut to 1.85 s). */
+export const FAIL_FALL_MS = 1250;
+/**
+ * A retry's run-up (real ms before song time 0): shorter than a first start's (no camera comes in), the later
+ * the first note the shorter, RETRY_LEAD_IN_MS[0] at least and [1] at most.
+ */
+const RETRY_LEAD_IN_MS = [750, 1200] as const;
+const RETRY_FIRST_NOTE_MS = 1600;
+
+export function retryLeadIn(firstNoteMs: number): number {
+  return Math.min(RETRY_LEAD_IN_MS[1], Math.max(RETRY_LEAD_IN_MS[0], RETRY_FIRST_NOTE_MS - firstNoteMs));
+}
+
 /** Under 동작 줄이기 nothing runs in turn or moves: the lanes go out, or dark, together over this long. */
 const STILL_MS = 400;
 

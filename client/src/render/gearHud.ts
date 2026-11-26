@@ -56,21 +56,24 @@ export const GEAR_TYPES: Record<GearStyle, HudType> = {
   piano: { font: 'Bodoni Moda', size: 44, combo: 62, tracking: 0.02, max: '#e2bf72', outline: '#0a0909', stroke: 5, split: true, bar: '#c9a45c', comboColor: '#f6f0e3' },
 };
 
-/** The name each gear prints by its gauge (STANDARD's plain gauge has none). */
+/**
+ * The name each gear prints by its gauge: none but the piano's FORTE (2026-11-26, the user's pick: every other
+ * gear's said FEVER, under the FEVER meter's own FEVER; the gauge's kind is written under its percent already).
+ */
 export const GAUGE_NAMES: Record<GearStyle, string | null> = {
-  prism: 'FEVER',
-  sky: 'FEVER',
-  fire: 'FEVER',
-  gpt: 'FEVER',
-  gemini: 'FEVER',
-  grok: 'FEVER',
-  claude: 'FEVER',
-  aqua: 'FEVER',
-  steel: 'FEVER',
-  noir: 'FEVER',
-  wire: 'FEVER',
-  astral: 'FEVER',
-  standard: 'FEVER',
+  prism: null,
+  sky: null,
+  fire: null,
+  gpt: null,
+  gemini: null,
+  grok: null,
+  claude: null,
+  aqua: null,
+  steel: null,
+  noir: null,
+  wire: null,
+  astral: null,
+  standard: null,
   piano: 'FORTE',
 };
 

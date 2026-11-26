@@ -242,6 +242,17 @@ test('a play\'s start and end on the track: the lanes light, autoplay ends with 
   expect(box && Math.abs(box.x + box.width / 2 - 640)).toBeLessThan(4);
   expect(box && box.y + box.height / 2).toBeGreaterThan(720 * 0.3);
   expect(box && box.y + box.height / 2).toBeLessThan(720 * 0.5);
+  // once its tape has stopped, the keys that go on show faintly under the lamp, and R plays again at once
+  const keys = page.getByTestId('hud-end-keys');
+  await expect(keys).toHaveText(/R\s*다시 하기\s*Enter\s*결과로/);
+  await expect(keys).toHaveClass(/show/);
+  await page.keyboard.press('KeyR');
+  await expect(page.getByTestId('result-screen')).toHaveCount(0);
+  await expect(stage(page)).not.toHaveAttribute('data-stage', 'fail');
+  await expect(stage(page)).not.toHaveClass(/stage-failed/);
+  await expect(keys).not.toHaveClass(/show/);
+  // and fails again
+  await expect(stage(page)).toHaveAttribute('data-stage', 'fail', { timeout: 40_000 });
   // Enter does not wait for the end to play out
   await page.keyboard.press('Enter');
   await expect(page.getByTestId('result-screen')).toBeVisible({ timeout: 1500 });
@@ -410,5 +421,68 @@ test('a long intro on a chart the test serves: the start shows, Enter skips to t
   expect(await page.locator('.hud-lamp .hud-lamp-art').evaluate((el) => getComputedStyle(el).backgroundImage)).toMatch(/end\/words-autoplay\.webp/);
   await expect(stage(page)).toHaveAttribute('data-stage', 'end');
   await expect(page.getByTestId('result-screen')).toBeVisible({ timeout: 30_000 });
+  expect(errors).toEqual([]);
+});
+
+/**
+ * The demo song with 8 notes (beats 8 to 15, a lane a beat from the left) played by hand on the HARD gauge: the
+ * notes of `hit` pressed on time, read off the HUD's clock (the hidden time left turns to 0:05 as the song passes the
+ * last note less 5 s, before the first note), the others let go by.
+ */
+async function playByHand(page: Page, hit: number[]) {
+  await page.addInitScript(() => {
+    if (!localStorage.getItem('grg.settings.v1')) localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '4K', hiSpeed: 4, gaugeType: 'HARD' }));
+  });
+  await serveChart(page, 8, 16);
+  await pickDemoSong(page);
+  await expect(page.getByTestId('chart-level')).toBeVisible({ timeout: 30_000 });
+  await page.getByTestId('hint-enter').click();
+  await expect(page.getByTestId('play-screen')).toBeVisible();
+  await expect(page.getByTestId('play-loading')).toHaveCount(0, { timeout: 60_000 });
+  const beat = 60_000 / 143;
+  await page.evaluate(
+    ([notes, end]) => {
+      const keys = ['KeyD', 'KeyF', 'KeyJ', 'KeyK'];
+      const left = document.querySelector('[data-testid="hud-remaining"]') as HTMLElement;
+      const watch = new MutationObserver(() => {
+        if (left.textContent !== '0:05') return;
+        watch.disconnect();
+        const zero = end - 5000;
+        for (const [t, lane] of notes) {
+          setTimeout(() => window.dispatchEvent(new KeyboardEvent('keydown', { code: keys[lane] })), t - zero);
+          setTimeout(() => window.dispatchEvent(new KeyboardEvent('keyup', { code: keys[lane] })), t - zero + 60);
+        }
+      });
+      watch.observe(left, { childList: true, characterData: true, subtree: true });
+    },
+    [hit.map((i) => [(8 + i) * beat, i % 4]), 15 * beat] as const,
+  );
+}
+
+test('the end\'s pictures in play: a full combo\'s burst where its combo lands, a hard clear\'s seal, and the same seal by the result\'s lamp', async ({ page }) => {
+  const errors = trackErrors(page);
+  // every note: PERFECT PLAY, the combo flying into the words and bursting there, behind them
+  await playByHand(page, [0, 1, 2, 3, 4, 5, 6, 7]);
+  const lamp = page.getByTestId('hud-lamp');
+  await expect(lamp).toHaveAttribute('data-lamp', 'perfect', { timeout: 30_000 });
+  await expect(lamp).toHaveClass(/pictured/);
+  await expect(lamp).not.toHaveClass(/at-once/);
+  const burst = lamp.locator('.hud-lamp-burst');
+  await expect(burst).toHaveCSS('display', 'block');
+  expect(await burst.evaluate((el) => getComputedStyle(el).maskImage || getComputedStyle(el).webkitMaskImage)).toMatch(/end\/combo-burst\.webp/);
+  // behind the words: before them among the lamp's layers
+  expect(await lamp.evaluate((el) => [...el.children].findIndex((c) => c.classList.contains('hud-lamp-burst')) < [...el.children].findIndex((c) => c.classList.contains('hud-lamp-art')))).toBe(true);
+  await expect(page.getByTestId('result-screen')).toBeVisible({ timeout: 10_000 });
+
+  // one note let go by: a hard clear, its seal stamped; on the result the same seal by the lamp's name
+  await page.goto('/');
+  await playByHand(page, [0, 1, 2, 3, 5, 6, 7]);
+  await expect(lamp).toHaveAttribute('data-lamp', 'hard', { timeout: 30_000 });
+  expect(await lamp.evaluate((el) => getComputedStyle(el).getPropertyValue('--art'))).toMatch(/end\/seal-hard\.webp/);
+  await expect(page.getByTestId('result-screen')).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByTestId('result-lamp')).toHaveAttribute('data-lamp', 'HARD CLEAR');
+  const seal = page.getByTestId('result-seal').first();
+  await expect(seal).toBeVisible();
+  expect(await seal.evaluate((el) => getComputedStyle(el).backgroundImage)).toMatch(/end\/seal-hard\.webp/);
   expect(errors).toEqual([]);
 });

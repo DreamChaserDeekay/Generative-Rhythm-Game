@@ -38,53 +38,50 @@ AT_ONCE = 4
 
 # ---------- the lamps' words ----------
 
+# 2026-11-26: flat lettering with a neon rim, as the UI's slanted plates, neon lines and HUD type (the 3D gold bevels and
+# gems before it clashed with them; their prompts stay in git history and in picks.json until picked over)
 WORDS_HEAD = (
-    "Game UI art for a commercial PC rhythm game: the lettering that appears in the middle of the screen when a song ends, at the "
-    "finish level of a top commercial arcade rhythm game's result banners (crisp, luxurious, high-energy).\n\n"
+    "Clean modern rhythm-game UI banner typography for a PC rhythm game: the words shown in the middle of the screen when a song "
+    "ends. Flat 2D orthographic front view, no perspective.\n\n"
 )
 WORDS_FORM = (
-    "LETTERING: heavy, wide sans-serif capitals with sharp chamfered corners, slanted forward about 10 degrees, tightly spaced, all "
-    "the same height on a perfectly even baseline. Each letter is a solid three-dimensional body with a crisp bevelled edge; its "
-    "front face is bright and evenly lit (never dark, never hollow, never an outline only).\n\n"
+    "LETTERING: ultra-sharp geometric bold sans-serif capitals with crisp chamfered corners, slanted forward 10 degrees, tightly "
+    "and evenly spaced, all the same height on a perfectly even baseline. The letters are FLAT: no thick extruded 3D sides, no "
+    "chrome bevels, no gem facets. Each has a crisp, evenly lit luminous inner fill, a thin razor-bright neon rim line tracing its "
+    "outline, and a subtle texture of fine horizontal scan streaks inside the fill. A soft, tight glow of the rim colour hugs the "
+    "letters. No heavy lens-flare blobs.\n\n"
 )
 WORDS_TAIL = (
-    "\n\nBACKGROUND AND LAYOUT: pure black (#000000) everywhere. The words are centred, perfectly horizontal, seen flat from the "
-    "front with no perspective, and fill about 80% of the picture's width with black margin on every side; nothing touches the "
-    "picture's edges. Nothing else is in the picture: no frame, no plate, no ribbon, no underline, no ground, no reflection, no "
-    "characters, no icons, no second line of text, no small print, no watermark."
+    "\n\nBACKGROUND AND LAYOUT: pure black (#000000) everywhere. The words are centred, perfectly horizontal, and fill about 80% "
+    "of the picture's width with clean black margin on every side; nothing touches the edges. Nothing else: no box, no plate, no "
+    "emblem, no ribbon, no ground, no reflection, no icons, no second line of text, no small print, no watermark."
 )
 WORDS = {
     "words-perfect": (
         "PERFECT PLAY", "P-E-R-F-E-C-T, a space, P-L-A-Y",
-        "MATERIAL AND COLOUR: cut crystal lit from inside, icy cyan (#7cf7ff) with white-hot highlights, and fine prismatic "
-        "glints (a thin spectrum of colours) along the bevels as on a cut diamond. A thin streak of white light crosses the whole "
-        "word, a soft cyan glow surrounds it, and a few tiny four-point sparkles sit on its corners.",
+        "COLOUR: cyan-white fill (#e6ffff), bright cyan rim line (#4ef2ff), cyan glow. Exactly three tiny four-point sparkles, "
+        "each on a corner of a letter (top-left of the first P, top-right of the Y, one corner between); no others.",
     ),
     "words-maxcombo": (
         "MAX COMBO", "M-A-X, a space, C-O-M-B-O",
-        "MATERIAL AND COLOUR: polished gold lit from inside, pale warm gold (#ffe7a3) with white highlights and a little amber "
-        "depth in the bevels only. A thin streak of white light crosses the whole word, a soft golden glow surrounds it, and a few "
-        "tiny four-point sparkles sit on its corners.",
+        "COLOUR: champagne-white fill (#fff8e0), amber-gold rim line (#ffc845), warm gold glow. A thin straight underline in the "
+        "rim colour runs under the whole word, and ONE thin streak of white light (a speed line) cuts across it at a shallow angle. "
+        "No sparkles.",
     ),
     "words-failed": (
         "FAILED", "F-A-I-L-E-D",
-        "MATERIAL AND COLOUR: red-hot signal red (#ff2e2e) with brighter orange-white light where it is broken. The letters are "
-        "BROKEN: cracks run through every one of them, some chunks are split off and sit slightly displaced or tilted, a corner "
-        "is missing here and there, and a few small shards and embers fall below the word. Heavy and defeated: no sparkles, no "
-        "streak of light, only a dim red glow around it. The word must still read at a glance.",
+        "COLOUR: crimson fill (#ff6666), red rim line (#ff1f38), dim red glow. The word is CUT TWICE by two straight cuts slanted "
+        "10 degrees like the letters, so it is in three pieces, each shifted slightly against the next along the cuts (thin black "
+        "gaps). No sparkles, no streaks, no shards, no embers. It still reads at a glance.",
     ),
     # a play that earns no lamp (autoplay, the end of a practice): calm, nothing won
     "words-autoplay": (
         "AUTO PLAY", "A-U-T-O, a space, P-L-A-Y",
-        "MATERIAL AND COLOUR: brushed silver steel lit from inside, cool pale silver-white (#e6ecf5) with a faint lilac tint in "
-        "the bevels only, and one thin bright line of light running along the top edge of every letter. A soft, cool white glow "
-        "surrounds it. Calm and cool: no sparkles, no streak of light, no flames.",
+        "COLOUR: silver-white fill (#e8eef7), pale silver rim line, soft cool white glow. Calm: no sparkles, no streaks.",
     ),
     "words-practice": (
         "PRACTICE END", "P-R-A-C-T-I-C-E, a space, E-N-D",
-        "MATERIAL AND COLOUR: frosted glass lit from inside, soft mint green (#7fe3c4) with white highlights on the bevels and a "
-        "slightly deeper green in their shading. A soft mint glow surrounds it. Calm and clean: no sparkles, no streak of light, "
-        "no flames.",
+        "COLOUR: mint-white fill (#e4fff5), mint rim line (#6be6bc), soft mint glow. Calm: no sparkles, no streaks.",
     ),
 }
 
@@ -99,40 +96,32 @@ def words_prompt(name: str) -> str:
 
 # ---------- the clear lamps' seals ----------
 
+# 2026-11-26: flat vector emblems with a segmented ring (the crystal and metal medals before them: see WORDS_HEAD's note)
 SEAL_HEAD = (
-    "Game UI art for a commercial PC rhythm game: a CLEAR SEAL, the emblem that is stamped onto the screen when the player clears a "
-    "song, at the finish level of a top commercial arcade rhythm game. ONE emblem seen perfectly flat from the front, centred, "
-    "filling about 70% of the square picture, on pure black (#000000): everything round the emblem, out to the four corners of the "
-    "picture, is black.\n\n"
+    "Rhythm-game clear-lamp emblem, a UI icon for a PC rhythm game: the seal stamped onto the screen when a song is cleared. Flat "
+    "2D vector-precision graphic, seen straight from the front: ONE emblem centred, filling about 70% of the square canvas, on pure "
+    "black (#000000) out to all four corners.\n\n"
+    "STYLE: no 3D gemstone bevels, no chrome dome gradients, no metal texture. An outer thin SEGMENTED calibration ring (a circle "
+    "broken into evenly spaced segments) with fine radial tick marks all the way round; inside it a sharp core with a neon rim, "
+    "glowing hairlines and strict geometric symmetry. Lit parts are flat glowing colour with a soft glow of the same colour; "
+    "everything else is black.\n\n"
 )
 SEAL_TAIL = (
-    "\n\nIt is made of polished crystal glass and metal lit from inside: bright faces with crisp bevels, a white rim light, thin "
-    "engraved lines, and a soft glow of its own colour around it. Nothing on it is dark except the thin engraved lines and the "
-    "gaps between its rings, which are black. Perfectly symmetric left to right and top to bottom. NO letters, NO numbers, NO text "
-    "and NO signs of any alphabet anywhere on it. No ribbon, no laurel, no star, no crown, no wings, no gem, no characters, no "
-    "hands, no ground, no reflection, no second emblem."
-)
-ROUND = (
-    "SHAPE: a ROUND medal. From the outside in: a thin outer ring carrying fine, evenly spaced engraved tick marks all the way "
-    "round; a black gap; a thick bevelled ring; a black gap; and in the very centre the emblem's mark: "
-)
-SQUARE = (
-    "SHAPE: a SQUARE medal with sharp right-angled corners (not round, not a diamond: its edges are horizontal and vertical). From "
-    "the outside in: a thin outer square frame carrying fine, evenly spaced engraved tick marks all the way round; a black gap; a "
-    "thick bevelled square frame; a black gap; and in the very centre the emblem's mark: "
+    "\n\nNO letters, NO numbers, NO text, no signs of any alphabet. No ribbon, laurel, star, crown, wings, gem, characters, ground, "
+    "reflection or second emblem."
 )
 SEALS = {
-    "seal-clear": ROUND + "a solid, slightly domed, glowing DISC (a filled circle).\n\nCOLOUR: azure blue (#3d9bff) with white highlights.",
-    "seal-easy": ROUND + "a circle whose RIGHT HALF is solid and glowing and whose LEFT HALF is empty (black inside its thin outline), "
-                 "split by a straight vertical line, like a half moon.\n\nCOLOUR: fresh light green (#b6e36f) with white highlights.",
-    "seal-assist": ROUND + "a circle of which only the TOP-RIGHT QUARTER is solid and glowing (a pie slice from twelve o'clock to "
-                   "three o'clock); the other three quarters are empty (black inside the circle's thin outline).\n\nCOLOUR: violet "
-                   "(#8c7dff) with white highlights.",
-    "seal-hard": SQUARE + "a solid, slightly domed, glowing SQUARE.\n\nCOLOUR: brilliant white and bright silver, with only a faint "
-                 "cool blue in its shading.",
-    "seal-exhard": SQUARE + "a smaller solid glowing SQUARE set inside one more thin square frame of its own, and a small bevelled stud "
-                   "at each of the medal's four corners.\n\nCOLOUR: electric yellow (#f2f550) with white highlights and a little gold "
-                   "in its shading.",
+    "seal-assist": "THE CORE: a neon-outlined circle whose TOP-RIGHT QUARTER only is filled with glowing colour (a pie slice from "
+                   "twelve to three o'clock); the other three quarters are black inside the outline. COLOUR: violet (#8c7dff).",
+    "seal-easy": "THE CORE: a neon-outlined circle whose RIGHT HALF is filled with glowing colour, split from the empty left half by a "
+                 "straight vertical line. COLOUR: lime mint (#b6e36f).",
+    "seal-clear": "THE CORE: a neon-outlined circle completely filled with glowing colour. COLOUR: sky blue (#3d9bff).",
+    "seal-hard": "THE CORE: a regular OCTAGON ring with a thick neon outline, filled with glowing colour, and on its left and right "
+                 "sides a short horizontal wing groove notched into the segmented ring. COLOUR: white and pale silver (#eef6ff).",
+    "seal-exhard": "THE CORE: a DOUBLE octagonal frame (two concentric neon octagons with a black gap) around a glowing filled "
+                   "octagon, and four chevrons (V shapes) at its four diagonal corners, each pointing inward at the centre. Not a "
+                   "square frame. The segmented outer ring is ONE single ring, the same all the way round: the whole emblem is "
+                   "perfectly symmetric left to right and top to bottom. COLOUR: gold (#ffe84a).",
 }
 
 # ---------- the sheets: an animation frame by frame ----------
@@ -194,6 +183,45 @@ CRACKS = (
     "Nothing else is in the picture: no surface, no glass texture, no reflections, no shards, no dust, no objects, no text."
 )
 
+# ---------- the cracks, frame by frame (2026-11-26: they run up the track from where the play broke) ----------
+
+CRACKS_SHEET = (
+    "A sprite sheet for a game VFX artist: glass cracking frame by frame, for a PC rhythm game's track. Flat orthographic 2D, "
+    "seen straight from the front, on pure black (#000000).\n\n"
+    "LAYOUT: exactly 6 frames in a 3 x 2 grid of equal cells (3 across, 2 down). Each cell is a tall portrait rectangle twice as "
+    "high as it is wide. Read left to right, top to bottom (frame 1 top-left, frame 6 bottom-right). NO grid lines, NO borders, NO "
+    "frame numbers, NO text. Every cell shows the same area a moment later. The point of impact sits ON the bottom edge of every "
+    "cell, in its middle, at the same place in every cell; nothing at all is drawn below it. The cracks fan out upward and "
+    "sideways from it only, like the upper half of a spider web.\n\n"
+    "THE ANIMATION:\n"
+    "- frame 1: one sharp, bright impact node with short razor-thin ice-white cracks reaching about 25% of the way up;\n"
+    "- frames 2-3: angular cracks race upward and branch, reaching about 55% and then 80% of the way up;\n"
+    "- frames 4-5: the cracks reach the cell's left, right and top edges, with hairline fractures between them and a faint "
+    "pale-cyan and crimson glow along their edges;\n"
+    "- frame 6: the complete fracture web over the whole cell above the point of impact.\n"
+    "Each frame keeps every crack of the one before unchanged, in the same place, and adds new ones: frame 4 contains every crack "
+    "of frame 3 unchanged plus new ones, and so on to frame 6. The cracks only grow.\n\n"
+    "Thin luminous fracture lines only, white-hot cores with a thin soft glow. No glass surface, no shading, no shards, no dust, no "
+    "reflections, no objects, no text."
+)
+
+# ---------- the burst where the combo meets the lamp (MAX COMBO, PERFECT PLAY; 2026-11-26) ----------
+
+COMBO_BURST = (
+    "A sprite sheet for a game VFX artist: ONE impact burst for a PC rhythm game, frame by frame. Flat 2D geometric light on pure "
+    "black (#000000).\n\n"
+    "LAYOUT: exactly 10 frames in a 5 x 2 grid of equal cells (5 across, 2 down), read left to right, top to bottom. NO grid lines, "
+    "NO borders, NO numbers, NO text. The burst is centred on the same point in every cell and stays inside its cell with black "
+    "around it; nothing touches a cell edge.\n\n"
+    "THE ANIMATION:\n"
+    "- frame 1: a compact white-gold four-point star flare at the centre;\n"
+    "- frames 2-4: a diamond-shaped shockwave expands from it, with sharp light shards and thin radial needles;\n"
+    "- frames 5-7: the outer diamond breaks into four-point glints and short arc streaks flying outward;\n"
+    "- frames 8-9: only micro sparkles drifting outward, fading;\n"
+    "- frame 10: almost dark, one or two last faint specks.\n\n"
+    "COLOUR: pale gold-white, core #fff3c4, edges #ffc44d. Crisp edges, soft glow. No smoky clouds, no fire, no objects, no letters."
+)
+
 # ---------- the light of a lane coming on (the start) ----------
 
 LANE_LIGHT = (
@@ -211,9 +239,13 @@ LANE_LIGHT = (
 #: name -> (the prompt, the aspect ratio asked for)
 ALL: dict[str, tuple[str, str]] = {
     **{name: (words_prompt(name), "21:9") for name in WORDS},
-    **{name: (SEAL_HEAD + shape + SEAL_TAIL, "1:1") for name, shape in SEALS.items()},
+    **{name: (SEAL_HEAD + core + SEAL_TAIL, "1:1") for name, core in SEALS.items()},
     **{name: (sheet_prompt(name), "1:1") for name in SHEETS},
     "cracks": (CRACKS, "9:16"),
+    # 3 x 2 cells of 1:2 (portrait) make a 3:4 picture
+    "cracks-sheet": (CRACKS_SHEET, "3:4"),
+    # 5 x 2 cells: the model makes no 5:2 picture, 21:9 gives cells of 0.93 (the build squares them)
+    "combo-burst": (COMBO_BURST, "21:9"),
     "lane-light": (LANE_LIGHT, "9:16"),
 }
 

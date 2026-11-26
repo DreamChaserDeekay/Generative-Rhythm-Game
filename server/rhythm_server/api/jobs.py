@@ -13,7 +13,7 @@ import numpy as np
 from .. import audio_io
 from ..analysis.analyzer import analyze
 from ..config import SAMPLE_RATE
-from .library import Library
+from .library import Library, SongNotFound
 
 log = logging.getLogger("rhythm_server.jobs")
 PROGRESS_INTERVAL_S = 0.25
@@ -92,6 +92,8 @@ class AnalysisQueue:
             if pcm is not None:
                 sr = SAMPLE_RATE
             else:
+                # (an upload's analysis asked for again while its audio is still written: read once it is whole)
+                lib.wait_audio(song_id)
                 pcm, sr = audio_io.read_canonical(lib.audio_path(song_id))
             stems: dict = {}
             result = analyze(pcm, sr, song["audioHash"], overrides=song["overrides"], progress=progress, stems_out=stems)
@@ -121,8 +123,10 @@ class AnalysisQueue:
             log.error("analysis failed for %s: %s\n%s", song_id, e, traceback.format_exc())
             try:
                 lib.update_song(song_id, status="error", error=str(e) or e.__class__.__name__, progress_label="실패")
+            except SongNotFound:
+                log.info("song %s was removed while it was analysed", song_id)
             except Exception:
-                pass
+                log.exception("could not mark song %s as failed", song_id)
             return
         if self.after_analysis is not None and self._executor is not None:
             # queued behind the analyses waiting now: every song becomes playable first

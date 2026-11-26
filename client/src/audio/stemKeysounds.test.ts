@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { StemName } from '../engine/types';
-import { emptyPressNote, keysoundStems, planStemKeysounds, StemKeysoundVoices, stemKeysoundLabel } from './stemKeysounds';
+import { emptyPressNote, keysoundStems, planStemKeysounds, scheduleStemCut, StemKeysoundVoices, stemKeysoundLabel } from './stemKeysounds';
 
 const OPTIONS = { stemShare: 0.1, maxSliceMs: 4000, chordMs: 30, fadeMs: 3, ghostMs: 300 };
 
@@ -153,3 +153,32 @@ class FakeSource {
     this.stoppedAt = at;
   }
 }
+
+describe('the stem cut', () => {
+  it('schedules no change before the run is heard: a range a fade from the start ramps from there', () => {
+    const events: [string, number, number][] = [];
+    const param = {
+      setValueAtTime: (v: number, t: number) => events.push(['set', v, t]),
+      linearRampToValueAtTime: (v: number, t: number) => events.push(['ramp', v, t]),
+    } as unknown as AudioParam;
+    // heard from context time 10 s at song 1000 ms; fades of 40 ms
+    const at = 10;
+    const ctxAt = (ms: number) => at + (ms - 1000) / 1000;
+    // a range starting 20 ms in (within a fade), then one ending 10 ms in
+    scheduleStemCut(param, [[1020, 1500]], 1000, at, ctxAt, 0.04);
+    scheduleStemCut(param, [[500, 1010]], 1000, at, ctxAt, 0.04);
+    expect(events.every(([, , t]) => t >= at)).toBe(true);
+    expect(events.slice(0, 5)).toEqual([
+      ['set', 0, 10],
+      ['set', 0, 10],
+      ['ramp', -1, expect.closeTo(10.02, 9)],
+      ['set', -1, expect.closeTo(10.46, 9)],
+      ['ramp', 0, expect.closeTo(10.5, 9)],
+    ]);
+    expect(events.slice(5)).toEqual([
+      ['set', -1, 10],
+      ['set', -1, 10],
+      ['ramp', 0, expect.closeTo(10.01, 9)],
+    ]);
+  });
+});

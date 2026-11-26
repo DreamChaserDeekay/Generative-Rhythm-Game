@@ -73,6 +73,32 @@ describe('InputManager', () => {
     expect(calls.map((c) => Math.round(c[2]))).toEqual([490, 487]);
   });
 
+  it('a pause takes no key to the sink; on again, a lane held all through or again stays down, one let go of is released then', () => {
+    const { input, calls } = setup();
+    const t0 = 12345.678;
+    input.handleKey('KeyD', true, t0 + 100);
+    input.handleKey('KeyF', true, t0 + 105);
+    input.handleKey('KeyJ', true, t0 + 110);
+    input.suspend();
+    // while paused: D let go of, F held all through, J let go of and held again, K pressed: nothing reaches the sink
+    input.handleKey('KeyD', false, t0 + 400);
+    input.handleKey('KeyJ', false, t0 + 450);
+    input.handleKey('KeyJ', true, t0 + 500);
+    input.handleKey('KeyK', true, t0 + 520);
+    expect(calls).toHaveLength(3);
+    input.resume(t0 + 2000);
+    // D is released where play goes on; F and J are still down
+    expect(calls.slice(3)).toEqual([['release', 0, 2000]]);
+    // K never reached the sink: let go of, no release; pressed again, a press of its own
+    input.handleKey('KeyK', false, t0 + 2100);
+    input.handleKey('KeyJ', false, t0 + 2200);
+    input.handleKey('KeyK', true, t0 + 2300);
+    expect(calls.slice(4)).toEqual([
+      ['release', 2, 2200],
+      ['press', 3, 2300],
+    ]);
+  });
+
   it('releases held keys on releaseAll', () => {
     const { input, calls } = setup();
     input.handleKey('KeyJ', true, 13000);
