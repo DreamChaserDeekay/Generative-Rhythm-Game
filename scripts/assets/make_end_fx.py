@@ -194,6 +194,26 @@ CRACKS = (
     "Nothing else is in the picture: no surface, no glass texture, no reflections, no shards, no dust, no objects, no text."
 )
 
+# ---------- the cracks, frame by frame (2026-11-26: they run up the track from where the play broke) ----------
+
+CRACKS_SHEET = (
+    "A sprite sheet for a game VFX artist: glass cracking frame by frame, for a PC rhythm game's track. Flat orthographic 2D, "
+    "seen straight from the front, on pure black (#000000).\n\n"
+    "LAYOUT: exactly 6 frames in a 3 x 2 grid of equal cells (3 across, 2 down). Each cell is a tall portrait rectangle twice as "
+    "high as it is wide. Read left to right, top to bottom (frame 1 top-left, frame 6 bottom-right). NO grid lines, NO borders, NO "
+    "frame numbers, NO text. Every cell shows the same area a moment later, and the point of impact is at the same place in every "
+    "cell: the middle of the cell's bottom edge.\n\n"
+    "THE ANIMATION:\n"
+    "- frame 1: one sharp, bright impact node with short razor-thin ice-white cracks reaching about 25% of the way up;\n"
+    "- frames 2-3: angular cracks race upward and branch, reaching about 55% and then 80% of the way up;\n"
+    "- frames 4-5: the cracks span the cell from edge to edge, with hairline fractures between them and a faint pale-cyan and "
+    "crimson glow along their edges;\n"
+    "- frame 6: the complete fracture web over the whole cell.\n"
+    "Each frame keeps every crack of the one before and adds to it: the cracks only grow.\n\n"
+    "Thin luminous fracture lines only, white-hot cores with a thin soft glow. No glass surface, no shading, no shards, no dust, no "
+    "reflections, no objects, no text."
+)
+
 # ---------- the light of a lane coming on (the start) ----------
 
 LANE_LIGHT = (
@@ -214,6 +234,8 @@ ALL: dict[str, tuple[str, str]] = {
     **{name: (SEAL_HEAD + shape + SEAL_TAIL, "1:1") for name, shape in SEALS.items()},
     **{name: (sheet_prompt(name), "1:1") for name in SHEETS},
     "cracks": (CRACKS, "9:16"),
+    # 3 x 2 cells of 1:2 (portrait) make a 3:4 picture
+    "cracks-sheet": (CRACKS_SHEET, "3:4"),
     "lane-light": (LANE_LIGHT, "9:16"),
 }
 
