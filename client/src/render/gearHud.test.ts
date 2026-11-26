@@ -36,6 +36,7 @@ describe('the HUD a gear brings', () => {
     // the aqua mecha skin's squared and slanted, white in an aqua outline (the fill 'aqua')
     expect([GEAR_TYPES.aqua.font, GEAR_TYPES.aqua.fill, GEAR_TYPES.aqua.split]).toEqual(['Chakra Petch', 'aqua', true]);
     for (const gear of GEAR_STYLES.filter((g) => !['prism', 'sky', 'fire', 'gemini', 'claude', 'aqua', 'steel', 'noir', 'wire', 'astral'].includes(g))) expect(GEAR_TYPES[gear].fill, gear).toBeUndefined();
-    expect(GAUGE_NAMES).toEqual({ standard: 'FEVER', prism: 'FEVER', sky: 'FEVER', fire: 'FEVER', gpt: 'FEVER', gemini: 'FEVER', grok: 'FEVER', claude: 'FEVER', aqua: 'FEVER', steel: 'FEVER', noir: 'FEVER', wire: 'FEVER', astral: 'FEVER', piano: 'FORTE' });
+    // only the piano names its gauge: the others' FEVER stood under the FEVER meter's own
+    expect(GAUGE_NAMES).toEqual({ standard: null, prism: null, sky: null, fire: null, gpt: null, gemini: null, grok: null, claude: null, aqua: null, steel: null, noir: null, wire: null, astral: null, piano: 'FORTE' });
   });
 });
