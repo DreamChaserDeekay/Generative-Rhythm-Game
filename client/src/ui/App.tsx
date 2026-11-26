@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ServerChart, Song } from '../api/client';
 import type { KeysoundBank } from '../audio/keysounds';
 import { menuMusic, PREVIEW_VOLUME } from '../audio/songPreview';
@@ -6,17 +6,29 @@ import type { ReplayData } from '../engine/replay';
 import { GamepadMenuBridge, RESULT_PAD_KEYS, SELECT_PAD_KEYS, setPadMenuKeys, SHOULDER_KEYS } from '../input/gamepad';
 import type { Chart, StemName } from '../engine/types';
 import { loadSettings, musicLevel, padMenuKeysFor, resetSettings, saveSettings, withEntry, type Settings, type SettingsChange } from '../settings/settings';
-import { CalibrationScreen, type CalibrationStep } from './CalibrationScreen';
-import { EditorScreen, newEditorSession, type EditorSession } from './EditorScreen';
+import type { CalibrationStep } from './CalibrationScreen';
+import { newEditorSession, type EditorSession } from './editorSession';
 import type { PlayOutcome } from './PlayController';
 import { PlayScreen } from './PlayScreen';
-import { ResultScreen } from './ResultScreen';
 import { RESET_UNDO_MS, SettingsScreen, type SettingsTab } from './SettingsScreen';
 import { useDisplayMode } from './displayMode';
 import { buildPlayRequest } from './playRequest';
 import { bestAfterPlay } from './playRules';
 import { SongSelectScreen } from './SongSelectScreen';
 import { syncTestRequest } from './syncTestRequest';
+
+/*
+ * The screens opened after the first (the result with its graphs, the calibration, the editor) load apart from the
+ * app, which starts on the song select without them; each is fetched a moment after the app has shown
+ * (PRELOAD_AFTER_MS), so that the first of them opens at once all the same.
+ */
+const loadResult = () => import('./ResultScreen');
+const loadCalibration = () => import('./CalibrationScreen');
+const loadEditor = () => import('./EditorScreen');
+const ResultScreen = lazy(() => loadResult().then((m) => ({ default: m.ResultScreen })));
+const CalibrationScreen = lazy(() => loadCalibration().then((m) => ({ default: m.CalibrationScreen })));
+const EditorScreen = lazy(() => loadEditor().then((m) => ({ default: m.EditorScreen })));
+const PRELOAD_AFTER_MS = 1500;
 
 export interface PracticeOptions {
   /** Segment on the song timeline (ms). */
@@ -80,6 +92,13 @@ export function App() {
   const [screen, setScreen] = useState<Screen>({ name: 'select' });
   const [selectedSongId, setSelectedSongId] = useState<string | null>(null);
   const [editor, setEditor] = useState<EditorSession | null>(null);
+  // the screens loaded apart, fetched once the app has shown (see loadResult)
+  useEffect(() => {
+    const id = window.setTimeout(() => {
+      for (const load of [loadResult, loadCalibration, loadEditor]) void load().catch(() => undefined);
+    }, PRELOAD_AFTER_MS);
+    return () => window.clearTimeout(id);
+  }, []);
   // the song select's practice of each chart, kept while it is away (a play, the settings)
   const [practices, setPractices] = useState<Record<string, PracticeOptions>>({});
   const keepPractice = useCallback((key: string, p: PracticeOptions | null) => setPractices((all) => withEntry(all, key, p)), []);
@@ -208,36 +227,40 @@ export function App() {
       );
     case 'result':
       return (
-        <ResultScreen
-          request={screen.request}
-          outcome={screen.outcome}
-          settings={settings}
-          onSettingsChange={setSettings}
-          onRetry={(newPlacement) =>
-            play({
-              ...screen.request,
-              replay: undefined,
-              best: bestAfterPlay(screen.request, screen.outcome),
-              // the lane order just played again (as F2 in play keeps it), or a new one drawn
-              placementSeed: newPlacement ? undefined : screen.outcome.placement.seed,
-            })
-          }
-          onBack={() => leavePlay(screen.request)}
-          onWatchReplay={(replay) => play({ ...screen.request, replay, autoPlay: false, practice: undefined })}
-        />
+        <Suspense fallback={null}>
+          <ResultScreen
+            request={screen.request}
+            outcome={screen.outcome}
+            settings={settings}
+            onSettingsChange={setSettings}
+            onRetry={(newPlacement) =>
+              play({
+                ...screen.request,
+                replay: undefined,
+                best: bestAfterPlay(screen.request, screen.outcome),
+                // the lane order just played again (as F2 in play keeps it), or a new one drawn
+                placementSeed: newPlacement ? undefined : screen.outcome.placement.seed,
+              })
+            }
+            onBack={() => leavePlay(screen.request)}
+            onWatchReplay={(replay) => play({ ...screen.request, replay, autoPlay: false, practice: undefined })}
+          />
+        </Suspense>
       );
     case 'calibration':
       return (
-        <CalibrationScreen
-          settings={settings}
-          onSettingsChange={setSettings}
-          onBack={
-            screen.fromSettings
-              ? () => setScreen({ name: 'settings', tab: 'judge', focus: screen.step === 'visual' ? 'open-visual-calibration-settings' : 'open-calibration-settings' })
-              : toSelect
-          }
-          step={screen.step}
-        />
+        <Suspense fallback={null}>
+          <CalibrationScreen
+            settings={settings}
+            onSettingsChange={setSettings}
+            onBack={
+              screen.fromSettings
+                ? () => setScreen({ name: 'settings', tab: 'judge', focus: screen.step === 'visual' ? 'open-visual-calibration-settings' : 'open-calibration-settings' })
+                : toSelect
+            }
+            step={screen.step}
+          />
+        </Suspense>
       );
     case 'settings':
       return (
@@ -257,16 +280,18 @@ export function App() {
     case 'editor':
       if (!editor) return null;
       return (
-        <EditorScreen
-          session={editor}
-          settings={settings}
-          onExit={() => {
-            setEditor(null);
-            setScreen({ name: 'select' });
-          }}
-          onTestPlay={testFromEditor}
-          onSaved={() => undefined}
-        />
+        <Suspense fallback={null}>
+          <EditorScreen
+            session={editor}
+            settings={settings}
+            onExit={() => {
+              setEditor(null);
+              setScreen({ name: 'select' });
+            }}
+            onTestPlay={testFromEditor}
+            onSaved={() => undefined}
+          />
+        </Suspense>
       );
   }
 }

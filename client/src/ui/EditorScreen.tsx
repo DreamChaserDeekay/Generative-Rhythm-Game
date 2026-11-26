@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useReducer, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent } from 'react';
-import { api, type ServerChart, type Song } from '../api/client';
+import { api, type ServerChart } from '../api/client';
 import { getAudioEngine } from '../audio/AudioEngine';
 import { keysoundBank, keysoundBgm, songBuffer } from '../audio/bufferCache';
 import { KeysoundVoices } from '../audio/keysounds';
-import { EditorDoc, SNAP_DIVISIONS, type ClipNote, type EditNote } from '../editor/editorModel';
+import { SNAP_DIVISIONS, type EditNote } from '../editor/editorModel';
 import { EditorView, formatMs, type EditorViewState } from '../editor/EditorView';
 import { keyModes } from '../engine/config';
 import type { Chart } from '../engine/types';
@@ -13,36 +13,8 @@ import { bindingsFor, keyLabel, laneColorsOf, musicLevel, secondBindingsFor, sfx
 import { HintBar, TopBar, type KeyHint } from './shell';
 import { useTwoPress } from './twoPress';
 
-/** Everything the editor keeps while the player test-plays and comes back. */
-export interface EditorSession {
-  song: Song;
-  /** The chart the edit started from (its timing, sounds and metadata). */
-  base: ServerChart;
-  doc: EditorDoc;
-  cursorMs: number;
-  pxPerMs: number;
-  snap: number;
-  name: string;
-  savedChartId: string | null;
-  clipboard: ClipNote[];
-}
-
-export function newEditorSession(song: Song, base: ServerChart): EditorSession {
-  const doc = new EditorDoc(base, base.meta.lanes.length);
-  const first = doc.notes[0]?.t ?? base.timing.offsetMs;
-  const label = base.meta.chartName ?? `${base.meta.keyMode} ${base.meta.difficulty}`;
-  return {
-    song,
-    base,
-    doc,
-    cursorMs: Math.max(0, doc.snap(first, 1) - 500),
-    pxPerMs: 0.25,
-    snap: 4,
-    name: base.meta.source?.kind === 'edited' ? label : `${label} (편집)`,
-    savedChartId: base.meta.source?.kind === 'edited' ? base.meta.chartId : null,
-    clipboard: [],
-  };
-}
+export { newEditorSession, type EditorSession } from './editorSession';
+import type { EditorSession } from './editorSession';
 
 interface Props {
   session: EditorSession;

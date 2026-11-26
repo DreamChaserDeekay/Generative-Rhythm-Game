@@ -30,23 +30,38 @@ export interface BeatClock {
 /** A bar's length where the chart gives none (a preview, before the first bar): 120 BPM in 4/4. */
 const DEFAULT_BAR_MS = 2000;
 
-/** The bar and beat at `timeMs` from the bars' start times (sorted), carried on at the nearest bar's length before the first and after the last. */
-export function beatClock(timeMs: number, barTimes: readonly number[], fever = false): BeatClock {
-  const seconds = timeMs / 1000;
+/** The length of bar `i` (ms), carried on at the nearest bar's length past either end. */
+function barLength(barTimes: readonly number[], i: number): number {
   const n = barTimes.length;
-  const clock = (bar: number): BeatClock => ({ bar, beat: bar * 4, seconds, fever });
-  if (n === 0) return clock(timeMs / DEFAULT_BAR_MS);
-  const length = (i: number) => (n > 1 ? barTimes[Math.min(n - 1, i + 1)] - barTimes[Math.min(n - 2, i)] : DEFAULT_BAR_MS) || DEFAULT_BAR_MS;
-  if (timeMs < barTimes[0]) return clock((timeMs - barTimes[0]) / length(0));
-  // the last bar start at or before the time
-  let lo = 0;
-  let hi = n - 1;
-  while (lo < hi) {
-    const mid = (lo + hi + 1) >> 1;
-    if (barTimes[mid] <= timeMs) lo = mid;
-    else hi = mid - 1;
+  return (n > 1 ? barTimes[Math.min(n - 1, i + 1)] - barTimes[Math.min(n - 2, i)] : DEFAULT_BAR_MS) || DEFAULT_BAR_MS;
+}
+
+/**
+ * The bar and beat at `timeMs` from the bars' start times (sorted), carried on at the nearest bar's length before the
+ * first and after the last. Written into `out` where one is given (the track asks every frame: no new object for it).
+ */
+export function beatClock(timeMs: number, barTimes: readonly number[], fever = false, out?: BeatClock): BeatClock {
+  const n = barTimes.length;
+  let bar: number;
+  if (n === 0) bar = timeMs / DEFAULT_BAR_MS;
+  else if (timeMs < barTimes[0]) bar = (timeMs - barTimes[0]) / barLength(barTimes, 0);
+  else {
+    // the last bar start at or before the time
+    let lo = 0;
+    let hi = n - 1;
+    while (lo < hi) {
+      const mid = (lo + hi + 1) >> 1;
+      if (barTimes[mid] <= timeMs) lo = mid;
+      else hi = mid - 1;
+    }
+    bar = lo + (timeMs - barTimes[lo]) / barLength(barTimes, lo);
   }
-  return clock(lo + (timeMs - barTimes[lo]) / length(lo));
+  const clock = out ?? { bar: 0, beat: 0, seconds: 0, fever };
+  clock.bar = bar;
+  clock.beat = bar * 4;
+  clock.seconds = timeMs / 1000;
+  clock.fever = fever;
+  return clock;
 }
 
 const frac = (x: number) => x - Math.floor(x);
