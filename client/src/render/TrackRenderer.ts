@@ -328,6 +328,17 @@ const SHARD_FADE = 0.3;
 /** The picture of the cracks over the lanes (px across and along the track). */
 const CRACK_PX = [512, 2048] as const;
 
+/** A lane of a failed play as a piece of the track: its body, its lit edges, and its share of the cracks (`share`: where its left edge is across the track, 0 … 1). */
+interface Shard {
+  lane: number;
+  piece: THREE.Group;
+  body: THREE.MeshBasicMaterial;
+  rim: THREE.MeshBasicMaterial;
+  cracks: THREE.MeshBasicMaterial;
+  share: number;
+  roll: number;
+}
+
 export interface FeverFrame {
   active: boolean;
   multiplier: number;
@@ -1004,9 +1015,12 @@ export class TrackRenderer {
   /** The light that rises along a lane as it comes on (setLaneLight); a plain fade without it. */
   private laneLight: THREE.Texture | null = null;
   /** The lanes of a failed play as pieces that crack and drop away, made when first drawn. */
-  private shards: { lane: number; piece: THREE.Group; body: THREE.MeshBasicMaterial; rim: THREE.MeshBasicMaterial; cracks: THREE.MeshBasicMaterial; roll: number }[] | null = null;
+  private shards: Shard[] | null = null;
   /** The picture of the cracks over the lanes, when one was given (setCracks); without it they are drawn in code (crackCanvas). */
   private crackPicture: HTMLImageElement | null = null;
+  /** How many frames of the cracks spreading the picture has in its row (1: one picture), and the one shown. */
+  private crackFrames = 1;
+  private crackFrame = -1;
   /** A piece's colour as it lets go (the floor's) and once it has turned (lighter). */
   private shardColors: [THREE.Color, THREE.Color] = [new THREE.Color(), new THREE.Color()];
   /** The last frame drew a start or an end: the next one without it puts the track back as it plays. */
@@ -1829,7 +1843,15 @@ export class TrackRenderer {
       for (const s of this.shards ?? []) s.piece.visible = false;
       return;
     }
-    for (const s of (this.shards ??= this.buildShards())) {
+    const shards = (this.shards ??= this.buildShards());
+    // the cracks spreading: the frame of the picture's row they are at
+    const frames = this.crackPicture ? this.crackFrames : 1;
+    const frame = Math.min(frames - 1, Math.floor(stage.crack * frames));
+    if (frames > 1 && frame !== this.crackFrame) {
+      this.crackFrame = frame;
+      for (const s of shards) (s.cracks.map as THREE.Texture).offset.x = (frame + s.share) / frames;
+    }
+    for (const s of shards) {
       const drop = stage.drop[s.lane] ?? 0;
       const left = Math.min(1, (1 - drop) / SHARD_FADE);
       s.piece.visible = drop < 1;
@@ -1846,12 +1868,16 @@ export class TrackRenderer {
   }
 
   /**
-   * The picture of the cracks that run over the lanes of a play that fails halfway (its top at the track's far
-   * end, light on nothing): given before any lane cracks, it is what the lanes show; later, or never, the cracks
-   * drawn in code stay.
+   * The picture of the cracks that run over the lanes of a play that fails halfway (light on nothing): given
+   * before any lane cracks, it is what the lanes show; later, or never, the cracks drawn in code stay. One picture
+   * lies over the whole track (its top at the far end); `frames` of them in a row are the cracks spreading, each
+   * from its point of impact on its bottom edge, laid from the far end to the judge line and shown in turn as the
+   * cracks run (StageFrame.crack).
    */
-  setCracks(picture: HTMLImageElement): void {
-    if (!this.disposed && !this.shards) this.crackPicture = picture;
+  setCracks(picture: HTMLImageElement, frames = 1): void {
+    if (this.disposed || this.shards) return;
+    this.crackPicture = picture;
+    this.crackFrames = Math.max(1, Math.floor(frames));
   }
 
   /** The dark and the flare of each lane with a floor: over its floor, tint, dividers, bar lines and key beam, under the notes. */
@@ -1883,8 +1909,11 @@ export class TrackRenderer {
    * lane and the black left in its place whatever lies in the depth buffer (a piece drops under the track, which
    * would hide it), and under the notes of the lanes still standing.
    */
-  private buildShards(): { lane: number; piece: THREE.Group; body: THREE.MeshBasicMaterial; rim: THREE.MeshBasicMaterial; cracks: THREE.MeshBasicMaterial; roll: number }[] {
+  private buildShards(): Shard[] {
     const { width, length, lanes } = this.geometry;
+    // frames of the cracks spreading: each lies from the far end to the judge line, its point of impact there
+    const frames = this.crackPicture ? this.crackFrames : 1;
+    this.crackFrame = -1;
     const picture = this.own(this.crackPicture ? new THREE.Texture(this.crackPicture) : new THREE.CanvasTexture(crackCanvas(CRACK_PX[0], CRACK_PX[1])));
     picture.colorSpace = THREE.SRGBColorSpace;
     picture.needsUpdate = true;
@@ -1896,8 +1925,9 @@ export class TrackRenderer {
       .filter((lane) => !lane.over)
       .map((lane, i) => {
         const map = this.own(picture.clone());
-        map.repeat.set(lane.width / width, 1);
-        map.offset.set((lane.x - lane.width / 2) / width + 0.5, 0);
+        const share = (lane.x - lane.width / 2) / width + 0.5;
+        map.repeat.set(lane.width / width / frames, 1);
+        map.offset.set(share / frames, 0);
         map.needsUpdate = true;
         const body = new THREE.MeshBasicMaterial({ color: floor, transparent: true, opacity: 0, depthWrite: false, depthTest: false });
         const rim = new THREE.MeshBasicMaterial({ map: edges, transparent: true, opacity: 0, depthWrite: false, depthTest: false });
@@ -1906,15 +1936,17 @@ export class TrackRenderer {
         const piece = new THREE.Group();
         [body, rim, cracks].forEach((material, k) => {
           const mesh = new THREE.Mesh(this.flatGeometry, material);
-          mesh.scale.set(lane.width, 1, length + TRACK_TAIL);
-          mesh.position.set(0, k * 0.001, (TRACK_TAIL - length) / 2);
+          // the frames of the cracks from the far end to the judge line; the rest the whole piece
+          const near = material === cracks && frames > 1 ? this.judgeZ : TRACK_TAIL;
+          mesh.scale.set(lane.width, 1, length + near);
+          mesh.position.set(0, k * 0.001, (near - length) / 2);
           mesh.renderOrder = 2.7 + k * 0.01;
           piece.add(mesh);
         });
         piece.position.set(lane.x, 0.008, 0);
         piece.visible = false;
         this.scene.add(piece);
-        return { lane: lane.index, piece, body, rim, cracks, roll: (i % 2 === 0 ? 1 : -1) * SHARD_ROLL * (0.6 + 0.1 * ((i * 7) % 5)) };
+        return { lane: lane.index, piece, body, rim, cracks, share, roll: (i % 2 === 0 ? 1 : -1) * SHARD_ROLL * (0.6 + 0.1 * ((i * 7) % 5)) };
       });
   }
 

@@ -284,37 +284,33 @@
   ]
  },
  "seal-exhard": {
-  "try": 1,
-  "tries": 1,
+  "try": 2,
+  "tries": 2,
   "model": "gemini-nano-banana-2.1",
   "aspect": "1:1",
   "size": "2K",
-  "prompt": "Game UI art for a commercial PC rhythm game: a CLEAR SEAL, the emblem that is stamped onto the screen when the player clears a song, at the finish level of a top commercial arcade rhythm game. ONE emblem seen perfectly flat from the front, centred, filling about 70% of the square picture, on pure black (#000000).\n\nSHAPE: a SQUARE medal with sharp right-angled corners (not round, not a diamond: its edges are horizontal and vertical). From the outside in: a thin outer square frame carrying fine, evenly spaced engraved tick marks all the way round; a black gap; a thick bevelled square frame; a black gap; and in the very centre the emblem's mark: a smaller solid glowing SQUARE set inside one more thin square frame of its own, and a small bevelled stud at each of the medal's four corners.\n\nCOLOUR: electric yellow (#f2f550) with white highlights and a little gold in its shading.\n\nIt is made of polished crystal glass and metal lit from inside: bright faces with crisp bevels, a white rim light, thin engraved lines, and a soft glow of its own colour around it. Nothing on it is dark except the thin engraved lines and the gaps between its rings, which are black. Perfectly symmetric left to right and top to bottom. NO letters, NO numbers, NO text and NO signs of any alphabet anywhere on it. No ribbon, no laurel, no star, no crown, no wings, no gem, no characters, no hands, no ground, no reflection, no second emblem.",
-  "made": "2026-11-13 08:38:09 +0000",
-  "bytes": 4020075,
-  "sha256": "0abaf2e0276ed9701abe9a1f0a4666223ef3f394d161ad44c4ebdae0fd5bfe89",
+  "prompt": "Rhythm-game clear-lamp emblem, a UI icon for a PC rhythm game: the seal stamped onto the screen when a song is cleared. Flat 2D vector-precision graphic, seen straight from the front: ONE emblem centred, filling about 70% of the square canvas, on pure black (#000000) out to all four corners.\n\nSTYLE: no 3D gemstone bevels, no chrome dome gradients, no metal texture. An outer thin SEGMENTED calibration ring (a circle broken into evenly spaced segments) with fine radial tick marks all the way round; inside it a sharp core with a neon rim, glowing hairlines and strict geometric symmetry. Lit parts are flat glowing colour with a soft glow of the same colour; everything else is black.\n\nTHE CORE: a DOUBLE octagonal frame (two concentric neon octagons with a black gap) around a glowing filled octagon, and four chevrons (V shapes) at its four diagonal corners, each pointing inward at the centre. Not a square frame. The segmented outer ring is ONE single ring, the same all the way round: the whole emblem is perfectly symmetric left to right and top to bottom. COLOUR: gold (#ffe84a).\n\nNO letters, NO numbers, NO text, no signs of any alphabet. No ribbon, laurel, star, crown, wings, gem, characters, ground, reflection or second emblem.",
+  "made": "2026-11-26 05:40:38 +0000",
+  "bytes": 3981528,
+  "sha256": "87e725f3d2e0b608f95de6aa526c3fee8053a31e6c9e9d6e6403ae2f649bd0fc",
   "usage": {
-   "promptTokenCount": 332,
-   "candidatesTokenCount": 1732,
-   "totalTokenCount": 3342,
+   "promptTokenCount": 294,
+   "candidatesTokenCount": 1680,
+   "totalTokenCount": 3376,
    "trafficType": "ON_DEMAND",
    "promptTokensDetails": [
     {
      "modality": "TEXT",
-     "tokenCount": 332
+     "tokenCount": 294
     }
    ],
    "candidatesTokensDetails": [
     {
      "modality": "IMAGE",
      "tokenCount": 1680
-    },
-    {
-     "modality": "TEXT",
-     "tokenCount": 52
     }
    ],
-   "thoughtsTokenCount": 1278
+   "thoughtsTokenCount": 1402
   },
   "stored": [
    2048,

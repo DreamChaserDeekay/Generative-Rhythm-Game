@@ -9,6 +9,7 @@ import { padCodeOf } from '../input/gamepad';
 import { bindingsFor, padBindingsFor, secondBindingsFor, songOffsetOf, withSongOffset, type Settings } from '../settings/settings';
 import type { PlayRequest } from './App';
 import { difficultyChip } from './difficultyChip';
+import { loadEndArt, loadedEndArt, type EndArt } from './endArt';
 import { flyStamp, takeLampOrigin } from './jacketFlight';
 import { LampMark, lampClass } from './lamps';
 import type { PlayOutcome } from './PlayController';
@@ -137,6 +138,16 @@ export function ResultScreen({ request, outcome, settings, onSettingsChange, onR
   const endMs = practice ? practice.endMs : Math.max(meta.durationMs ?? 0, ...chart.notes.map((n) => n.endT ?? n.t), 1);
 
   const [reduced] = useState(() => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false);
+  // the end's pictures (a clear's seal): loaded during the play as a rule, else as the result shows
+  const [endArt, setEndArt] = useState<EndArt | null>(() => loadedEndArt());
+  useEffect(() => {
+    if (endArt) return;
+    let on = true;
+    void loadEndArt().then((art) => on && setEndArt(art));
+    return () => {
+      on = false;
+    };
+  }, []);
   // where the play's own lamp stood as it ended (its end show): the stamp comes over from there
   const [lampFrom] = useState(() => takeLampOrigin());
   const lampLine = useRef<HTMLParagraphElement>(null);
@@ -329,9 +340,16 @@ export function ResultScreen({ request, outcome, settings, onSettingsChange, onR
 
   const lampText = aided ?? result.lamp;
   const lampCls = aided ? 'aided' : lampClass(result.lamp);
+  // a clear's mark as its seal (the end's picture, as the play's lamp was stamped), where the pictures are there
+  const seal = endArt?.index.seals[lampCls];
+  const mark = seal ? (
+    <i className="lamp-mark lamp-seal" aria-hidden="true" data-testid="result-seal" style={{ ['--seal' as string]: `url("${endArt!.url(seal.file)}")` } as CSSProperties} />
+  ) : (
+    <LampMark />
+  );
   const lamp = (testId?: string) => (
     <span className={`lamp-text lamp-${lampCls}`}>
-      {!aided && <LampMark />}
+      {!aided && mark}
       <span className={`lamp ${lampCls}`} data-testid={testId} data-lamp={testId ? result.lamp : undefined}>
         {lampText}
       </span>

@@ -420,7 +420,7 @@ export class PlayController {
     void loadEndArt().then((art) => {
       if (!art) return;
       this.renderer.setLaneLight(art.lane);
-      if (failing) this.renderer.setCracks(art.cracks);
+      if (failing) this.renderer.setCracks(art.cracks, art.index.cracks.frames ?? 1);
     });
     this.lit = lightOrder(this.renderer.geometry.lanes);
     this.falls = fallOrder(this.lit);

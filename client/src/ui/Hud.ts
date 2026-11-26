@@ -504,7 +504,7 @@ export class Hud {
       <div class="hud-skip" data-testid="hud-skip"><kbd></kbd> 건너뛰기</div>
       <div class="hud-end-keys" data-testid="hud-end-keys"></div>
       <div class="hud-lamp-fly" aria-hidden="true"></div>
-      <div class="hud-lamp"><i class="hud-lamp-ring"></i><span class="hud-lamp-seal"><i class="hud-lamp-half top"><i class="hud-lamp-mark"></i></i><i class="hud-lamp-half bottom"><i class="hud-lamp-mark"></i></i></span><span class="hud-lamp-sparks"></span><span class="hud-lamp-text"></span><i class="hud-lamp-art"></i></div>`;
+      <div class="hud-lamp"><i class="hud-lamp-ring"></i><i class="hud-lamp-burst"></i><span class="hud-lamp-seal"><i class="hud-lamp-half top"><i class="hud-lamp-mark"></i></i><i class="hud-lamp-half bottom"><i class="hud-lamp-mark"></i></i></span><span class="hud-lamp-sparks"></span><span class="hud-lamp-text"></span><i class="hud-lamp-art"></i></div>`;
     const q = (sel: string) => root.querySelector(sel) as HTMLElement;
     q('.hud-title').textContent = info.title;
     q('.hud-artist').textContent = info.artist;
@@ -686,6 +686,12 @@ export class Hud {
       this.root.style.setProperty('--end-ring-frames', String(art.index.ring.frames));
       this.root.style.setProperty('--end-sparks', `url("${art.url(art.index.sparks.file)}")`);
       this.root.style.setProperty('--end-sparks-frames', String(art.index.sparks.frames));
+      const burst = art.index.burst;
+      if (burst) {
+        this.root.style.setProperty('--end-burst', `url("${art.url(burst.file)}")`);
+        this.root.style.setProperty('--end-burst-frames', String(burst.frames));
+        this.root.dataset.burst = '';
+      }
     });
     this.skip = q('.hud-skip');
     this.endKeys = q('.hud-end-keys');
@@ -1337,8 +1343,9 @@ export class Hud {
   showLamp(text: string, kind: string, crashed = false): void {
     noteTrail(`hud:lamp ${kind}`);
     const worded = WORDED_LAMPS.has(kind);
-    // where the combo's number is, before it leaves with the judgement
-    const combo = kind === 'maxcombo' && !this.still ? this.comboNum.getBoundingClientRect() : null;
+    // where the combo's number is, before it leaves with the judgement (a full combo's: it flies into the words,
+    // where it bursts: .hud-lamp-burst)
+    const combo = (kind === 'maxcombo' || kind === 'perfect') && !this.still ? this.comboNum.getBoundingClientRect() : null;
     if (kind === 'aided') this.lamp.removeAttribute('data-testid');
     else this.lamp.dataset.testid = 'hud-lamp';
     this.lamp.dataset.lamp = kind;
