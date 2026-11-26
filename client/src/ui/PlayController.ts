@@ -263,6 +263,8 @@ export class PlayController {
   private firstInSight = 0;
   private skipTo: number | null = null;
   private resumeUntil = -Infinity;
+  /** The song time input opens at again after a pause (null: it is open, or shut for good). */
+  private inputOpensAt: number | null = null;
   private readonly tempo: TempoMap;
   /**
    * The run's start and end as the track shows them (stageFx; only drawn): the lanes with a floor from the
@@ -475,8 +477,9 @@ export class PlayController {
 
   pause(): void {
     if (this.state !== 'running') return;
-    this.input.releaseAll();
-    this.input.enabled = false;
+    // no key is judged while paused: a long note held is not broken by the pause, and is held on if its key
+    // is still (or again) down where the song stopped, let go of there otherwise (the frame's input.resume)
+    this.input.suspend();
     this.voices?.stopAll();
     this.stemVoices?.stopAll();
     this.engine.pause();
@@ -494,7 +497,10 @@ export class PlayController {
     // autoplay keysounds already past were cancelled by the pause; continue from here
     this.nextAutoKeysound = this.session.notes.findIndex((n) => n.t >= at);
     if (this.nextAutoKeysound < 0) this.nextAutoKeysound = this.session.notes.length;
-    this.input.enabled = true;
+    // no key is judged over the run-up (the notes there were played before the pause): input opens
+    // where the song stopped (frame), so presses and releases keep the order of song time; paused again in
+    // the run-up, it opens where the song first stopped
+    this.inputOpensAt = Math.max(at, this.inputOpensAt ?? -Infinity);
     this.state = 'running';
     this.callbacks.onPauseChange(false);
   }
@@ -615,6 +621,7 @@ export class PlayController {
       this.runStartMs = 0;
     }
     this.resumeUntil = -Infinity;
+    this.inputOpensAt = null;
     this.bpmAt = 0;
     this.state = 'running';
     this.planStart();
@@ -889,6 +896,10 @@ export class PlayController {
       if (this.pad) for (const action of this.padControls.tick(perfNow)) this.padAction(action);
 
       if (this.state === 'running') {
+        if (this.inputOpensAt !== null && songNow >= this.inputOpensAt) {
+          this.inputOpensAt = null;
+          this.input.resume(perfNow);
+        }
         if (this.auto) {
           for (const i of this.auto.take(judgeNow)) this.input.injectAt(i.lane, i.down, i.timeMs);
           this.scheduleAutoKeysounds(songNow);
@@ -1043,7 +1054,11 @@ export class PlayController {
       return;
     }
     this.state = 'ending';
+    // no lane is played over the end, from the keyboard or a pad (whose Start, FEVER and retry still
+    // work: the pad goes on being read until the run is torn down)
     this.input.detach();
+    this.input.enabled = false;
+    this.inputOpensAt = null;
     const lamp = this.session.result().lamp;
     // autoplay and practice earn no lamp: plain words
     const aided = this.practice ? 'PRACTICE END' : this.setup.request.autoPlay ? 'AUTO PLAY' : null;
@@ -1114,7 +1129,8 @@ export class PlayController {
     // the lamp is where the result's takes over from, however soon the end was skipped
     this.showLamp();
     this.state = 'done';
-    this.engine.stop();
+    // the run is over: no pad is read on, no key or keysound left going, before the result takes the screen
+    this.teardownRun();
     const result = this.session.result();
     const s = this.settings;
     const offsets = this.playOffsets();

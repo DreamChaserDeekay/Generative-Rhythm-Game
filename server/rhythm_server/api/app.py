@@ -157,6 +157,21 @@ BRIEF_CHARTS_KEPT = 12
 BRIEF_METAS_KEPT = 1000
 
 
+def receive_upload(file: UploadFile, tmp: Path, limit: int, too_big: str) -> None:
+    """An upload written to `tmp`; whatever stops it (too big, a read or a write that fails) leaves no file behind."""
+    size = 0
+    try:
+        with open(tmp, "wb") as out:
+            while chunk := file.file.read(1 << 20):
+                size += len(chunk)
+                if size > limit:
+                    raise HTTPException(413, too_big)
+                out.write(chunk)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
+
+
 def _exit_soon() -> None:
     """Ends the process a moment after the response has gone out (as the desktop app's own stop does)."""
     threading.Timer(0.2, os._exit, (0,)).start()
@@ -179,8 +194,10 @@ def create_app(
     # Mapperatorinator's charts, one at a time (one GPU), in the order they are opened: only the chart of the key
     # mode and tier played is made (the user, 2026-11-20: "선택한 키 및 난이도에 해당하는 채보만 생성")
     mapper_queue = MapperQueue(mapper.generate)
-    # whose each chart in the queue is (the song list marks the songs being made: GET /api/mapper/queue)
+    # whose each chart in the queue is (the song list marks the songs being made: GET /api/mapper/queue);
+    # the endpoints run on a pool of threads, so it is read and written under its lock
     queued_charts: dict[str, dict[str, str]] = {}
+    queued_lock = threading.Lock()
     # stems for keysounds are separated right after each analysis (ensure_stems is defined below)
     queue = AnalysisQueue(library, synchronous=synchronous_jobs, after_analysis=lambda song_id, pcm: ensure_stems(song_id, pcm))
 
@@ -376,11 +393,11 @@ def create_app(
         the game is drawn with: the desktop app notes this down when its graphics are lost
         (desktop/main.js)."""
         ids = mapper_queue.ids()
-        for gone in [c for c in queued_charts if c not in ids]:
-            queued_charts.pop(gone, None)
-        charts = [
-            {"chartId": c, **queued_charts[c], "state": "making" if c == mapper_queue.making else "queued"} for c in ids if c in queued_charts
-        ]
+        making = mapper_queue.making
+        with queued_lock:
+            for gone in [c for c in queued_charts if c not in ids]:
+                del queued_charts[gone]
+            charts = [{"chartId": c, **queued_charts[c], "state": "making" if c == making else "queued"} for c in ids if c in queued_charts]
         return {**mapper_queue.snapshot(), "loaded": mapper.service.loaded(), "charts": charts}
 
     @app.post("/api/mapper/install", status_code=202)
@@ -411,15 +428,7 @@ def create_app(
         if ext not in SUPPORTED_EXTENSIONS:
             raise HTTPException(415, f"지원하지 않는 형식입니다: {ext or '(확장자 없음)'}")
         tmp = library.tmp_path(ext)
-        size = 0
-        with open(tmp, "wb") as out:
-            while chunk := file.file.read(1 << 20):
-                size += len(chunk)
-                if size > MAX_UPLOAD_BYTES:
-                    out.close()
-                    tmp.unlink(missing_ok=True)
-                    raise HTTPException(413, "파일이 너무 큽니다 (최대 300MB)")
-                out.write(chunk)
+        receive_upload(file, tmp, MAX_UPLOAD_BYTES, "파일이 너무 큽니다 (최대 300MB)")
         # with no analysis ahead of it, the song's analysis starts on the decoded audio while its
         # canonical file is written
         started: list[str] = []
@@ -431,7 +440,7 @@ def create_app(
         try:
             song, created = library.add_song_file(tmp, name, start=start if queue.starts_now() else None)
         except Exception as e:
-            tmp.unlink(missing_ok=True)
+            # (add_song_file leaves no file of it behind)
             raise HTTPException(422, f"오디오를 읽지 못했습니다: {e}") from e
         if (created or song["status"] == "error") and song["id"] not in started:
             queue.submit(song["id"])
@@ -482,16 +491,12 @@ def create_app(
         if ext not in BGA_EXTENSIONS:
             raise HTTPException(415, f"지원하지 않는 영상 형식입니다: {ext or '(확장자 없음)'} — mp4·webm을 쓰세요")
         tmp = library.tmp_path(ext)
-        size = 0
-        with open(tmp, "wb") as out:
-            while chunk := file.file.read(1 << 20):
-                size += len(chunk)
-                if size > MAX_BGA_BYTES:
-                    out.close()
-                    tmp.unlink(missing_ok=True)
-                    raise HTTPException(413, "영상이 너무 큽니다 (최대 1GB)")
-                out.write(chunk)
-        library.save_bga(song_id, tmp, ext)
+        receive_upload(file, tmp, MAX_BGA_BYTES, "영상이 너무 큽니다 (최대 1GB)")
+        try:
+            library.save_bga(song_id, tmp, ext)
+        finally:
+            # (moved into the song's folder unless saving it failed)
+            tmp.unlink(missing_ok=True)
         return {"song": annotate([library.get_song(song_id)])[0]}
 
     @app.get("/api/songs/{song_id}/bga")
@@ -651,7 +656,8 @@ def create_app(
         args = (analysis, key_mode, tier, target, seed, chart_meta(song), library.audio_path(sid), lambda: library.mapper_timing_record(sid, model),
                 lambda: library.mapper_fit_tries(sid, fit_key))
         job, new = mapper_queue.submit(chart_id, priority, args)
-        queued_charts[chart_id] = {"songId": sid, "keyMode": key_mode, "difficulty": tier}
+        with queued_lock:
+            queued_charts[chart_id] = {"songId": sid, "keyMode": key_mode, "difficulty": tier}
         if new:
             def done(j: Any, label: str = f"{song['title']} {key_mode} {tier}", j_cid: str = chart_id) -> None:
                 if j.cancelled():

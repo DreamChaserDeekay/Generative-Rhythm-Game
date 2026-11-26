@@ -123,15 +123,18 @@ export function scheduleStemCut(
   fade: number,
 ): void {
   const time = (ms: number) => Math.max(at, contextTimeForSong(ms));
+  // a ramp's start no earlier than `at` either: a range that begins or ends within a fade of `fromMs`
+  // ramps from `at` (shorter), instead of a value set before the run is heard
+  const before = (ms: number) => Math.max(at, time(ms) - fade);
   const inside = ranges.some(([a, b]) => a <= fromMs && fromMs < b);
   g.setValueAtTime(inside ? -1 : 0, at);
   for (const [a, b] of ranges) {
     if (b <= fromMs) continue;
     if (a > fromMs) {
-      g.setValueAtTime(0, time(a) - fade);
+      g.setValueAtTime(0, before(a));
       g.linearRampToValueAtTime(-1, time(a));
     }
-    g.setValueAtTime(-1, time(b) - fade);
+    g.setValueAtTime(-1, before(b));
     g.linearRampToValueAtTime(0, time(b));
   }
 }

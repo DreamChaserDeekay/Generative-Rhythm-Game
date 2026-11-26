@@ -36,6 +36,7 @@ import {
   type SectionScore,
 } from './resultBreakdown';
 import { TopBar, usePadInput } from './shell';
+import { useWindowListeners } from './windowListeners';
 import { Backdrop, Disc, SongArt } from './songArt';
 import { useTwoPress } from './twoPress';
 
@@ -218,7 +219,7 @@ export function ResultScreen({ request, outcome, settings, onSettingsChange, onR
   // F7 exports the replay, Space opens the details. A held key does nothing more, a focused button
   // takes its own Enter, and any key or click shows the whole result at once (and only that, early
   // on: see MIN_GUARD_MS).
-  useEffect(() => {
+  useWindowListeners(() => {
     const onKey = (e: KeyboardEvent) => {
       const early = performance.now() < guardUntil;
       settle();
@@ -263,14 +264,7 @@ export function ResultScreen({ request, outcome, settings, onSettingsChange, onR
       heldOff.current.delete(e.code);
       if (e.code === 'Space') e.preventDefault();
     };
-    window.addEventListener('keydown', onKey);
-    window.addEventListener('keyup', onKeyUp);
-    window.addEventListener('pointerdown', settle, true);
-    return () => {
-      window.removeEventListener('keydown', onKey);
-      window.removeEventListener('keyup', onKeyUp);
-      window.removeEventListener('pointerdown', settle, true);
-    };
+    return { keydown: onKey, keyup: onKeyUp, pointerdownCapture: settle };
   });
 
   // autoplay and practice earn nothing: a plain label in place of the lamp (the lamp the run

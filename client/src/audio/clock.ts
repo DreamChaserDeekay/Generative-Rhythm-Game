@@ -23,6 +23,8 @@ const SMOOTHING = 0.05;
  */
 export class AudioClock {
   private offsetMs: number | null = null;
+  /** Whether the offset came from an output timestamp yet (the first is taken as it is, not eased into). */
+  private stamped = false;
   private readonly source: AudioTimeSource;
   private readonly now: () => number;
 
@@ -33,12 +35,16 @@ export class AudioClock {
 
   /** Refresh the mapping; call once per frame (cheap). */
   sample(): void {
-    const measured = this.measure();
-    if (this.offsetMs === null || Math.abs(measured - this.offsetMs) > RESYNC_THRESHOLD_MS) {
+    const { ms: measured, stamped } = this.measure();
+    // the first output timestamp replaces the guess from currentTime outright: eased into, a guess
+    // up to RESYNC_THRESHOLD_MS off would judge the song's first second by it
+    const first = stamped && !this.stamped;
+    if (this.offsetMs === null || first || Math.abs(measured - this.offsetMs) > RESYNC_THRESHOLD_MS) {
       this.offsetMs = measured;
     } else {
       this.offsetMs += (measured - this.offsetMs) * SMOOTHING;
     }
+    if (stamped) this.stamped = true;
   }
 
   /** Audible context time (seconds) at a `performance.now()` instant. */
@@ -56,12 +62,12 @@ export class AudioClock {
     return this.offsetMs as number;
   }
 
-  private measure(): number {
+  private measure(): { ms: number; stamped: boolean } {
     const ts = this.source.getOutputTimestamp?.();
     if (ts && ts.contextTime !== undefined && ts.performanceTime !== undefined && ts.contextTime > 0 && ts.performanceTime > 0) {
-      return ts.contextTime * 1000 - ts.performanceTime;
+      return { ms: ts.contextTime * 1000 - ts.performanceTime, stamped: true };
     }
     const latency = this.source.outputLatency || this.source.baseLatency || 0;
-    return (this.source.currentTime - latency) * 1000 - this.now();
+    return { ms: (this.source.currentTime - latency) * 1000 - this.now(), stamped: false };
   }
 }

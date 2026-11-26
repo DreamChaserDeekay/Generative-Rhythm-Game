@@ -56,6 +56,7 @@ import { arrowTarget, type NavStop } from './gridNav';
 import { ActionOption, Choice, HUD_TYPE_CHOICES, NumberOption, OptionalNumberOption, PART_CHOICES, pct, Toggle } from './optionRows';
 import { RuleRow, type PlayRule } from './PlayOptions';
 import { HintBar, TopBar, type KeyHint } from './shell';
+import { useWindowListeners } from './windowListeners';
 import { useTwoPress } from './twoPress';
 import { keyPairText, syncTestKeys } from './visualSync';
 
@@ -295,7 +296,7 @@ export function SettingsScreen({
   // Esc leaves (a key being bound and the rollover test take it first, see KeysPanel); Q / E and
   // PageUp / PageDown (LB / RB) change the tab; the arrows go through the rows: ↑↓ line to line,
   // ←→ along a line (keys and pad controls lane by lane; an option row takes ←→ itself).
-  useEffect(() => {
+  useWindowListeners(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.code === 'Escape') {
         e.preventDefault();
@@ -329,8 +330,7 @@ export function SettingsScreen({
         (rows.current ? rowStops(rows.current)[0] : stops[0])?.focus();
       }
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    return { keydown: onKey };
   });
 
   const row = {

@@ -497,3 +497,58 @@ def test_records_of_charts_made_on_the_tiers_before_are_kept_but_not_listed(tmp_
         "EXPERT", "HARD", "NORMAL", "HARD", "NORMAL"]
     # BMS #DIFFICULTY by the tier of the level
     assert [bms_difficulty({"difficulty": "MASTER", "level": lv}) for lv in (3, 8, 12, 16, 20)] == [1, 2, 3, 4, 5]
+
+
+def test_uploads_that_fail_leave_nothing_in_tmp(tmp_path, monkeypatch) -> None:
+    import rhythm_server.api.app as app_module
+    from rhythm_server.api.library import Library
+
+    data = tmp_path / "data"
+    with TestClient(create_app(data, client_dist=None, synchronous_jobs=True)) as c:
+        tmp = data / "tmp"
+        # too big
+        monkeypatch.setattr(app_module, "MAX_UPLOAD_BYTES", 1000)
+        assert c.post("/api/songs", files={"file": ("big.wav", wav_bytes(4), "audio/wav")}).status_code == 413
+        assert list(tmp.iterdir()) == []
+        # not audio: read, failed, removed
+        monkeypatch.setattr(app_module, "MAX_UPLOAD_BYTES", 300 * 1024 * 1024)
+        assert c.post("/api/songs", files={"file": ("noise.wav", b"RIFF not a wave", "audio/wav")}).status_code == 422
+        assert list(tmp.iterdir()) == []
+        # the library failing before the file is moved in (here: hashing it) still removes the upload
+        def broken(_path):
+            raise OSError("disk went away")
+
+        monkeypatch.setattr("rhythm_server.audio_io.file_sha256", broken)
+        assert c.post("/api/songs", files={"file": ("a.wav", wav_bytes(4), "audio/wav")}).status_code == 422
+        assert list(tmp.iterdir()) == []
+        monkeypatch.undo()
+        # a background video whose saving fails
+        song = c.post("/api/songs", files={"file": ("a.wav", wav_bytes(4), "audio/wav")}).json()["song"]
+
+        def no_room(*_args):
+            raise OSError("no room")
+
+        monkeypatch.setattr(Library, "save_bga", no_room)
+        with pytest.raises(OSError):
+            c.post(f"/api/songs/{song['id']}/bga", files={"file": ("v.mp4", b"\x00" * 2048, "video/mp4")})
+        assert list(tmp.iterdir()) == []
+
+
+def test_what_a_stopped_server_left_in_tmp_is_cleared_after_a_day(tmp_path) -> None:
+    import os
+
+    from rhythm_server.api.library import Library
+
+    root = tmp_path / "data"
+    Library(root)
+    tmp = root / "tmp"
+    old_file, old_dir, new_file = tmp / "1.wav", tmp / "2-import", tmp / "3.mp4"
+    old_file.write_bytes(b"x")
+    (old_dir / "package").mkdir(parents=True)
+    (old_dir / "package" / "a.osu").write_text("x")
+    new_file.write_bytes(b"y")
+    day_ago = time.time() - 25 * 3600
+    for p in (old_file, old_dir):
+        os.utime(p, (day_ago, day_ago))
+    Library(root)
+    assert sorted(p.name for p in tmp.iterdir()) == ["3.mp4"]

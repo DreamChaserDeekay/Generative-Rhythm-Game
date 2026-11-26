@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 import re
 import shutil
@@ -114,6 +115,10 @@ CHART_FORMATS = ("osu", "bms", "bmson")
 BGA_EXTENSIONS = {".mp4": "video/mp4", ".webm": "video/webm", ".m4v": "video/mp4", ".mov": "video/quicktime", ".ogv": "video/ogg"}
 
 SONG_ID = re.compile(r"^[0-9a-f]{16}$")
+# what is left in tmp by an upload or import the server stopped halfway is cleared once this old (s)
+TMP_KEPT_S = 24 * 3600
+
+log = logging.getLogger(__name__)
 CHART_ID = re.compile(r"^c[0-9a-f]{20}$")
 
 
@@ -133,6 +138,7 @@ class Library:
         self.root = root
         for sub in ("songs", "charts", "replays", "tmp"):
             (root / sub).mkdir(parents=True, exist_ok=True)
+        self._sweep_tmp()
         self._lock = threading.RLock()
         # songs whose canonical audio is being written while their analysis already runs
         self._writing: dict[str, threading.Event] = {}
@@ -206,6 +212,20 @@ class Library:
         for score_id in ids:
             self.replay_path(score_id).unlink(missing_ok=True)
 
+    def _sweep_tmp(self, older_than_s: float = TMP_KEPT_S) -> None:
+        """Uploads and imports a server stopped halfway (closed, crashed) leave in tmp: gone after a day."""
+        cutoff = time.time() - older_than_s
+        for entry in (self.root / "tmp").iterdir():
+            try:
+                if entry.stat().st_mtime > cutoff:
+                    continue
+                if entry.is_dir() and not entry.is_symlink():
+                    shutil.rmtree(entry, ignore_errors=True)
+                else:
+                    entry.unlink(missing_ok=True)
+            except OSError:
+                log.warning("could not clear %s from tmp", entry.name)
+
     def tmp_path(self, suffix: str) -> Path:
         return self.root / "tmp" / f"{time.time_ns()}{suffix}"
 
@@ -218,17 +238,22 @@ class Library:
         (audio_io.canonical_pcm), once the song is in the library and before that file is written:
         its analysis starts meanwhile (wait_audio waits for the file). Not called when that audio
         cannot be worked out here."""
-        digest = audio_io.file_sha256(src)
-        song_id = digest[:16]
-        existing = self._row(song_id)
-        if existing is not None:
+        try:
+            digest = audio_io.file_sha256(src)
+            song_id = digest[:16]
+            existing = self._row(song_id)
+            if existing is not None:
+                src.unlink(missing_ok=True)
+                return self._song_json(existing), False
+            song_dir = self.song_dir(song_id)
+            song_dir.mkdir(parents=True, exist_ok=True)
+            ext = Path(original_name).suffix.lower() or src.suffix.lower()
+            original = song_dir / f"original{ext}"
+            shutil.move(str(src), original)
+        except BaseException:
+            # the file handed in is the library's to remove (an upload's, an import's copy), read or not
             src.unlink(missing_ok=True)
-            return self._song_json(existing), False
-        song_dir = self.song_dir(song_id)
-        song_dir.mkdir(parents=True, exist_ok=True)
-        ext = Path(original_name).suffix.lower() or src.suffix.lower()
-        original = song_dir / f"original{ext}"
-        shutil.move(str(src), original)
+            raise
         try:
             pcm = audio_io.decode_audio(original)
             early = audio_io.canonical_pcm(pcm) if start is not None else None

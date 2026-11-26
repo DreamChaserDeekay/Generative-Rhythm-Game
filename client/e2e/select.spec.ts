@@ -931,6 +931,27 @@ test('a cover picked in the song info shows at once, and goes again', async ({ p
   expect(errors).toEqual([]);
 });
 
+test('a request about a song that fails once the cursor is on another names that song: its error is not the one shown', async ({ page }) => {
+  const errors = trackErrors(page);
+  await page.goto('/');
+  const id = await readyDemo(page, 139);
+  await readyDemo(page, 141);
+  // the cover of 139 is refused, a second and a half after it was sent
+  await page.route(`**/api/songs/${id}/cover`, async (route) => {
+    await new Promise((done) => setTimeout(done, 1500));
+    await route.fulfill({ status: 415, json: { detail: '그림 파일이 아닙니다' } });
+  });
+  await page.reload();
+  await page.getByTestId('song-item').filter({ hasText: 'Demo Groove 139' }).click();
+  await songInfo(page);
+  await page.getByTestId('cover-input').setInputFiles({ name: 'jacket.png', mimeType: 'image/png', buffer: PNG });
+  await page.keyboard.press('Escape');
+  await page.getByTestId('song-item').filter({ hasText: 'Demo Groove 141' }).click();
+  await expect(page.getByTestId('song-title')).toHaveText('Demo Groove 141');
+  await expect(page.getByTestId('select-error')).toHaveText(/^Demo Groove 139: 그림 파일이 아닙니다/, { timeout: 5000 });
+  expect(errors).toEqual([]);
+});
+
 test('a song whose analysis failed says why first, folds the server\'s words, and is analysed again from the hero or the song info', async ({ page }) => {
   const errors = trackErrors(page);
   const [song] = fakeSongs(1);

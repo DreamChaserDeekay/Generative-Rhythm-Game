@@ -48,6 +48,7 @@ import { judgementChip } from './playRules';
 import { alongLine, cursorStep, edgeLine, lineStep, panelLines, panelStops, pressesOnEnter, randomIndex, wheelPlace, wheelReach } from './selectNav';
 import { Sheet, type SheetItem } from './Sheet';
 import { HintBar, SoundIcon, TopBar, type KeyHint } from './shell';
+import { useWindowListeners } from './windowListeners';
 import { INFO_TABS, KIND_LABELS, SongInfoPanel, type InfoTab } from './SongInfoPanel';
 import { setJacketOrigin } from './jacketFlight';
 import { Backdrop, bpmLabel, SongArt } from './songArt';
@@ -245,6 +246,14 @@ export function SongSelectScreen(props: Props) {
   // chosen one out puts the cursor on its first song, and with no song shown nothing is selected
   // (or played).
   const selected = filtered.find((s) => s.id === selectedSongId) ?? filtered[0] ?? null;
+  // the song under the cursor as of the last render: a request's answer can come once the cursor is on another
+  const cursorSong = useRef<string | null>(null);
+  cursorSong.current = selected?.id ?? null;
+  /** A request about `song` failed: its message, named by the song where the cursor has moved on to another (it is not that one's). */
+  const songFailed = (song: Song, e: unknown) => {
+    const message = e instanceof Error ? e.message : String(e);
+    setError(cursorSong.current === song.id ? message : `${song.title}: ${message}`);
+  };
   const difficulty = selected ? tierOn(selected, chosen) : chosen;
   const tiersShown = selected ? tiersOn(selected) : tiers;
   useEffect(() => {
@@ -714,49 +723,54 @@ export function SongSelectScreen(props: Props) {
 
   const reanalyze = async () => {
     if (!selected) return;
+    const song = selected;
     setError(null);
     try {
-      await api.reanalyze(selected.id);
-      forgetSongBuffer(selected.id);
+      await api.reanalyze(song.id);
+      forgetSongBuffer(song.id);
       await refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      songFailed(song, e);
     }
   };
 
   const uploadBga = async (file: File) => {
     if (!selected) return;
+    const song = selected;
     setBusy('배경 영상 올리는 중…');
     setError(null);
     try {
-      await api.uploadBga(selected.id, file);
+      await api.uploadBga(song.id, file);
       await refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      songFailed(song, e);
     }
     setBusy(null);
   };
 
   const removeBga = async () => {
     if (!selected) return;
-    await api.deleteBga(selected.id).catch((e: Error) => setError(e.message));
+    const song = selected;
+    await api.deleteBga(song.id).catch((e: unknown) => songFailed(song, e));
     await refresh();
   };
 
   const uploadCover = async (file: File) => {
     if (!selected) return;
+    const song = selected;
     setError(null);
     try {
-      await api.uploadCover(selected.id, file);
+      await api.uploadCover(song.id, file);
       await refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      songFailed(song, e);
     }
   };
 
   const removeCover = async () => {
     if (!selected) return;
-    await api.deleteCover(selected.id).catch((e: Error) => setError(e.message));
+    const song = selected;
+    await api.deleteCover(song.id).catch((e: unknown) => songFailed(song, e));
     await refresh();
   };
 
@@ -781,14 +795,15 @@ export function SongSelectScreen(props: Props) {
   /** Saves song settings; false when the server refused them (the error is shown). */
   const patch = async (body: Parameters<typeof api.patchSong>[1]): Promise<boolean> => {
     if (!selected) return false;
+    const song = selected;
     setError(null);
     try {
-      await api.patchSong(selected.id, body);
-      forgetSongBuffer(selected.id);
+      await api.patchSong(song.id, body);
+      forgetSongBuffer(song.id);
       await refresh();
       return true;
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      songFailed(song, e);
       return false;
     }
   };
@@ -1002,7 +1017,7 @@ export function SongSelectScreen(props: Props) {
   // what is open). An open panel takes the arrows, Home / End and Enter (panelKey) and the list under it
   // rests; an open sheet takes every key (its own listener, before this one). A text field, a
   // slider or a drop-down keeps the keys it uses itself.
-  useEffect(() => {
+  useWindowListeners(() => {
     const onKey = (e: KeyboardEvent) => {
       const plain = !e.ctrlKey && !e.metaKey && !e.altKey;
       if (FUNCTION_KEYS.has(e.code)) {
@@ -1136,12 +1151,7 @@ export function SongSelectScreen(props: Props) {
       if (e.code === 'Space' && !keepsKey(e.target, e.code)) e.preventDefault();
     };
     // (no key reaches this listener while a sheet is open: the sheet stops them on their way down)
-    window.addEventListener('keydown', onKey);
-    window.addEventListener('keyup', onKeyUp);
-    return () => {
-      window.removeEventListener('keydown', onKey);
-      window.removeEventListener('keyup', onKeyUp);
-    };
+    return { keydown: onKey, keyup: onKeyUp };
   });
 
   // Whether Enter presses what has the focus (a panel's button or box, an empty library's button), for the key hints; a
