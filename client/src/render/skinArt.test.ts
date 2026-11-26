@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { disposeSkinArt, flipbookBlend, flipbookOffset, hitFrame, loadSkinArt, parseManifest, parseMediaTexture, type MediaManifest } from './skinArt';
+import { disposeSkinArt, flipbookBlend, flipbookBlendInto, flipbookOffset, flipbookOffsetInto, hitFrame, loadSkinArt, parseManifest, parseMediaTexture, type FlipbookBlend, type MediaManifest } from './skinArt';
 import type { ArtImage } from './styleArt';
 import { BASE_SKIN } from './skins';
 
@@ -213,5 +213,20 @@ describe('loading the parts’ pictures and the hit’s flipbooks', () => {
     expect(Object.keys((await loadSkinArt(skin, { ...sources, image: undefined }))?.images ?? {})).toEqual([]);
     expect(await loadSkinArt(BASE_SKIN, { ...sources, manifest: async () => manifest })).toBeNull();
     disposeSkinArt(art);
+  });
+});
+
+describe('a flipbook\'s frames worked out into an object kept for it', () => {
+  it('give what a new one would, for frames played once and looped', () => {
+    const out: FlipbookBlend = { offset: [0, 0], step: [0, 0], mix: 0 };
+    const uv: [number, number] = [0, 0];
+    for (const book of [{ cols: 4, rows: 3, frames: 11, fps: 30, loop: false }, { cols: 5, rows: 2, frames: 10, fps: 24, loop: true }]) {
+      for (const frame of [0, 0.4, 3.75, 9.5, 10.2, 14.9, -1]) {
+        expect(flipbookBlendInto(book as never, frame, out)).toBe(out);
+        expect(out).toEqual(flipbookBlend(book as never, frame));
+        expect(flipbookOffsetInto(book as never, frame, uv)).toBe(uv);
+        expect(uv).toEqual(flipbookOffset(book as never, frame));
+      }
+    }
   });
 });

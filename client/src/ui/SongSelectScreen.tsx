@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type ReactNode } from 'react';
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type ReactNode } from 'react';
 import { api, ApiError, EXPORT_LABELS, type Health, type ImportResult, type RetiredCharts, type SavedChart, type ScoreRecord, type ServerChart, type Song } from '../api/client';
 import { forgetSongBuffer } from '../audio/bufferCache';
 import { menuMusic, PREVIEW_VOLUME } from '../audio/songPreview';
@@ -1226,24 +1226,35 @@ export function SongSelectScreen(props: Props) {
   // the generator of the moment (a chart of another one is played as it was made)
   const generator = health && health !== 'offline' ? health.generator : null;
 
-  // The wheel's rows: the chart Enter plays on each tier of each song listed is worked out when
-  // the list or the patterns change, and its level and lamp are looked up again as levels come in.
-  const listCharts = useMemo(() => filtered.map((s) => tiers.map((t) => tierChart(s, t.id).key)), [filtered, keyMode, settings.patterns]);
-  const listCells = useMemo(
+  // the wheel is drawn around the cursor only (a library may hold thousands of songs)
+  const at = filtered.findIndex((s) => s.id === selected?.id);
+  const from = Math.max(0, at - reach - 2);
+  const to = at < 0 ? from : Math.min(filtered.length, at + reach + 3);
+  // The wheel's rows, those drawn only: the chart Enter plays on each tier of each and its level and lamp,
+  // worked out again as the list, the window, the patterns or the charts known change (as levels come in:
+  // for the dozen rows drawn, not every song listed)
+  const shownCells = useMemo(
     () =>
-      filtered.map((s, i): ListCells => {
+      filtered.slice(from, to).map((s): ListCells => {
         const records = recordsOn(s, keyMode);
         return {
-          tiers: tiers.map((t, j) => ({
-            tier: t,
-            ...tierMark(records, t.id, s.status === 'ready' ? chartStore.brief(listCharts[i][j]) : null),
-            absent: s.status === 'ready' && tierAbsent(chartStore, listCharts[i][j]),
-          })),
+          tiers: tiers.map((t) => {
+            const key = tierChart(s, t.id).key;
+            return {
+              tier: t,
+              ...tierMark(records, t.id, s.status === 'ready' ? chartStore.brief(key) : null),
+              absent: s.status === 'ready' && tierAbsent(chartStore, key),
+            };
+          }),
           saved: savedMark(savedRecordsOn(s, keyMode)),
         };
       }),
-    [listCharts, chartsIn],
+    [filtered, from, to, keyMode, settings.patterns, chartsIn],
   );
+  // a press on a row picks its song, or plays the one picked: one handler for every row (they are memoized)
+  const pickRow = useRef<(id: string) => void>(() => undefined);
+  pickRow.current = (id) => (id === selected?.id ? void play() : onSelectSong(id));
+  const onPickRow = useCallback((id: string) => pickRow.current(id), []);
 
   // the keys of the list, or of the open panel; a pad's buttons while the pad is used (the minor
   // ones give way on a narrow window, so the bar keeps what Enter does). With no server, the
@@ -1435,10 +1446,7 @@ export function SongSelectScreen(props: Props) {
     <span data-testid="busy">{busy}</span>
   ) : null;
   const saved = (m: KeyModeId) => (savedLoaded ? savedCharts.charts.filter((c) => c.keyMode === m).length : 0);
-  const at = filtered.findIndex((s) => s.id === selected?.id);
-  // the wheel is drawn around the cursor only (a library may hold thousands of songs)
-  const from = Math.max(0, at - reach - 2);
-  const shownRows = at < 0 ? [] : filtered.slice(from, at + reach + 3);
+  const shownRows = at < 0 ? [] : filtered.slice(from, to);
   const wheelDelta = useRef(0);
 
   return (
@@ -1892,7 +1900,7 @@ export function SongSelectScreen(props: Props) {
             )}
             {shownRows.map((s, i) => {
               const index = from + i;
-              const cells = listCells[index];
+              const cells = shownCells[i];
               // a song without the tier chosen plays the hardest it has under it; on the selected
               // song a saved chart picked there is the entry
               const onSaved = savedEntry !== null && s.id === selected?.id;
@@ -1909,7 +1917,7 @@ export function SongSelectScreen(props: Props) {
                   mark={onSaved ? (cells.saved ?? { level: savedEntry.level, lamp: null }) : played}
                   making={makingSongs.get(s.id) ?? null}
                   color={onSaved ? 'var(--text)' : (played?.tier.color ?? 'var(--text-dim)')}
-                  onPick={s.id === selected?.id ? () => void play() : () => onSelectSong(s.id)}
+                  onPick={onPickRow}
                 />
               );
             })}
@@ -2165,7 +2173,7 @@ function Lamp({ lamp, faint = false }: { lamp: string | null; faint?: boolean })
  * the tier's colour. It stands `d` rows from the picked one, which is the paper plate in the
  * middle; a press on another row picks it, a press on the picked one plays.
  */
-function SongRow(props: {
+interface SongRowProps {
   song: Song;
   d: number;
   reach: number;
@@ -2175,8 +2183,28 @@ function SongRow(props: {
   color: string;
   /** A chart of the song is being made, or waits its turn (the generator's queue). */
   making: SongMaking | null;
-  onPick: () => void;
-}) {
+  /** Its song picked (or played, when it is the one picked): one handler for every row. */
+  onPick: (songId: string) => void;
+}
+
+/** A row is drawn again only as what it shows changes (its mark worked out again with the same level and lamp is the same). */
+function sameRow(a: SongRowProps, b: SongRowProps): boolean {
+  const [m, n] = [a.mark, b.mark];
+  const sameMark = m === n || (m !== null && n !== null && m.level === n.level && m.lamp === n.lamp && m.unmade === n.unmade && m.other === n.other);
+  return (
+    sameMark &&
+    a.song === b.song &&
+    a.d === b.d &&
+    a.reach === b.reach &&
+    a.favorite === b.favorite &&
+    a.second === b.second &&
+    a.color === b.color &&
+    a.making === b.making &&
+    a.onPick === b.onPick
+  );
+}
+
+const SongRow = memo(function SongRow(props: SongRowProps) {
   const { song, d, mark } = props;
   const { x, y, opacity } = wheelPlace(d, props.reach);
   const working = song.status === 'queued' || song.status === 'analyzing';
@@ -2189,7 +2217,7 @@ function SongRow(props: {
       // (a row past the wheel's end is there only to slide in: it takes no press and no focus)
       tabIndex={Math.abs(d) > props.reach ? -1 : 0}
       aria-current={d === 0 ? 'true' : undefined}
-      onClick={props.onPick}
+      onClick={() => props.onPick(song.id)}
     >
       <span className="song-plate" aria-hidden="true" />
       <SongArt song={song} size={68} fit />
@@ -2221,7 +2249,7 @@ function SongRow(props: {
       )}
     </button>
   );
-}
+}, sameRow);
 
 /**
  * A difficulty of the song as a leaning plate: its name, the level of the chart Enter plays on it

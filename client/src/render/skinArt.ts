@@ -179,8 +179,27 @@ export function loadManifest(): Promise<MediaManifest | null> {
 
 /** UV offset of a flipbook frame (the texture's repeat is 1/cols × 1/rows; images load with flipY). */
 export function flipbookOffset(book: Flipbook, frame: number): [number, number] {
+  return flipbookOffsetInto(book, frame, [0, 0]);
+}
+
+/** flipbookOffset written into `out`: what is drawn every frame makes no new array for it. */
+export function flipbookOffsetInto(book: Flipbook, frame: number, out: [number, number]): [number, number] {
   const f = Math.min(book.frames - 1, Math.max(0, Math.floor(frame)));
-  return [(f % book.cols) / book.cols, 1 - (Math.floor(f / book.cols) + 1) / book.rows];
+  out[0] = (f % book.cols) / book.cols;
+  out[1] = 1 - (Math.floor(f / book.cols) + 1) / book.rows;
+  return out;
+}
+
+/** Where a flipbook is between two of its frames (flipbookBlend). */
+export interface FlipbookBlend {
+  offset: [number, number];
+  step: [number, number];
+  mix: number;
+}
+
+/** A frame of a flipbook as it plays: on from the last into the first where it loops, held on its last otherwise. */
+function wrapFrame(book: Flipbook, f: number): number {
+  return book.loop ? ((f % book.frames) + book.frames) % book.frames : Math.min(book.frames - 1, Math.max(0, f));
 }
 
 /**
@@ -190,15 +209,21 @@ export function flipbookOffset(book: Flipbook, frame: number): [number, number] 
  * or three screen frames, then jumps; with each pair of frames mixed it moves on every one. A loop's last frame
  * is followed by its first; a sheet played once ends on its last frame.
  */
-export function flipbookBlend(book: Flipbook, frame: number): { offset: [number, number]; step: [number, number]; mix: number } {
+export function flipbookBlend(book: Flipbook, frame: number): FlipbookBlend {
+  return flipbookBlendInto(book, frame, { offset: [0, 0], step: [0, 0], mix: 0 });
+}
+
+/** flipbookBlend written into `out`: what is drawn every frame makes no new object or array for it. */
+export function flipbookBlendInto(book: Flipbook, frame: number, out: FlipbookBlend): FlipbookBlend {
   const whole = Math.floor(frame);
-  const wrap = (f: number) => (book.loop ? ((f % book.frames) + book.frames) % book.frames : Math.min(book.frames - 1, Math.max(0, f)));
-  const from = wrap(whole);
-  const to = wrap(whole + 1);
-  const offset = flipbookOffset(book, from);
-  const next = flipbookOffset(book, to);
-  const mix = from === to ? 0 : Math.min(1, Math.max(0, frame - whole));
-  return { offset, step: [next[0] - offset[0], next[1] - offset[1]], mix };
+  const from = wrapFrame(book, whole);
+  const to = wrapFrame(book, whole + 1);
+  const [u, v] = flipbookOffsetInto(book, from, out.offset);
+  // the next frame's offset, less this one's
+  out.step[0] = (to % book.cols) / book.cols - u;
+  out.step[1] = 1 - (Math.floor(to / book.cols) + 1) / book.rows - v;
+  out.mix = from === to ? 0 : Math.min(1, Math.max(0, frame - whole));
+  return out;
 }
 
 /** A hit's flipbook `ms` after the hit: its frame (with the share of the way to the next), from where it starts. */

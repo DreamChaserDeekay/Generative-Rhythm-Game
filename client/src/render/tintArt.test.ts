@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { coinNote, emblemBox, isBarNote, isLogoNote, laneDepthOf, LOGO_NOTES, LONG_OF, LONG_PAINT, LONG_STYLES, NOTE_PAINT, NOTE_STYLES, noteDepthOf, noteEmblemOf, noteThicknessOf, shapedEnd, sideDotsBody, sideDotsEnd } from './tintArt';
+import { coinNote, emblemBox, isBarNote, isLogoNote, laneDepthOf, LOGO_NOTES, LONG_OF, LONG_PAINT, LONG_STYLES, NOTE_PAINT, NOTE_STYLES, noteDepthOf, noteEmblemOf, noteThicknessOf, shapedEnd, sideDotsBody, sideDotsEnd, sheetOffset, sheetOffsetInto} from './tintArt';
 
 describe('the notes’ depth along the track', () => {
   const bar = 0.7;
@@ -274,5 +274,15 @@ describe('the LED side notes drawn from a picture', () => {
     sideDotsEnd(10)(g, 500, 40);
     expect(draws).toHaveLength(0);
     expect(fills.length).toBeGreaterThan(0);
+  });
+});
+
+describe('a hit sheet\'s frame worked out into an array kept for it', () => {
+  it('gives what a new one would', () => {
+    const uv: [number, number] = [0, 0];
+    for (const frame of [0, 1.5, 7, 15.99]) {
+      expect(sheetOffsetInto({ cols: 4, rows: 4 }, frame, uv)).toBe(uv);
+      expect(uv).toEqual(sheetOffset({ cols: 4, rows: 4 }, frame));
+    }
   });
 });

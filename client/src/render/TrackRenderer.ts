@@ -21,7 +21,7 @@ import {
 import { FEVER_COLORS } from './palette';
 import { FrameWatch, notePart, reportError, type PlayPhase } from './frameWatch';
 import { activeTrail, setActiveTrail, Trail } from './trail';
-import { disposeSkinArt, flipbookBlend, flipbookOffset, hitFrame, type Flipbook, type MediaEffects, type MediaTexture, type SkinArt } from './skinArt';
+import { disposeSkinArt, flipbookBlendInto, flipbookOffsetInto, hitFrame, type Flipbook, type FlipbookBlend, type MediaEffects, type MediaTexture, type SkinArt } from './skinArt';
 import { burstPoses, holdPoses, LAYER_BURST_MS, LAYER_ROOM, layerMaterial, layerUniforms, setPoses, type LayerSpec, type LayerUniforms } from './layerFx';
 import { hex, laneColorsFor, type Skin, type SkinStyle } from './skins';
 import { beatClock, DECK_PICTURE_PX, GEAR_LIGHTS, GearLightLayer, type BeatClock } from './gearLights';
@@ -42,7 +42,7 @@ import {
   paintTexture,
   setNoteEmblem,
   shadowReach,
-  sheetOffset,
+  sheetOffsetInto,
   SIDE_FLASH_LINE,
   SIDE_PICTURES,
   sideDotsBody,
@@ -963,6 +963,15 @@ export class TrackRenderer {
   private deckWait = 0;
   /** Bumped whenever the camera or the gear's layout changes: the HUD lying on the track moves then. */
   private planeVersion = 0;
+  /** What the frame's effects and lights are worked out into (nothing new made for them every frame). */
+  private readonly uv: [number, number] = [0, 0];
+  private readonly blendAt: FlipbookBlend = { offset: [0, 0], step: [0, 0], mix: 0 };
+  private readonly clockAt: BeatClock = { bar: 0, beat: 0, seconds: 0, fever: false };
+  /** Frames drawn (render), and the HUD's plane as last worked out in one of them, for its view (hudPlane). */
+  private renders = 0;
+  private planeMemo: HudPlane | null = null;
+  private planeMemoFrame = -1;
+  private planeMemoVersion = -1;
   /** Effects are this much longer along the track than across it (see EFFECT_ASPECT). */
   private stretch = 1;
   /** Where the note being placed lies (see noteSpan), kept to spare an object per note and frame. */
@@ -1352,10 +1361,18 @@ export class TrackRenderer {
     return this.planeVersion;
   }
 
-  /** The track plane as the camera shows it now (its tilt and zoom included), for the HUD on it. */
+  /**
+   * The track plane as the camera shows it now (its tilt and zoom included), for the HUD on it. While the camera
+   * moves it is asked for twice a frame (the figures by the gear as the frame is drawn, then the HUD): worked out
+   * once for the frame and the view it was asked in (renders, planeVersion).
+   */
   hudPlane(): HudPlane {
+    if (this.planeMemo && this.planeMemoFrame === this.renders && this.planeMemoVersion === this.planeVersion) return this.planeMemo;
     this.camera.updateMatrixWorld();
-    return this.planeAs(this.camera);
+    this.planeMemo = this.planeAs(this.camera);
+    this.planeMemoFrame = this.renders;
+    this.planeMemoVersion = this.planeVersion;
+    return this.planeMemo;
   }
 
   /**
@@ -1504,7 +1521,7 @@ export class TrackRenderer {
     [
       'lights',
       (frame) => {
-        const clock = beatClock(frame.timeMs, frame.barTimes, frame.fever.active);
+        const clock = beatClock(frame.timeMs, frame.barTimes, frame.fever.active, this.clockAt);
         this.gearLights.update(clock);
         this.sweepBorders(clock);
         this.shimmerJudge(clock);
@@ -1544,6 +1561,7 @@ export class TrackRenderer {
   private readonly stepNames = this.steps.map(([name]) => `track:${name}`);
 
   render(frame: TrackFrame, perfNow: number): void {
+    this.renders++;
     this.trail.frame(perfNow);
     this.renderer.info.reset();
     const first = this.lastFrameMs === 0;
@@ -2471,7 +2489,7 @@ export class TrackRenderer {
       if (core) {
         const book = this.art.hitBurst?.spec.flipbook;
         if (book) {
-          const [u, v] = flipbookOffset(book, HOLD_BURST_FRAME);
+          const [u, v] = flipbookOffsetInto(book, HOLD_BURST_FRAME, this.uv);
           core.texture.offset.set(u, v);
         }
         const size = w * CORE_SIZE * FX_SCALE * flash * this.fxFit.core * (this.art.hitBurst?.spec.span ?? 1) * swell;
@@ -2511,7 +2529,7 @@ export class TrackRenderer {
         h.mesh.visible = false;
         return;
       }
-      const [u, v] = sheetOffset(sheet, HOLD_FRAME);
+      const [u, v] = sheetOffsetInto(sheet, HOLD_FRAME, this.uv);
       h.texture.offset.set(u, v);
       const pulse = (this.reducedFlash ? 1 : 1 + 0.06 * Math.sin(frame.timeMs / 45)) * this.fxFit.hold;
       const across = sheet.size[0] * w * HOLD_SIZE * pulse;
@@ -2623,7 +2641,7 @@ export class TrackRenderer {
 
   /** Shows a flipbook's quad at `frame` (a frame and a share of the way to the next: the two are mixed). */
   private showFrame(h: EffectQuad, book: Flipbook, frame: number): void {
-    const at = flipbookBlend(book, frame);
+    const at = flipbookBlendInto(book, frame, this.blendAt);
     h.texture.offset.set(at.offset[0], at.offset[1]);
     if (!h.blend) return;
     h.blend.step.set(at.step[0], at.step[1]);
@@ -2714,7 +2732,7 @@ export class TrackRenderer {
       return;
     }
     const sheet = this.hitSheet as EffectSheet;
-    const [u, v] = sheetOffset(sheet, frame);
+    const [u, v] = sheetOffsetInto(sheet, frame, this.uv);
     h.texture.offset.set(u, v);
     const scale = (this.reducedFlash ? 0.8 : 1) * this.fxFit.hit * h.size * punch;
     const across = sheet.size[0] * w * HIT_SIZE * scale;

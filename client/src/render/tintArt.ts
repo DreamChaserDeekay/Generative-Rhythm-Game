@@ -2536,8 +2536,15 @@ function drawStarlight(g: CanvasRenderingContext2D, p: number): void {
 
 /** Offset of `frame` in a cols×rows sheet (texture v runs up; frame 0 is the top-left cell). */
 export function sheetOffset(sheet: Pick<EffectSheet, 'cols' | 'rows'>, frame: number): [number, number] {
+  return sheetOffsetInto(sheet, frame, [0, 0]);
+}
+
+/** sheetOffset written into `out`: what is drawn every frame makes no new array for it. */
+export function sheetOffsetInto(sheet: Pick<EffectSheet, 'cols' | 'rows'>, frame: number, out: [number, number]): [number, number] {
   const f = Math.floor(frame);
-  return [(f % sheet.cols) / sheet.cols, 1 - (Math.floor(f / sheet.cols) + 1) / sheet.rows];
+  out[0] = (f % sheet.cols) / sheet.cols;
+  out[1] = 1 - (Math.floor(f / sheet.cols) + 1) / sheet.rows;
+  return out;
 }
 
 function drawEffect(g: CanvasRenderingContext2D, style: SheetHit, p: number): void {

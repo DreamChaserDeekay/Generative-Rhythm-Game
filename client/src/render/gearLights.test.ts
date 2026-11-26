@@ -39,6 +39,15 @@ describe('the beat clock', () => {
     expect(beatClock(0, [], true).fever).toBe(true);
     expect(beatClock(0, []).fever).toBe(false);
   });
+
+  it('is written into the clock it is given, the same as a new one (the track asks every frame)', () => {
+    const bars = [0, 2000, 4000];
+    const out: BeatClock = { bar: 0, beat: 0, seconds: 0, fever: false };
+    for (const [ms, fever] of [[1000, false], [-1000, true], [5000, false], [3000, true]] as const) {
+      expect(beatClock(ms, bars, fever, out)).toBe(out);
+      expect(out).toEqual(beatClock(ms, bars, fever));
+    }
+  });
 });
 
 describe.each(GEAR_STYLES.map((gear) => ({ gear })))('the $gear gear’s lights', ({ gear }) => {

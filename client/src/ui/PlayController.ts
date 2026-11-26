@@ -43,7 +43,7 @@ import {
   type StagePose,
 } from '../render/stageFx';
 import { hudTypeFor } from '../render/gearHud';
-import { HUD_UNIT, TrackRenderer } from '../render/TrackRenderer';
+import { HUD_UNIT, TrackRenderer, type TrackFrame } from '../render/TrackRenderer';
 import { LONG_OF } from '../render/tintArt';
 import {
   activeCovers,
@@ -72,7 +72,7 @@ import type { PlayRequest, PracticeOptions } from './App';
 import { difficultyChip } from './difficultyChip';
 import { loadEndArt } from './endArt';
 import { coverText, judgeLineText, speedText } from './format';
-import { Hud } from './Hud';
+import { Hud, type HudStats } from './Hud';
 import { LAMP_CLASS } from './lamps';
 import { PlayBackground } from './PlayBackground';
 import { practiceRunStart } from './practiceLead';
@@ -280,6 +280,30 @@ export class PlayController {
   private retrying = false;
   /** The keys the end shows now (Hud.setEndKeys; '' none). */
   private endKeys = '';
+  /**
+   * What the track and the HUD are given every frame: made once and filled in again (no new objects or closures
+   * a frame); `trackFailed`: a play that failed halfway holds no key any more.
+   */
+  private trackFrame: TrackFrame | null = null;
+  private trackFailed = false;
+  private readonly hudStats: HudStats = {
+    score: 0,
+    sub: '',
+    maxCombo: 0,
+    gauge: 0,
+    fever: { gauge: 0, active: false, multiplier: 1, remaining: 0, ready: false },
+    pace: null,
+    progress: 0,
+    remainingMs: 0,
+    bpm: 0,
+    skip: false,
+    breaks: 0,
+    fast: 0,
+    slow: 0,
+  };
+  /** The words under the score as last written, and what they were written from (subValue: written again only as that changes). */
+  private subText = '';
+  private subFrom = [NaN, NaN, NaN];
   private readonly tempo: TempoMap;
   /**
    * The run's start and end as the track shows them (stageFx; only drawn): the lanes with a floor from the
@@ -959,20 +983,26 @@ export class PlayController {
         guard('frame:stage', () => {
           stage = this.stageAt(songNow, perfNow);
         });
-        this.renderer.render(
-          {
-            timeMs: drawMs + this.visualOffset(),
-            scroll: this.scroll,
-            notes: session.notes,
-            heldNote: (lane) => (failed ? null : session.heldNoteIndex(lane)),
-            keyDown: (lane) => !failed && session.isKeyDown(lane),
-            barTimes: this.barTimes,
-            fever: { active: session.fever.active, multiplier: session.fever.multiplier, remaining: session.fever.remaining(judgeNow) },
-            camera,
-            stage,
-          },
-          perfNow,
-        );
+        const track = (this.trackFrame ??= {
+          timeMs: 0,
+          scroll: this.scroll,
+          notes: session.notes,
+          heldNote: (lane) => (this.trackFailed ? null : this.session.heldNoteIndex(lane)),
+          keyDown: (lane) => !this.trackFailed && this.session.isKeyDown(lane),
+          barTimes: this.barTimes,
+          fever: { active: false, multiplier: 1, remaining: 0 },
+        });
+        this.trackFailed = failed;
+        track.timeMs = drawMs + this.visualOffset();
+        track.scroll = this.scroll;
+        track.notes = session.notes;
+        track.barTimes = this.barTimes;
+        track.fever.active = session.fever.active;
+        track.fever.multiplier = session.fever.multiplier;
+        track.fever.remaining = session.fever.remaining(judgeNow);
+        track.camera = camera;
+        track.stage = stage;
+        this.renderer.render(track, perfNow);
         // the HUD lying on the track follows the camera's tilt and zoom
         if (this.renderer.hudVersion !== this.hudVersion) {
           this.hudVersion = this.renderer.hudVersion;
@@ -982,31 +1012,29 @@ export class PlayController {
     });
     // (what is behind a play that failed halfway stands still with it)
     guard('frame:background', () => this.background.update(songNow, this.state === 'running' || (this.state === 'ending' && !this.ending?.failed), perfNow));
-    guard('frame:hud', () =>
-      this.hud.update(perfNow, {
-        score: this.scoreValue(),
-        sub: this.subValue(),
-        maxCombo: session.maxCombo,
-        gauge: session.gauge.value,
-        fever: {
-          gauge: session.fever.gauge,
-          active: session.fever.active,
-          multiplier: session.fever.multiplier,
-          remaining: session.fever.remaining(judgeNow),
-          ready: session.fever.ready,
-        },
-        pace: this.pace(),
-        progress: (songNow - this.runStartMs) / Math.max(1, this.lastNoteEndMs - this.runStartMs),
-        remainingMs: (this.lastNoteEndMs - songNow) / this.rate,
-        // the tempo heard: a slowed practice slows it too
-        bpm: Math.round(this.bpmNow(songNow) * this.rate),
-        // shown where it has a key (or a pad button) to work it
-        skip: this.skipLabel !== null && this.canSkip(songNow),
-        breaks: session.breakCount,
-        fast: session.fastCount,
-        slow: session.slowCount,
-      }),
-    );
+    guard('frame:hud', () => {
+      const stats = this.hudStats;
+      stats.score = this.scoreValue();
+      stats.sub = this.subValue();
+      stats.maxCombo = session.maxCombo;
+      stats.gauge = session.gauge.value;
+      stats.fever.gauge = session.fever.gauge;
+      stats.fever.active = session.fever.active;
+      stats.fever.multiplier = session.fever.multiplier;
+      stats.fever.remaining = session.fever.remaining(judgeNow);
+      stats.fever.ready = session.fever.ready;
+      stats.pace = this.pace();
+      stats.progress = (songNow - this.runStartMs) / Math.max(1, this.lastNoteEndMs - this.runStartMs);
+      stats.remainingMs = (this.lastNoteEndMs - songNow) / this.rate;
+      // the tempo heard: a slowed practice slows it too
+      stats.bpm = Math.round(this.bpmNow(songNow) * this.rate);
+      // shown where it has a key (or a pad button) to work it
+      stats.skip = this.skipLabel !== null && this.canSkip(songNow);
+      stats.breaks = session.breakCount;
+      stats.fast = session.fastCount;
+      stats.slow = session.slowCount;
+      this.hud.update(perfNow, stats);
+    });
     this.renderer.frameDone(perfNow, this.state, startedAt);
   };
 
@@ -1023,9 +1051,20 @@ export class PlayController {
 
   private subValue(): string {
     const s = this.session;
-    if (rulesetConfigs[this.settings.ruleset].scoring !== 'exscore') return `${(Math.floor(s.currentRate * 100) / 100).toFixed(2)}%`;
-    const ratio = s.exPace > 0 ? s.currentExScore / s.exPace : 1;
-    return `${this.ruleset.rank(ratio)} · ${(ratio * 100).toFixed(1)}%`;
+    const ex = rulesetConfigs[this.settings.ruleset].scoring === 'exscore';
+    // written again only as what it is written from changes (most frames nothing does)
+    const [a, b] = ex ? [s.currentExScore, s.exPace] : [s.currentRate, 0];
+    const from = this.subFrom;
+    if (from[0] === (ex ? 1 : 0) && from[1] === a && from[2] === b) return this.subText;
+    from[0] = ex ? 1 : 0;
+    from[1] = a;
+    from[2] = b;
+    if (!ex) this.subText = `${(Math.floor(a * 100) / 100).toFixed(2)}%`;
+    else {
+      const ratio = b > 0 ? a / b : 1;
+      this.subText = `${this.ruleset.rank(ratio)} · ${(ratio * 100).toFixed(1)}%`;
+    }
+    return this.subText;
   }
 
   /** The score shown less the pacemaker's at this point of the chart (the same unit: base, weighted or EX); null: nothing to compare with. */
