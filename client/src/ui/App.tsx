@@ -6,7 +6,7 @@ import type { ReplayData } from '../engine/replay';
 import { GamepadMenuBridge, RESULT_PAD_KEYS, SELECT_PAD_KEYS, setPadMenuKeys, SHOULDER_KEYS } from '../input/gamepad';
 import type { Chart, StemName } from '../engine/types';
 import { loadSettings, musicLevel, padMenuKeysFor, resetSettings, saveSettings, withEntry, type Settings, type SettingsChange } from '../settings/settings';
-import type { CalibrationStep } from './CalibrationScreen';
+import { CalibrationScreen, type CalibrationStep } from './CalibrationScreen';
 import { newEditorSession, type EditorSession } from './editorSession';
 import type { PlayOutcome } from './PlayController';
 import { PlayScreen } from './PlayScreen';
@@ -18,17 +18,17 @@ import { SongSelectScreen } from './SongSelectScreen';
 import { syncTestRequest } from './syncTestRequest';
 
 /*
- * The screens opened after the first (the result with its graphs, the calibration, the editor) load apart from the
- * app, which starts on the song select without them; each is fetched a moment after the app has shown
- * (PRELOAD_AFTER_MS), so that the first of them opens at once all the same.
+ * The screens reached only after a play or from a song's tools (the result with its graphs, the editor) load apart
+ * from the app, which starts on the song select without them; each is fetched just after the app has shown
+ * (PRELOAD_AFTER_MS), so that the first of them opens at once all the same. The calibration is not one of them: it
+ * is opened from the settings and worked by keys at once (a key pressed before a screen fetched late is there goes
+ * nowhere), and it is small.
  */
 const loadResult = () => import('./ResultScreen');
-const loadCalibration = () => import('./CalibrationScreen');
 const loadEditor = () => import('./EditorScreen');
 const ResultScreen = lazy(() => loadResult().then((m) => ({ default: m.ResultScreen })));
-const CalibrationScreen = lazy(() => loadCalibration().then((m) => ({ default: m.CalibrationScreen })));
 const EditorScreen = lazy(() => loadEditor().then((m) => ({ default: m.EditorScreen })));
-const PRELOAD_AFTER_MS = 1500;
+const PRELOAD_AFTER_MS = 300;
 
 export interface PracticeOptions {
   /** Segment on the song timeline (ms). */
@@ -95,7 +95,7 @@ export function App() {
   // the screens loaded apart, fetched once the app has shown (see loadResult)
   useEffect(() => {
     const id = window.setTimeout(() => {
-      for (const load of [loadResult, loadCalibration, loadEditor]) void load().catch(() => undefined);
+      for (const load of [loadResult, loadEditor]) void load().catch(() => undefined);
     }, PRELOAD_AFTER_MS);
     return () => window.clearTimeout(id);
   }, []);
@@ -249,18 +249,16 @@ export function App() {
       );
     case 'calibration':
       return (
-        <Suspense fallback={null}>
-          <CalibrationScreen
-            settings={settings}
-            onSettingsChange={setSettings}
-            onBack={
-              screen.fromSettings
-                ? () => setScreen({ name: 'settings', tab: 'judge', focus: screen.step === 'visual' ? 'open-visual-calibration-settings' : 'open-calibration-settings' })
-                : toSelect
-            }
-            step={screen.step}
-          />
-        </Suspense>
+        <CalibrationScreen
+          settings={settings}
+          onSettingsChange={setSettings}
+          onBack={
+            screen.fromSettings
+              ? () => setScreen({ name: 'settings', tab: 'judge', focus: screen.step === 'visual' ? 'open-visual-calibration-settings' : 'open-calibration-settings' })
+              : toSelect
+          }
+          step={screen.step}
+        />
       );
     case 'settings':
       return (
