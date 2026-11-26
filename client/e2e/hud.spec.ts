@@ -242,6 +242,17 @@ test('a play\'s start and end on the track: the lanes light, autoplay ends with 
   expect(box && Math.abs(box.x + box.width / 2 - 640)).toBeLessThan(4);
   expect(box && box.y + box.height / 2).toBeGreaterThan(720 * 0.3);
   expect(box && box.y + box.height / 2).toBeLessThan(720 * 0.5);
+  // once its tape has stopped, the keys that go on show faintly under the lamp, and R plays again at once
+  const keys = page.getByTestId('hud-end-keys');
+  await expect(keys).toHaveText(/R\s*다시 하기\s*Enter\s*결과로/);
+  await expect(keys).toHaveClass(/show/);
+  await page.keyboard.press('KeyR');
+  await expect(page.getByTestId('result-screen')).toHaveCount(0);
+  await expect(stage(page)).not.toHaveAttribute('data-stage', 'fail');
+  await expect(stage(page)).not.toHaveClass(/stage-failed/);
+  await expect(keys).not.toHaveClass(/show/);
+  // and fails again
+  await expect(stage(page)).toHaveAttribute('data-stage', 'fail', { timeout: 40_000 });
   // Enter does not wait for the end to play out
   await page.keyboard.press('Enter');
   await expect(page.getByTestId('result-screen')).toBeVisible({ timeout: 1500 });

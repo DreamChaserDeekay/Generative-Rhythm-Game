@@ -52,10 +52,14 @@ interface Props {
 }
 
 /**
- * The result shows itself in two steps: the lamp, the grade and the headline land together, then
- * (REVEAL_MS on) what the play did to the record. Any key or click shows it all at once.
+ * The result shows itself in turn (2026-11-26; together before, the record after 600 ms): the lamp lands,
+ * the headline (score or RATE) counts up from COUNT_FROM_MS over COUNT_MS, the grade lands as it is done
+ * (styles.css: .result-figures.stamp), and REVEAL_MS on what the play did to the record (NEW RECORD). Any
+ * key or click shows it all at once.
  */
-const REVEAL_MS = 600;
+const REVEAL_MS = 700;
+const COUNT_FROM_MS = 120;
+const COUNT_MS = 350;
 /**
  * Until the reveal's time is up (this long at least, without the reveal: reduced motion), the keys
  * that go on or press (Enter, Space, Esc: a pad's A and B), the keys that move the focus or the
@@ -79,6 +83,34 @@ function ownsEnter(target: EventTarget | null): boolean {
 
 const rateText = (v: number) => `${v.toFixed(2)}%`;
 const scoreText = (v: number) => Math.round(v).toLocaleString('en-US');
+
+/**
+ * A figure counting up to `to` while `on`: drawn over it (data-count, styles.css's [data-counting]::after) a
+ * frame at a time, its text (what is read and copied) the figure itself all along.
+ */
+function useCountUp(el: { readonly current: HTMLElement | null }, to: number, format: (v: number) => string, on: boolean): void {
+  useLayoutEffect(() => {
+    const node = el.current;
+    if (!node || !on || !(to > 0)) return;
+    const from = performance.now() + COUNT_FROM_MS;
+    let frame = 0;
+    const tick = (now: number) => {
+      const p = Math.min(1, Math.max(0, (now - from) / COUNT_MS));
+      // eased out: it slows into the figure
+      node.dataset.count = format(to * (1 - (1 - p) ** 3));
+      if (p < 1) frame = requestAnimationFrame(tick);
+      else delete node.dataset.counting;
+    };
+    node.dataset.counting = '';
+    node.dataset.count = format(0);
+    frame = requestAnimationFrame(tick);
+    return () => {
+      cancelAnimationFrame(frame);
+      delete node.dataset.counting;
+      delete node.dataset.count;
+    };
+  }, [on]);
+}
 
 export function ResultScreen({ request, outcome, settings, onSettingsChange, onRetry, onBack, onWatchReplay }: Props) {
   const { result, chart, placement, practice } = outcome;
@@ -276,6 +308,9 @@ export function ResultScreen({ request, outcome, settings, onSettingsChange, onR
   const rateFirst = rules.scoring === 'rate';
   const headlineLabel = rateFirst ? 'RATE' : rules.scoring === 'exscore' ? 'EX-SCORE' : 'SCORE';
   const headlineValue = rateFirst ? rateText(result.rate) : scoreText(headlineOf(rules.scoring, result));
+  // it counts up as the result comes in (not when it shows at once: reduced motion, or a key)
+  const headlineFigure = useRef<HTMLSpanElement>(null);
+  useCountUp(headlineFigure, rateFirst ? result.rate : headlineOf(rules.scoring, result), rateFirst ? rateText : scoreText, !settled);
   const next = nextGrade(result);
   // what the judgements and MAX COMBO count past the notes: a long note's end, its ticks
   const holdEnds = result.judgeable - chart.notes.length;
@@ -533,7 +568,9 @@ export function ResultScreen({ request, outcome, settings, onSettingsChange, onR
                   <div className="result-headline">
                     <span className="label">{headlineLabel}</span>
                     <span className="num" data-testid={rateFirst ? 'result-rate' : 'result-score'}>
-                      {headlineValue}
+                      <span ref={headlineFigure} className="result-count">
+                        {headlineValue}
+                      </span>
                       {rules.scoring === 'exscore' && <small> / {result.exMax.toLocaleString('en-US')}</small>}
                     </span>
                   </div>

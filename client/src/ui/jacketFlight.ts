@@ -47,8 +47,15 @@ export function flyJacket(jacket: HTMLElement, from: Box, rest: readonly HTMLEle
   for (const el of rest) el.animate([{ opacity: 0 }, { opacity: 1 }], timing);
 }
 
-/** How long the start card takes to give way to the play: the jacket onto the song plate's (or into the track), the card's colour into the play's. */
-export const INTO_TRACK_MS = 700;
+/**
+ * How long the start card takes to give way to the play: the jacket onto the song plate's (or into the track)
+ * over INTO_TRACK_MS, the card's colour into the play's over CURTAIN_MS (the lanes start to light as it is
+ * gone: stageFx's INTRO_HEAD_MS), the plate's words coming up from PLATE_WORDS_FROM_MS, as the jacket is nearly
+ * there, so that it never flies over them. (2026-11-26, quicker: 700 ms, the colour from 100 ms on, before.)
+ */
+export const INTO_TRACK_MS = 380;
+export const CURTAIN_MS = 200;
+export const PLATE_WORDS_FROM_MS = 240;
 
 /**
  * The transform, about the jacket's middle, that takes a box at `from` to a point `to` (px) far
@@ -96,11 +103,11 @@ export function flyIntoTrack(card: HTMLElement, to: { x: number; y: number } | n
     return;
   }
   const fade = (el: Element, ms: number, delay = 0) => (el as HTMLElement).animate([{ opacity: 1 }, { opacity: 0 }], { duration: ms, delay, easing: 'ease-out', fill: 'forwards' });
-  for (const el of card.querySelectorAll('.loading-text, .loading-status, .loading-keys')) fade(el, 160);
-  for (const el of card.querySelectorAll('.backdrop')) fade(el, INTO_TRACK_MS - 100, 100);
+  for (const el of card.querySelectorAll('.loading-text, .loading-status, .loading-keys')) fade(el, 120);
+  for (const el of card.querySelectorAll('.backdrop')) fade(el, CURTAIN_MS);
   const ground = getComputedStyle(card).backgroundColor;
   const clear = ground.replace(/^rgba?\(([^,]+),([^,]+),([^,)]+).*$/, 'rgba($1,$2,$3,0)');
-  const melt = card.animate([{ backgroundColor: ground }, { backgroundColor: clear }], { duration: INTO_TRACK_MS - 100, delay: 100, easing: 'ease-in-out', fill: 'forwards' });
+  const melt = card.animate([{ backgroundColor: ground }, { backgroundColor: clear }], { duration: CURTAIN_MS, easing: 'ease-out', fill: 'forwards' });
   let left = 2;
   const one = () => {
     if (--left === 0) done();
@@ -115,6 +122,11 @@ export function flyIntoTrack(card: HTMLElement, to: { x: number; y: number } | n
     jacket.dataset.into = end;
     jacket.dataset.intoHud = '';
     landing.style.visibility = 'hidden';
+    // the plate's words come up only as the jacket is nearly there: it never flies over them
+    const plate = landing.closest('.hud-info');
+    const words = plate ? [...plate.querySelectorAll<HTMLElement>('.hud-name, .hud-tier, .hud-time')] : [];
+    const at = PLATE_WORDS_FROM_MS / INTO_TRACK_MS;
+    for (const el of words) el.animate([{ opacity: 0 }, { opacity: 0, offset: at }, { opacity: 1 }], { duration: INTO_TRACK_MS, easing: 'linear' });
     const flight = jacket.animate(
       [
         { transformOrigin: '0 0', transform: 'none' },
@@ -169,8 +181,8 @@ export function takeLampOrigin(): { rect: DOMRect; lamp: string } | null {
   return left && performance.now() - left.at <= FRESH_MS ? { rect: left.rect, lamp: left.lamp } : null;
 }
 
-/** How long the stamp travels from the play's lamp to its place. */
-export const STAMP_FLIGHT_MS = 520;
+/** How long the stamp travels from the play's lamp to its place (520 until 2026-11-26). */
+export const STAMP_FLIGHT_MS = 380;
 
 /** The transform, about its middle, that draws a box laid out at `to` over `from`, kept in its proportions (its height matched). */
 export function stampTransform(from: Box, to: Box): string {

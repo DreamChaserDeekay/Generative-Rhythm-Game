@@ -3134,6 +3134,33 @@ p.hint {
 .g-break { color: var(--g-break); }
 
 /* a long intro: its key */
+/* the keys that go on from an end (Enter 결과로; on a failed play R 다시 하기 too), faint under the lamp */
+.hud-end-keys {
+  position: absolute;
+  bottom: 9%;
+  left: 50%;
+  display: flex;
+  gap: var(--sp-6);
+  font-size: calc(var(--fs-label) * var(--hud-scale));
+  font-weight: 700;
+  white-space: nowrap;
+  color: var(--text-dim);
+  transform: translateX(-50%);
+  opacity: 0;
+  transition: opacity 0.3s ease-out;
+  pointer-events: none;
+}
+
+.hud-end-keys.show {
+  opacity: 0.7;
+}
+
+.hud-end-keys span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
 .hud-skip {
   position: absolute;
   top: 38%;
@@ -4071,9 +4098,37 @@ p.hint {
   margin-right: 0.5rem;
 }
 
-/* the reveal: the lamp, the grade and the headline land together, then the record shows */
+/* the reveal, in turn: the lamp lands, the headline counts up (from 0.12 s: ResultScreen's useCountUp), the
+   grade lands as it is done (0.47 s), then the record shows (REVEAL_MS); a key shows it all at once */
 .result-outcome .stamp {
-  animation: result-stamp var(--motion-screen) ease-out;
+  animation: result-stamp var(--motion-screen) ease-out both;
+}
+
+.result-figures.stamp {
+  animation: none;
+}
+
+.result-figures.stamp .result-headline {
+  animation: result-stamp var(--motion-screen) ease-out 0.12s both;
+}
+
+.result-figures.stamp .result-grade {
+  animation: result-stamp var(--motion-screen) ease-out 0.47s both;
+}
+
+/* a figure counting up: its own text kept (and read), the count drawn over it */
+.result-count[data-counting] {
+  position: relative;
+  visibility: hidden;
+}
+
+.result-count[data-counting]::after {
+  content: attr(data-count);
+  position: absolute;
+  top: 0;
+  left: 0;
+  visibility: visible;
+  white-space: nowrap;
 }
 
 @keyframes result-stamp {
@@ -4084,7 +4139,9 @@ p.hint {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .result-outcome .stamp {
+  .result-outcome .stamp,
+  .result-figures.stamp .result-headline,
+  .result-figures.stamp .result-grade {
     animation: none;
   }
 }

@@ -385,6 +385,8 @@ export class Hud {
   private readonly gaugeNum: HTMLElement;
   /** The gear's name for the gauge (FEVER, FORTE), standing over its far end. */
   private readonly gaugeName: HTMLElement;
+  /** The keys that go on from an end, faint under its lamp (setEndKeys). */
+  private readonly endKeys: HTMLElement;
   /** The score panel's housing on the track under its lines (a gear's). */
   private readonly panelPlate: HTMLElement;
   private readonly speed: HTMLElement;
@@ -500,6 +502,7 @@ export class Hud {
       </div>
       <div class="hud-toast" data-testid="hud-toast"></div>
       <div class="hud-skip" data-testid="hud-skip"><kbd></kbd> 건너뛰기</div>
+      <div class="hud-end-keys" data-testid="hud-end-keys"></div>
       <div class="hud-lamp-fly" aria-hidden="true"></div>
       <div class="hud-lamp"><i class="hud-lamp-ring"></i><span class="hud-lamp-seal"><i class="hud-lamp-half top"><i class="hud-lamp-mark"></i></i><i class="hud-lamp-half bottom"><i class="hud-lamp-mark"></i></i></span><span class="hud-lamp-sparks"></span><span class="hud-lamp-text"></span><i class="hud-lamp-art"></i></div>`;
     const q = (sel: string) => root.querySelector(sel) as HTMLElement;
@@ -685,6 +688,7 @@ export class Hud {
       this.root.style.setProperty('--end-sparks-frames', String(art.index.sparks.frames));
     });
     this.skip = q('.hud-skip');
+    this.endKeys = q('.hud-end-keys');
     q('.hud-skip kbd').textContent = info.skipKey;
     this.toast = q('.hud-toast');
     this.setCombo(0);
@@ -1177,6 +1181,21 @@ export class Hud {
    * Back to how a play starts (a retry, a practice loop): no combo, judgement, message, banner,
    * and every shown value written again at the next update.
    */
+  /** The keys that go on from an end (R 다시 하기, Enter 결과로), faint under its lamp; none hides them. */
+  setEndKeys(keys: readonly { key: string; label: string }[]): void {
+    const el = this.endKeys;
+    el.replaceChildren(
+      ...keys.map(({ key, label }) => {
+        const item = document.createElement('span');
+        const kbd = document.createElement('kbd');
+        kbd.textContent = key;
+        item.append(kbd, ` ${label}`);
+        return item;
+      }),
+    );
+    el.classList.toggle('show', keys.length > 0);
+  }
+
   reset(): void {
     noteTrail('hud:reset');
     this.comboBump?.cancel();
@@ -1197,6 +1216,7 @@ export class Hud {
       delete eb.el.dataset.meanMs;
     }
     this.hideLamp();
+    this.setEndKeys([]);
     this.lastScore = -1;
     this.lastSub = '';
     this.lastMaxCombo = -1;

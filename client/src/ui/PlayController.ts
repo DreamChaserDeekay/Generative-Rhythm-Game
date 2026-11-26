@@ -36,6 +36,7 @@ import {
   outroFrame,
   planIntro,
   resumeLine,
+  retryLeadIn,
   tapeStopTime,
   type IntroPlan,
   type StageFrame,
@@ -144,33 +145,43 @@ type Pacer = { kind: 'share'; ratio: number } | { kind: 'ghost'; scores: number[
 const MIN_LEAD_IN_MS = 1500;
 const FIRST_NOTE_DELAY_MS = 3000;
 const RESUME_LEAD_IN_MS = 1500;
-const END_AFTER_LAST_NOTE_MS = 1500;
+/** The end begins this long after the last note (1500 until 2026-11-26). */
+const END_AFTER_LAST_NOTE_MS = 850;
 const PRACTICE_END_MS = 900;
 /**
  * An end (real ms from where it begins): the lanes go out and the song goes out muffled over MUFFLE_MS, the
  * lamp shows LAMP_AT_MS in, and the result follows END_MS in. A play that earns no lamp (practice, autoplay)
- * shows its words at once and ends AIDED_END_MS in, as it always did.
+ * shows its words at once and ends AIDED_END_MS in, as it always did. END_KEYS_AT_MS in, the keys that go on
+ * show faintly under the lamp. (2026-11-26, shorter: 480 / 2500 / 1900 before.)
  */
-const LAMP_AT_MS = 480;
-const END_MS = 2500;
+const LAMP_AT_MS = 380;
+const END_MS = 1750;
 const AIDED_END_MS = 1800;
-const MUFFLE_MS = 1900;
+const MUFFLE_MS = 1500;
+const END_KEYS_AT_MS = 500;
 /**
  * A play that fails halfway: the song runs down over TAPE_MS as the notes come to a standstill, FAILED shows
- * FAIL_LAMP_AT_MS in, and the result follows FAIL_END_MS in (the lanes have dropped away by then).
+ * FAIL_LAMP_AT_MS in, and the result follows FAIL_END_MS in (the lanes have dropped away by then). Once the tape
+ * has stopped, R plays again and the skip key goes on to the result at once, and the keys show so.
+ * (2026-11-26, shorter: 1300 / 420 / 2900 before.)
  */
-const TAPE_MS = 1300;
-const FAIL_LAMP_AT_MS = 420;
-const FAIL_END_MS = 2900;
+const TAPE_MS = 950;
+const FAIL_LAMP_AT_MS = 220;
+const FAIL_END_MS = 1850;
+/** A retry's key once a failed play's tape has stopped (as the pause menu's 다시 하기). */
+const FAIL_RETRY_CODE = 'KeyR';
 /** An all-perfect play's end: the hit's effect on each lane in turn across the track and back, this far apart. */
 const WAVE_STEP_MS = 70;
 const WAVE_PASSES = 2;
 /** A start is over for the camera this long after the run began (its spring is at rest long before). */
 const ENTRY_OVER_MS = 6000;
-/** A first note more than this far off (real ms) can be skipped to: up to this long before it, and SKIP_SIGHT_MS before it comes into sight. */
-const SKIP_MIN_MS = 5000;
-const SKIP_LEAD_MS = 2500;
-const SKIP_SIGHT_MS = 1500;
+/**
+ * A first note more than this far off (real ms) can be skipped to: up to this long before it, and SKIP_SIGHT_MS
+ * before it comes into sight. (2026-11-26, shorter intros skipped and landing nearer: 5000 / 2500 / 1500 before.)
+ */
+const SKIP_MIN_MS = 3500;
+const SKIP_LEAD_MS = 1800;
+const SKIP_SIGHT_MS = 1200;
 /** What a press moves SPEED or the song offset (ms) by, per function. */
 const STEPS: Partial<Record<PlayAction, number>> = {
   speedDown: -0.1,
@@ -265,6 +276,10 @@ export class PlayController {
   private resumeUntil = -Infinity;
   /** The song time input opens at again after a pause (null: it is open, or shut for good). */
   private inputOpensAt: number | null = null;
+  /** The run about to begin is a retry (restart): its run-up is shorter, and the camera does not come in. */
+  private retrying = false;
+  /** The keys the end shows now (Hud.setEndKeys; '' none). */
+  private endKeys = '';
   private readonly tempo: TempoMap;
   /**
    * The run's start and end as the track shows them (stageFx; only drawn): the lanes with a floor from the
@@ -508,6 +523,8 @@ export class PlayController {
   restart(): void {
     this.teardownRun();
     this.hud.reset();
+    // a retry comes on quicker: a shorter run-up and no camera's way in (the lanes still light)
+    this.retrying = true;
     this.begin();
     this.callbacks.onPauseChange(false);
     this.pauseIfAway();
@@ -617,7 +634,7 @@ export class PlayController {
       this.engine.start(from, 0);
       this.runStartMs = from;
     } else {
-      this.engine.start(0, Math.max(MIN_LEAD_IN_MS, FIRST_NOTE_DELAY_MS - this.firstNoteMs));
+      this.engine.start(0, this.retrying ? retryLeadIn(this.firstNoteMs) : Math.max(MIN_LEAD_IN_MS, FIRST_NOTE_DELAY_MS - this.firstNoteMs));
       this.runStartMs = 0;
     }
     this.resumeUntil = -Infinity;
@@ -636,13 +653,15 @@ export class PlayController {
     const quiet = this.quietStart || this.still;
     this.quietStart = false;
     this.ending = null;
+    this.endKeys = '';
     this.failedLook(false);
     const lanes = this.renderer.geometry.lanes.length;
     this.runFromMs = this.engine.songTimeAtPerf(performance.now());
     const room = (this.firstInSight - this.runFromMs) / this.rate;
     this.intro = planIntro(quiet ? [] : this.lit, lanes, this.runFromMs, this.firstInSight, this.rate, this.tempo);
     this.introOver = introEnd(this.intro, this.rate);
-    this.entry = quiet ? 0 : this.cameraStrength * entryShare(room);
+    this.entry = quiet || this.retrying ? 0 : this.cameraStrength * entryShare(room);
+    this.retrying = false;
   }
 
   /** A play that failed halfway loses its colour: the track, what is behind it and the HUD but its lamp (styles.css: stage-failed). */
@@ -918,6 +937,7 @@ export class PlayController {
       if (this.state === 'ending' && this.ending) {
         if (!this.ending.shown && perfNow >= this.ending.lampAt) this.showLamp();
         this.wave(perfNow);
+        this.showEndKeys(perfNow);
         if (perfNow >= this.finishAtPerf) this.finish();
       }
     });
@@ -1079,6 +1099,28 @@ export class PlayController {
   }
 
   /**
+   * The keys that go on from an end, faint under its lamp once it has had a moment: the skip key to the result
+   * (END_KEYS_AT_MS in), and on a failed play R to play again as well, once its tape has stopped.
+   */
+  private showEndKeys(perfNow: number): void {
+    const e = this.ending;
+    if (!e) return;
+    const since = perfNow - e.at;
+    const on = this.endRetryOpen(perfNow) ? 'retry' : !e.failed && since >= END_KEYS_AT_MS ? 'result' : '';
+    if (on === this.endKeys) return;
+    this.endKeys = on;
+    const result = this.skipLabel === null ? null : { key: this.skipLabel, label: '결과로' };
+    const keys = on === 'retry' ? [{ key: 'R', label: '다시 하기' }, ...(result ? [result] : [])] : on === 'result' && result ? [result] : [];
+    this.hud.setEndKeys(keys);
+  }
+
+  /** A failed play's end, its tape stopped: R plays again (a retry key of its own, unless a lane takes R). */
+  private endRetryOpen(perfNow: number): boolean {
+    const e = this.ending;
+    return e !== null && e.failed && this.state === 'ending' && perfNow - e.at >= TAPE_MS && !this.boundCodes.has(FAIL_RETRY_CODE);
+  }
+
+  /**
    * The end's lamp in the middle of the screen (Hud.showLamp). A play that ends failed with its gauge short
    * of the line has what is left of the gauge run out; one that failed halfway has its letters break up.
    */
@@ -1227,6 +1269,11 @@ export class PlayController {
    */
   private readonly onControlKey = (e: KeyboardEvent): void => {
     if (this.boundCodes.has(e.code) && !this.setup.request.autoPlay) return;
+    if (e.code === FAIL_RETRY_CODE && !e.ctrlKey && !e.altKey && !e.metaKey && this.endRetryOpen(performance.now())) {
+      e.preventDefault();
+      if (!e.repeat) this.restart();
+      return;
+    }
     if (e.code === 'Escape') {
       e.preventDefault();
       // a held Esc does not pause and resume over and over
