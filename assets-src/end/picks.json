@@ -33,6 +33,40 @@
    2048
   ]
  },
+ "cracks-sheet": {
+  "try": 2,
+  "tries": 2,
+  "model": "gemini-nano-banana-2.1",
+  "aspect": "3:4",
+  "size": "2K",
+  "prompt": "A sprite sheet for a game VFX artist: glass cracking frame by frame, for a PC rhythm game's track. Flat orthographic 2D, seen straight from the front, on pure black (#000000).\n\nLAYOUT: exactly 6 frames in a 3 x 2 grid of equal cells (3 across, 2 down). Each cell is a tall portrait rectangle twice as high as it is wide. Read left to right, top to bottom (frame 1 top-left, frame 6 bottom-right). NO grid lines, NO borders, NO frame numbers, NO text. Every cell shows the same area a moment later. The point of impact sits ON the bottom edge of every cell, in its middle, at the same place in every cell; nothing at all is drawn below it. The cracks fan out upward and sideways from it only, like the upper half of a spider web.\n\nTHE ANIMATION:\n- frame 1: one sharp, bright impact node with short razor-thin ice-white cracks reaching about 25% of the way up;\n- frames 2-3: angular cracks race upward and branch, reaching about 55% and then 80% of the way up;\n- frames 4-5: the cracks reach the cell's left, right and top edges, with hairline fractures between them and a faint pale-cyan and crimson glow along their edges;\n- frame 6: the complete fracture web over the whole cell above the point of impact.\nEach frame keeps every crack of the one before unchanged, in the same place, and adds new ones: frame 4 contains every crack of frame 3 unchanged plus new ones, and so on to frame 6. The cracks only grow.\n\nThin luminous fracture lines only, white-hot cores with a thin soft glow. No glass surface, no shading, no shards, no dust, no reflections, no objects, no text.",
+  "made": "2026-11-26 05:05:17 +0000",
+  "bytes": 4618289,
+  "sha256": "95a234d2b888707b8e2b0a3cd0cb324f5405e3b36279fced2c8bcada8b57f9fe",
+  "usage": {
+   "promptTokenCount": 407,
+   "candidatesTokenCount": 1680,
+   "totalTokenCount": 3728,
+   "trafficType": "ON_DEMAND",
+   "promptTokensDetails": [
+    {
+     "modality": "TEXT",
+     "tokenCount": 407
+    }
+   ],
+   "candidatesTokensDetails": [
+    {
+     "modality": "IMAGE",
+     "tokenCount": 1680
+    }
+   ],
+   "thoughtsTokenCount": 1641
+  },
+  "stored": [
+   1529,
+   2048
+  ]
+ },
  "lane-light": {
   "try": 2,
   "tries": 2,
