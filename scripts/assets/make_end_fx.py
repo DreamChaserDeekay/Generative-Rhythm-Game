@@ -120,7 +120,8 @@ SEALS = {
                  "sides a short horizontal wing groove notched into the segmented ring. COLOUR: white and pale silver (#eef6ff).",
     "seal-exhard": "THE CORE: a DOUBLE octagonal frame (two concentric neon octagons with a black gap) around a glowing filled "
                    "octagon, and four chevrons (V shapes) at its four diagonal corners, each pointing inward at the centre. Not a "
-                   "square frame. COLOUR: gold (#ffe84a).",
+                   "square frame. The segmented outer ring is ONE single ring, the same all the way round: the whole emblem is "
+                   "perfectly symmetric left to right and top to bottom. COLOUR: gold (#ffe84a).",
 }
 
 # ---------- the sheets: an animation frame by frame ----------
